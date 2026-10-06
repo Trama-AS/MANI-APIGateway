@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  gateway:
+    build: .
+    container_name: mani-api-gateway
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    networks:
+      - mani-network
+    depends_on:
+      - core-service
+      - rules-service
+      - dispatch-service
+
+  core-service:
+    image: mani-core-node:local
+    container_name: mani-core-service
+    restart: unless-stopped
+    expose:
+      - "3000"
+    networks:
+      - mani-network
+
+  rules-service:
+    image: mani-rules-java:local
+    container_name: mani-rules-service
+    restart: unless-stopped
+    expose:
+      - "8080"
+    networks:
+      - mani-network
+
+  dispatch-service:
+    image: mani-dispatch-dotnet:local
+    container_name: mani-dispatch-service
+    restart: unless-stopped
+    expose:
+      - "5000"
+    networks:
+      - mani-network
+
+networks:
+  mani-network:
+    driver: bridge
