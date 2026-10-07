@@ -52,8 +52,8 @@ Si estás en una rama donde un compañero agregó una migración (ej. `002_xxx.s
 Si quieres reconstruir la base de datos desde cero aplicando todas las migraciones y datos semilla de prueba:
 
 ```bash
-docker compose down -v
-docker compose up -d
+docker compose --profile db down -v
+docker compose --profile db up -d
 ```
 
 ---

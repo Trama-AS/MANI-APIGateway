@@ -17,7 +17,7 @@ los seeds que dependen de él, en este orden:
 | 1 | `supabase/seed/seed_qa_multitenant.sql` | CFG-04: 2 tenants con admin, cliente, aliado verificado, categoría, sitio, vínculo y cobertura |
 | 2 | `supabase/poc-cfg12/20_seed_identidad.sql` | CFG-12: usuarios sin claims de tenant para probar el hook, y un `documento_kyc` por tenant |
 | 3 | `supabase/poc-cfg13/20_seed_storage.sql` | CFG-13: alinea `documento_kyc.ruta_storage` con ADR-0013 |
-| 4 | `qa/storage/cargar_kyc.mjs` | CFG-13: sube los PDF al bucket `kyc-documentos`, si no están (ver `qa/storage/README.md`) |
+| 4 | `qa/storage/cargar_kyc.mjs` (en **MANI-Flutter**) | CFG-13: sube los PDF al bucket `kyc-documentos`, si no están (ver `qa/storage/README.md` de MANI-Flutter) |
 | 5 | `supabase/seed/verificar_aislamiento.sql` | Verificación de CFG-04: 2 filas con 4 usuarios (3 de CFG-04 y 1 de CFG-12), 1 aliado verificado y 1 categoría activa |
 | 6 | `database/verify/11-normalizacion-dominios.sql` | Verificación de dominios, hook y `kyc_isolation`: 20/20 |
 

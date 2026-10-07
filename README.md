@@ -74,6 +74,42 @@ docker-compose up -d --build
 
 ---
 
+### 5. Base de datos local (perfil `db`)
+```bash
+cp .env.example .env                    # opcional: puertos y credenciales locales
+docker compose --profile db up -d       # PostgreSQL 16 (:5432) + Adminer (http://localhost:8088)
+./scripts/migrate-local.sh              # aplica las migraciones pendientes (Windows: .\scripts\migrate-local.ps1)
+```
+El cliente web se suma con el perfil `web`, después de construir `mani-web:local` en `MANI-Flutter`. Guía completa: [`database/README.md`](database/README.md).
+
+---
+
+## 🗄️ Infraestructura Compartida (CFG-33)
+
+Este repositorio es el dueño de la infraestructura compartida que antes vivía en `MANI-Flutter`. El repositorio `MANI-Infra` previsto en ADR-0004 no existe, y el equipo eligió este repo como destino.
+
+| Ruta | Contenido |
+| :--- | :--- |
+| `database/init/` | Scripts que el contenedor `postgres` ejecuta al crearse (esquema, seeds y funciones) |
+| `database/migrations/` | Migraciones versionadas `NNN_descripcion.sql`, idempotentes e inmutables una vez fusionadas ([convención](database/migrations/README.md)) |
+| `database/verify/` | Verificaciones SQL (aislamiento multi-tenant, categorías del aliado, dominios) |
+| `scripts/` | `migrate-local` y `sync-db-from-qa` (`.sh` y `.ps1`) para la base local |
+| `supabase/` | PoC de CFG-09/10/12/13 y seeds de QA ([guía](supabase/seed/README.md)) |
+
+El `nginx.conf` de `MANI-Flutter` **no** se movió: sirve la SPA dentro de la imagen web del cliente y no es configuración del Gateway.
+
+### Quién ejecuta las migraciones en cada ambiente
+
+| Ambiente | Responsable | Cómo |
+| :--- | :--- | :--- |
+| DEV local | Cada desarrollador | `scripts/migrate-local.*` contra `mani-postgres` |
+| DEV / TEST-QA (Supabase) | DevOps | Aplica `database/migrations/` en orden, después de fusionar el PR. Automatizarlo en el pipeline de este repo queda en CFG-29 |
+| PROD | DevOps, con aprobación del PR de release | Solo migraciones ya validadas en QA (schema-first, `INFRAESTRUCTURA_MANI.md` §15). Nunca cambios manuales al esquema |
+
+> Pendiente de registrar en `MANI-docs` (`INFRAESTRUCTURA_MANI.md` §15 y enmienda de ADR-0004) dentro de la misma tarea CFG-33.
+
+---
+
 ## 🔍 Verificación de Salud (Healthcheck)
 
 ```bash

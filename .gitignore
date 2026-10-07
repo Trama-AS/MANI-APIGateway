@@ -3,3 +3,6 @@ Thumbs.db
 *.log
 .idea/
 .vscode/
+
+# Variables locales (copiar desde .env.example)
+.env

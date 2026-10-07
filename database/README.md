@@ -12,11 +12,11 @@ Este directorio contiene los scripts de inicialización y configuración para le
 
 ## 🚀 Inicio Rápido
 
-Desde la raíz del repositorio (`MANI-Flutter`), ejecuta:
+Desde la raíz del repositorio (`MANI-APIGateway`; antes vivía en `MANI-Flutter`, ver CFG-33), ejecuta:
 
 ```bash
 # Iniciar la base de datos y la interfaz web en segundo plano
-docker compose up -d
+docker compose --profile db up -d
 ```
 
 Docker descargará la imagen oficial de PostgreSQL 16 Alpine, creará el volumen persistente y ejecutará automáticamente los scripts de inicialización en orden:
@@ -64,14 +64,14 @@ docker compose logs -f postgres
 
 ### Detener el servicio (conservando los datos)
 ```bash
-docker compose down
+docker compose --profile db down
 ```
 
 ### Reiniciar y resetear la base de datos desde cero (Clean Slate)
 Si modificas el esquema o quieres restaurar la base de datos a su estado original con los datos semilla:
 ```bash
-docker compose down -v
-docker compose up -d
+docker compose --profile db down -v
+docker compose --profile db up -d
 ```
 *(La bandera `-v` elimina el volumen persistente `mani_postgres_data`, forzando la reejecución de los scripts de `/docker-entrypoint-initdb.d/`)*.
 
@@ -81,7 +81,7 @@ docker compose up -d
 
 Cuando se introducen cambios de base de datos en una rama de desarrollo (nuevas tablas, columnas o índices):
 
-1. **Crear la migración:** Agrega un archivo numerado en [`database/migrations/`](file:///C:/Users/santi/OneDrive/Documentos/MANI-Flutter/database/migrations/) (ej. `002_add_field_to_table.sql`).
+1. **Crear la migración:** Agrega un archivo numerado en [`database/migrations/`](migrations/) (ej. `002_add_field_to_table.sql`).
 2. **Aplicar en local sin perder datos:**
    ```powershell
    # En Windows PowerShell:
