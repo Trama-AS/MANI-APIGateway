@@ -1,0 +1,1615 @@
+{
+  "item": [
+    {
+      "id": "35be5101-e034-4906-a30b-447aea365f2e",
+      "name": "Ally Registration",
+      "description": {
+        "content": "Registro de Aliados persona natural",
+        "type": "text/plain"
+      },
+      "item": [
+        {
+          "id": "f6fc6900-ef9f-4a61-90ad-d478eb3e0712",
+          "name": "Registra un nuevo Aliado persona natural",
+          "request": {
+            "name": "Registra un nuevo Aliado persona natural",
+            "description": {
+              "content": "Crea el usuario y el perfil de Aliado (rol ALLY) en estado PENDING, a la espera de verificación KYC, dentro del tenant resuelto por `X-Tenant-Id`. Acepta `multipart/form-data` porque el registro incluye la subida de documentos KYC (cédula obligatoria, otros opcionales); el campo de cada archivo es su tipo de documento en minúsculas (p. ej. `cedula_ciudadania`). Devuelve tokens de sesión (con el claim `tenant_id` ya embebido) para que el Aliado pueda continuar el flujo de onboarding inmediatamente.\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "auth",
+                "register",
+                "ally"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "disabled": false,
+                "description": "(Required) Id del tenant resuelto por MANI-APIGateway a partir del dominio/app-key de origen. Solo se usa en endpoints pre-autenticación; el Gateway es el único llamador autorizado a fijarlo — un cliente final nunca debe poder establecerlo directamente.\n",
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              },
+              {
+                "disabled": false,
+                "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                "key": "X-Correlation-ID",
+                "value": "string"
+              },
+              {
+                "key": "Content-Type",
+                "value": "multipart/form-data"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "fullName",
+                  "value": "María Fernanda Rojas",
+                  "type": "text",
+                  "description": "(Required) "
+                },
+                {
+                  "key": "email",
+                  "value": "{{allyEmail}}",
+                  "type": "text",
+                  "description": "(Required) "
+                },
+                {
+                  "key": "password",
+                  "value": "{{allyPassword}}",
+                  "type": "text",
+                  "description": "(Required) "
+                },
+                {
+                  "key": "categoriaId",
+                  "value": "cat-1",
+                  "type": "text",
+                  "description": "(Required) Id de categoria_servicio (debe existir y estar ACTIVO en el tenant)."
+                },
+                {
+                  "key": "cedula_ciudadania",
+                  "type": "file",
+                  "contentType": "application/pdf, image/png, image/jpeg",
+                  "description": "(Required) Documento KYC obligatorio (cédula). Al menos un archivo es requerido.",
+                  "src": "fixtures/cedula-fake.pdf"
+                },
+                {
+                  "key": "phone",
+                  "value": "+573001234567",
+                  "type": "text",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "documentType",
+                  "value": "PASSPORT",
+                  "type": "text",
+                  "description": "Tipo de documento de identidad (persona natural). Opcional. (This can only be one of CC,CE,PASSPORT)",
+                  "disabled": true
+                },
+                {
+                  "key": "documentNumber",
+                  "value": "1020304050",
+                  "type": "text",
+                  "description": "Opcional; si se envía, se valida unicidad por tenant.",
+                  "disabled": true
+                },
+                {
+                  "key": "rut_certificado",
+                  "type": "file",
+                  "description": "Documento KYC opcional (RUT/certificado).",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "id": "15f00b34-790e-4f02-a4e0-73be77d254bc",
+              "name": "Aliado registrado",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "auth",
+                    "register",
+                    "ally"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": "(Required) Id del tenant resuelto por MANI-APIGateway a partir del dominio/app-key de origen. Solo se usa en endpoints pre-autenticación; el Gateway es el único llamador autorizado a fijarlo — un cliente final nunca debe poder establecerlo directamente.\n",
+                    "key": "X-Tenant-Id",
+                    "value": "trama-demo"
+                  },
+                  {
+                    "disabled": false,
+                    "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                    "key": "X-Correlation-ID",
+                    "value": "string"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "fullName",
+                      "value": "María Fernanda Rojas",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "email",
+                      "value": "D9Mdhj0XleCC@joqPQxITfILMxSSpXgYXNW.ht",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "password",
+                      "value": "stringstring",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) Id de categoria_servicio (debe existir y estar ACTIVO en el tenant).",
+                        "type": "text/plain"
+                      },
+                      "key": "categoriaId",
+                      "value": "string",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) Documento KYC obligatorio (cédula). Al menos un archivo es requerido.",
+                        "type": "text/plain"
+                      },
+                      "key": "cedula_ciudadania",
+                      "type": "file",
+                      "contentType": "application/pdf, image/png, image/jpeg"
+                    },
+                    {
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "phone",
+                      "value": "+573001234567",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "Tipo de documento de identidad (persona natural). Opcional. (This can only be one of CC,CE,PASSPORT)",
+                        "type": "text/plain"
+                      },
+                      "key": "documentType",
+                      "value": "PASSPORT",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "Opcional; si se envía, se valida unicidad por tenant.",
+                        "type": "text/plain"
+                      },
+                      "key": "documentNumber",
+                      "value": "1020304050",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "Documento KYC opcional (RUT/certificado).",
+                        "type": "text/plain"
+                      },
+                      "key": "rut_certificado",
+                      "type": "file"
+                    }
+                  ]
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"profile\": {\n    \"id\": \"string\",\n    \"tenantId\": \"trama-demo\",\n    \"role\": \"ALLY\",\n    \"fullName\": \"string\",\n    \"status\": \"VERIFIED\"\n  },\n  \"tokens\": {\n    \"accessToken\": \"string\",\n    \"refreshToken\": \"string\",\n    \"expiresIn\": 3600\n  }\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "id": "32cf63ff-fb10-413e-af00-4caec1aa4b8b",
+              "name": "Body inválido (`VALIDATION_ERROR`), tenant inexistente/inactivo (`TENANT_NOT_FOUND`) o categoría inexistente/inactiva (`CATEGORY_NOT_FOUND`)\n",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "auth",
+                    "register",
+                    "ally"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": "(Required) Id del tenant resuelto por MANI-APIGateway a partir del dominio/app-key de origen. Solo se usa en endpoints pre-autenticación; el Gateway es el único llamador autorizado a fijarlo — un cliente final nunca debe poder establecerlo directamente.\n",
+                    "key": "X-Tenant-Id",
+                    "value": "trama-demo"
+                  },
+                  {
+                    "disabled": false,
+                    "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                    "key": "X-Correlation-ID",
+                    "value": "string"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "fullName",
+                      "value": "María Fernanda Rojas",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "email",
+                      "value": "D9Mdhj0XleCC@joqPQxITfILMxSSpXgYXNW.ht",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "password",
+                      "value": "stringstring",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) Id de categoria_servicio (debe existir y estar ACTIVO en el tenant).",
+                        "type": "text/plain"
+                      },
+                      "key": "categoriaId",
+                      "value": "string",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) Documento KYC obligatorio (cédula). Al menos un archivo es requerido.",
+                        "type": "text/plain"
+                      },
+                      "key": "cedula_ciudadania",
+                      "type": "file",
+                      "contentType": "application/pdf, image/png, image/jpeg"
+                    },
+                    {
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "phone",
+                      "value": "+573001234567",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "Tipo de documento de identidad (persona natural). Opcional. (This can only be one of CC,CE,PASSPORT)",
+                        "type": "text/plain"
+                      },
+                      "key": "documentType",
+                      "value": "PASSPORT",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "Opcional; si se envía, se valida unicidad por tenant.",
+                        "type": "text/plain"
+                      },
+                      "key": "documentNumber",
+                      "value": "1020304050",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "Documento KYC opcional (RUT/certificado).",
+                        "type": "text/plain"
+                      },
+                      "key": "rut_certificado",
+                      "type": "file"
+                    }
+                  ]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"DOCUMENT_ALREADY_REGISTERED\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "id": "7f955aa5-14de-4059-839c-2bf138c4cf28",
+              "name": "Ya existe un usuario del tenant con ese email (`EMAIL_ALREADY_REGISTERED`) o, si se envió `documentNumber`, ya existe un aliado con ese número de documento (`DOCUMENT_ALREADY_REGISTERED`)\n",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "auth",
+                    "register",
+                    "ally"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": "(Required) Id del tenant resuelto por MANI-APIGateway a partir del dominio/app-key de origen. Solo se usa en endpoints pre-autenticación; el Gateway es el único llamador autorizado a fijarlo — un cliente final nunca debe poder establecerlo directamente.\n",
+                    "key": "X-Tenant-Id",
+                    "value": "trama-demo"
+                  },
+                  {
+                    "disabled": false,
+                    "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                    "key": "X-Correlation-ID",
+                    "value": "string"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "fullName",
+                      "value": "María Fernanda Rojas",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "email",
+                      "value": "D9Mdhj0XleCC@joqPQxITfILMxSSpXgYXNW.ht",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "password",
+                      "value": "stringstring",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) Id de categoria_servicio (debe existir y estar ACTIVO en el tenant).",
+                        "type": "text/plain"
+                      },
+                      "key": "categoriaId",
+                      "value": "string",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) Documento KYC obligatorio (cédula). Al menos un archivo es requerido.",
+                        "type": "text/plain"
+                      },
+                      "key": "cedula_ciudadania",
+                      "type": "file",
+                      "contentType": "application/pdf, image/png, image/jpeg"
+                    },
+                    {
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "phone",
+                      "value": "+573001234567",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "Tipo de documento de identidad (persona natural). Opcional. (This can only be one of CC,CE,PASSPORT)",
+                        "type": "text/plain"
+                      },
+                      "key": "documentType",
+                      "value": "PASSPORT",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "Opcional; si se envía, se valida unicidad por tenant.",
+                        "type": "text/plain"
+                      },
+                      "key": "documentNumber",
+                      "value": "1020304050",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "Documento KYC opcional (RUT/certificado).",
+                        "type": "text/plain"
+                      },
+                      "key": "rut_certificado",
+                      "type": "file"
+                    }
+                  ]
+                }
+              },
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"DOCUMENT_ALREADY_REGISTERED\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "id": "eb8f98d2-d711-4ffe-b01e-abc89b2ec68d",
+              "name": "Error interno del servicio (`INTERNAL_ERROR`)",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "auth",
+                    "register",
+                    "ally"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": "(Required) Id del tenant resuelto por MANI-APIGateway a partir del dominio/app-key de origen. Solo se usa en endpoints pre-autenticación; el Gateway es el único llamador autorizado a fijarlo — un cliente final nunca debe poder establecerlo directamente.\n",
+                    "key": "X-Tenant-Id",
+                    "value": "trama-demo"
+                  },
+                  {
+                    "disabled": false,
+                    "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                    "key": "X-Correlation-ID",
+                    "value": "string"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "fullName",
+                      "value": "María Fernanda Rojas",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "email",
+                      "value": "D9Mdhj0XleCC@joqPQxITfILMxSSpXgYXNW.ht",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "password",
+                      "value": "stringstring",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) Id de categoria_servicio (debe existir y estar ACTIVO en el tenant).",
+                        "type": "text/plain"
+                      },
+                      "key": "categoriaId",
+                      "value": "string",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) Documento KYC obligatorio (cédula). Al menos un archivo es requerido.",
+                        "type": "text/plain"
+                      },
+                      "key": "cedula_ciudadania",
+                      "type": "file",
+                      "contentType": "application/pdf, image/png, image/jpeg"
+                    },
+                    {
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "phone",
+                      "value": "+573001234567",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "Tipo de documento de identidad (persona natural). Opcional. (This can only be one of CC,CE,PASSPORT)",
+                        "type": "text/plain"
+                      },
+                      "key": "documentType",
+                      "value": "PASSPORT",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "Opcional; si se envía, se valida unicidad por tenant.",
+                        "type": "text/plain"
+                      },
+                      "key": "documentNumber",
+                      "value": "1020304050",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "Documento KYC opcional (RUT/certificado).",
+                        "type": "text/plain"
+                      },
+                      "key": "rut_certificado",
+                      "type": "file"
+                    }
+                  ]
+                }
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"DOCUMENT_ALREADY_REGISTERED\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Email único por corrida para no chocar con EMAIL_ALREADY_REGISTERED",
+                  "pm.collectionVariables.set('allyEmail', `aliado.${Date.now()}@mani.test`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "function decodeJwtPayload(token) {",
+                  "  try {",
+                  "    const payload = token.split('.')[1];",
+                  "    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');",
+                  "    const padded = base64 + '==='.slice((base64.length + 3) % 4);",
+                  "    return JSON.parse(atob(padded));",
+                  "  } catch (e) {",
+                  "    return null;",
+                  "  }",
+                  "}",
+                  "function tenantIdFromClaims(claims) {",
+                  "  return claims && (claims.app_metadata ? claims.app_metadata.tenant_id : claims.tenant_id);",
+                  "}",
+                  "",
+                  "pm.test('responde 201 Created', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('el body cumple el esquema RegisterAllyResponse', function () {",
+                  "  pm.response.to.have.jsonSchema({\"type\":\"object\",\"required\":[\"profile\",\"tokens\"],\"properties\":{\"profile\":{\"type\":\"object\",\"required\":[\"id\",\"tenantId\",\"role\",\"fullName\",\"status\"],\"properties\":{\"id\":{\"type\":\"string\"},\"tenantId\":{\"type\":\"string\"},\"role\":{\"type\":\"string\",\"enum\":[\"CLIENT\",\"ALLY\",\"ADMIN\"]},\"fullName\":{\"type\":\"string\"},\"status\":{\"type\":\"string\",\"enum\":[\"VERIFIED\",\"PENDING\",\"REJECTED\"]}}},\"tokens\":{\"type\":\"object\",\"required\":[\"accessToken\",\"refreshToken\",\"expiresIn\"],\"properties\":{\"accessToken\":{\"type\":\"string\"},\"refreshToken\":{\"type\":\"string\"},\"expiresIn\":{\"type\":\"integer\"}}}}});",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "  const body = pm.response.json();",
+                  "",
+                  "  pm.test('el aliado queda en rol ALLY y estado PENDING', function () {",
+                  "    pm.expect(body.profile.role).to.eql('ALLY');",
+                  "    pm.expect(body.profile.status).to.eql('PENDING');",
+                  "  });",
+                  "",
+                  "  pm.test('propagación del claim de tenant: profile.tenantId === X-Tenant-Id enviado', function () {",
+                  "    pm.expect(body.profile.tenantId).to.eql(pm.collectionVariables.get('tenantId'));",
+                  "  });",
+                  "",
+                  "  pm.test('propagación del claim de tenant: tenant_id del accessToken === X-Tenant-Id enviado', function () {",
+                  "    const claims = decodeJwtPayload(body.tokens.accessToken);",
+                  "    pm.expect(claims, 'accessToken debe ser un JWT decodificable').to.not.equal(null);",
+                  "    pm.expect(tenantIdFromClaims(claims)).to.eql(pm.collectionVariables.get('tenantId'));",
+                  "  });",
+                  "",
+                  "  pm.collectionVariables.set('accessToken', body.tokens.accessToken);",
+                  "  pm.collectionVariables.set('refreshToken', body.tokens.refreshToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        }
+      ],
+      "event": []
+    },
+    {
+      "id": "84fad878-0d9a-4fae-9586-3c345f5a6260",
+      "name": "Auth",
+      "description": {
+        "content": "Autenticación e identidad de usuarios (Clientes, Aliados, Admins)",
+        "type": "text/plain"
+      },
+      "item": [
+        {
+          "id": "4aebd510-8146-44e0-b4bf-3f10102ef2f6",
+          "name": "Inicia sesión y obtiene tokens de acceso",
+          "request": {
+            "name": "Inicia sesión y obtiene tokens de acceso",
+            "description": {
+              "content": "Autentica un usuario (CLIENT, ALLY o ADMIN) dentro del tenant resuelto por `X-Tenant-Id` y devuelve un `accessToken`/`refreshToken` con el claim `tenant_id` embebido.\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "auth",
+                "login"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "disabled": false,
+                "description": "(Required) Id del tenant resuelto por MANI-APIGateway a partir del dominio/app-key de origen. Solo se usa en endpoints pre-autenticación; el Gateway es el único llamador autorizado a fijarlo — un cliente final nunca debe poder establecerlo directamente.\n",
+                "key": "X-Tenant-Id",
+                "value": "{{tenantId}}"
+              },
+              {
+                "disabled": false,
+                "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                "key": "X-Correlation-ID",
+                "value": "string"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{allyEmail}}\",\n  \"password\": \"{{allyPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "id": "e78fdd28-c19a-4be8-a63c-9b6e5f5e55c9",
+              "name": "Credenciales válidas, sesión iniciada",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "auth",
+                    "login"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": "(Required) Id del tenant resuelto por MANI-APIGateway a partir del dominio/app-key de origen. Solo se usa en endpoints pre-autenticación; el Gateway es el único llamador autorizado a fijarlo — un cliente final nunca debe poder establecerlo directamente.\n",
+                    "key": "X-Tenant-Id",
+                    "value": "trama-demo"
+                  },
+                  {
+                    "disabled": false,
+                    "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                    "key": "X-Correlation-ID",
+                    "value": "string"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"lnQTckkv4T-Y@zlOxSMMDRqdnhmxmv.tdf\",\n  \"password\": \"stringstring\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"profile\": {\n    \"id\": \"string\",\n    \"tenantId\": \"trama-demo\",\n    \"role\": \"ALLY\",\n    \"fullName\": \"string\",\n    \"status\": \"VERIFIED\"\n  },\n  \"tokens\": {\n    \"accessToken\": \"string\",\n    \"refreshToken\": \"string\",\n    \"expiresIn\": 3600\n  }\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "id": "4f4f5ed3-2e0d-4fea-99f4-8ce97aad0d2c",
+              "name": "Body inválido (`VALIDATION_ERROR`) o tenant inexistente/inactivo (`TENANT_NOT_FOUND`)\n",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "auth",
+                    "login"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": "(Required) Id del tenant resuelto por MANI-APIGateway a partir del dominio/app-key de origen. Solo se usa en endpoints pre-autenticación; el Gateway es el único llamador autorizado a fijarlo — un cliente final nunca debe poder establecerlo directamente.\n",
+                    "key": "X-Tenant-Id",
+                    "value": "trama-demo"
+                  },
+                  {
+                    "disabled": false,
+                    "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                    "key": "X-Correlation-ID",
+                    "value": "string"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"lnQTckkv4T-Y@zlOxSMMDRqdnhmxmv.tdf\",\n  \"password\": \"stringstring\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"DOCUMENT_ALREADY_REGISTERED\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "id": "5e4d5500-7ff5-47d8-85f3-3a02ba86339b",
+              "name": "Credenciales incorrectas (`INVALID_CREDENTIALS`)",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "auth",
+                    "login"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": "(Required) Id del tenant resuelto por MANI-APIGateway a partir del dominio/app-key de origen. Solo se usa en endpoints pre-autenticación; el Gateway es el único llamador autorizado a fijarlo — un cliente final nunca debe poder establecerlo directamente.\n",
+                    "key": "X-Tenant-Id",
+                    "value": "trama-demo"
+                  },
+                  {
+                    "disabled": false,
+                    "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                    "key": "X-Correlation-ID",
+                    "value": "string"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"lnQTckkv4T-Y@zlOxSMMDRqdnhmxmv.tdf\",\n  \"password\": \"stringstring\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"DOCUMENT_ALREADY_REGISTERED\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "id": "85e7f853-684b-48a2-8ebb-3056eda44cd2",
+              "name": "Error interno del servicio (`INTERNAL_ERROR`)",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "auth",
+                    "login"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": "(Required) Id del tenant resuelto por MANI-APIGateway a partir del dominio/app-key de origen. Solo se usa en endpoints pre-autenticación; el Gateway es el único llamador autorizado a fijarlo — un cliente final nunca debe poder establecerlo directamente.\n",
+                    "key": "X-Tenant-Id",
+                    "value": "trama-demo"
+                  },
+                  {
+                    "disabled": false,
+                    "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                    "key": "X-Correlation-ID",
+                    "value": "string"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"lnQTckkv4T-Y@zlOxSMMDRqdnhmxmv.tdf\",\n  \"password\": \"stringstring\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"DOCUMENT_ALREADY_REGISTERED\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "function decodeJwtPayload(token) {",
+                  "  try {",
+                  "    const payload = token.split('.')[1];",
+                  "    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');",
+                  "    const padded = base64 + '==='.slice((base64.length + 3) % 4);",
+                  "    return JSON.parse(atob(padded));",
+                  "  } catch (e) {",
+                  "    return null;",
+                  "  }",
+                  "}",
+                  "function tenantIdFromClaims(claims) {",
+                  "  return claims && (claims.app_metadata ? claims.app_metadata.tenant_id : claims.tenant_id);",
+                  "}",
+                  "",
+                  "pm.test('responde 200 OK', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('el body cumple el esquema LoginResponse', function () {",
+                  "  pm.response.to.have.jsonSchema({\"type\":\"object\",\"required\":[\"profile\",\"tokens\"],\"properties\":{\"profile\":{\"type\":\"object\",\"required\":[\"id\",\"tenantId\",\"role\",\"fullName\",\"status\"],\"properties\":{\"id\":{\"type\":\"string\"},\"tenantId\":{\"type\":\"string\"},\"role\":{\"type\":\"string\",\"enum\":[\"CLIENT\",\"ALLY\",\"ADMIN\"]},\"fullName\":{\"type\":\"string\"},\"status\":{\"type\":\"string\",\"enum\":[\"VERIFIED\",\"PENDING\",\"REJECTED\"]}}},\"tokens\":{\"type\":\"object\",\"required\":[\"accessToken\",\"refreshToken\",\"expiresIn\"],\"properties\":{\"accessToken\":{\"type\":\"string\"},\"refreshToken\":{\"type\":\"string\"},\"expiresIn\":{\"type\":\"integer\"}}}}});",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "",
+                  "  pm.test('propagación del claim de tenant: profile.tenantId === X-Tenant-Id enviado', function () {",
+                  "    pm.expect(body.profile.tenantId).to.eql(pm.collectionVariables.get('tenantId'));",
+                  "  });",
+                  "",
+                  "  pm.test('propagación del claim de tenant: tenant_id del accessToken === X-Tenant-Id enviado', function () {",
+                  "    const claims = decodeJwtPayload(body.tokens.accessToken);",
+                  "    pm.expect(claims, 'accessToken debe ser un JWT decodificable').to.not.equal(null);",
+                  "    pm.expect(tenantIdFromClaims(claims)).to.eql(pm.collectionVariables.get('tenantId'));",
+                  "  });",
+                  "",
+                  "  pm.collectionVariables.set('accessToken', body.tokens.accessToken);",
+                  "  pm.collectionVariables.set('refreshToken', body.tokens.refreshToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        },
+        {
+          "id": "acaff46a-b5d0-4a9a-89c4-90e7ead21247",
+          "name": "Renueva el accessToken a partir de un refreshToken vigente",
+          "request": {
+            "name": "Renueva el accessToken a partir de un refreshToken vigente",
+            "description": {
+              "content": "El tenant del nuevo accessToken se conserva del claim `tenant_id` del refreshToken original; este endpoint no acepta `X-Tenant-Id`.\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "auth",
+                "refresh"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "disabled": false,
+                "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                "key": "X-Correlation-ID",
+                "value": "string"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "id": "a9da62fc-9416-4b6f-b89b-28de49c0d36d",
+              "name": "Token renovado",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "auth",
+                    "refresh"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                    "key": "X-Correlation-ID",
+                    "value": "string"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"refreshToken\": \"string\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"accessToken\": \"string\",\n  \"expiresIn\": 3600\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "id": "b34103fa-556d-41f4-8ccb-6b4348faa955",
+              "name": "Body inválido (`VALIDATION_ERROR`)",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "auth",
+                    "refresh"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                    "key": "X-Correlation-ID",
+                    "value": "string"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"refreshToken\": \"string\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"DOCUMENT_ALREADY_REGISTERED\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "id": "bb38f965-8dd6-406e-8e10-0e88e5a4215c",
+              "name": "refreshToken inválido o expirado (`TOKEN_INVALID` / `TOKEN_EXPIRED`)",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "auth",
+                    "refresh"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                    "key": "X-Correlation-ID",
+                    "value": "string"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"refreshToken\": \"string\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"DOCUMENT_ALREADY_REGISTERED\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "id": "df504025-45cd-495d-9fc7-640d4dce04fe",
+              "name": "Error interno del servicio (`INTERNAL_ERROR`)",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "auth",
+                    "refresh"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                    "key": "X-Correlation-ID",
+                    "value": "string"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"refreshToken\": \"string\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"DOCUMENT_ALREADY_REGISTERED\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "function decodeJwtPayload(token) {",
+                  "  try {",
+                  "    const payload = token.split('.')[1];",
+                  "    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');",
+                  "    const padded = base64 + '==='.slice((base64.length + 3) % 4);",
+                  "    return JSON.parse(atob(padded));",
+                  "  } catch (e) {",
+                  "    return null;",
+                  "  }",
+                  "}",
+                  "function tenantIdFromClaims(claims) {",
+                  "  return claims && (claims.app_metadata ? claims.app_metadata.tenant_id : claims.tenant_id);",
+                  "}",
+                  "",
+                  "pm.test('responde 200 OK', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('el body cumple el esquema RefreshResponse', function () {",
+                  "  pm.response.to.have.jsonSchema({\"type\":\"object\",\"required\":[\"accessToken\",\"expiresIn\"],\"properties\":{\"accessToken\":{\"type\":\"string\"},\"expiresIn\":{\"type\":\"integer\"}}});",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "",
+                  "  pm.test('propagación del claim de tenant: el refresh preserva tenant_id del token original', function () {",
+                  "    const claims = decodeJwtPayload(body.accessToken);",
+                  "    pm.expect(claims, 'accessToken debe ser un JWT decodificable').to.not.equal(null);",
+                  "    pm.expect(tenantIdFromClaims(claims)).to.eql(pm.collectionVariables.get('tenantId'));",
+                  "  });",
+                  "",
+                  "  pm.collectionVariables.set('accessToken', body.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        },
+        {
+          "id": "439da7a2-0918-4c7a-b772-cdc5d6ceb1a4",
+          "name": "Cierra la sesión actual e invalida el refreshToken asociado",
+          "request": {
+            "name": "Cierra la sesión actual e invalida el refreshToken asociado",
+            "description": {
+              "content": "El tenant se deriva del claim `tenant_id` del accessToken; no acepta `X-Tenant-Id`.",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "auth",
+                "logout"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "disabled": false,
+                "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                "key": "X-Correlation-ID",
+                "value": "string"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "id": "552b5b98-ae9c-45c2-b5d3-893d7cc48062",
+              "name": "Sesión cerrada correctamente",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "auth",
+                    "logout"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                    "key": "X-Correlation-ID",
+                    "value": "string"
+                  }
+                ],
+                "method": "POST",
+                "body": {}
+              },
+              "status": "No Content",
+              "code": 204,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "text/plain"
+                }
+              ],
+              "body": "",
+              "cookie": [],
+              "_postman_previewlanguage": "text"
+            },
+            {
+              "id": "95d4bb9d-4cbd-4701-addd-74ae5ad340df",
+              "name": "accessToken ausente, inválido o expirado (`UNAUTHORIZED` / `TOKEN_INVALID` / `TOKEN_EXPIRED`)",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "auth",
+                    "logout"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                    "key": "X-Correlation-ID",
+                    "value": "string"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "body": {}
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"DOCUMENT_ALREADY_REGISTERED\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "id": "4fcd35a8-b9a4-40b7-932c-955496856ee9",
+              "name": "Error interno del servicio (`INTERNAL_ERROR`)",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "auth",
+                    "logout"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                    "key": "X-Correlation-ID",
+                    "value": "string"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "body": {}
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"DOCUMENT_ALREADY_REGISTERED\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "function decodeJwtPayload(token) {",
+                  "  try {",
+                  "    const payload = token.split('.')[1];",
+                  "    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');",
+                  "    const padded = base64 + '==='.slice((base64.length + 3) % 4);",
+                  "    return JSON.parse(atob(padded));",
+                  "  } catch (e) {",
+                  "    return null;",
+                  "  }",
+                  "}",
+                  "function tenantIdFromClaims(claims) {",
+                  "  return claims && (claims.app_metadata ? claims.app_metadata.tenant_id : claims.tenant_id);",
+                  "}",
+                  "",
+                  "pm.test('responde 204 No Content', function () {",
+                  "  pm.response.to.have.status(204);",
+                  "});",
+                  "",
+                  "pm.test('el body de 204 viene vacío', function () {",
+                  "  pm.expect(pm.response.text()).to.have.lengthOf(0);",
+                  "});",
+                  "",
+                  "pm.test('propagación del claim de tenant: el accessToken usado pertenecía al tenant de la sesión', function () {",
+                  "  const claims = decodeJwtPayload(pm.collectionVariables.get('accessToken'));",
+                  "  pm.expect(claims, 'accessToken debe ser un JWT decodificable').to.not.equal(null);",
+                  "  pm.expect(tenantIdFromClaims(claims)).to.eql(pm.collectionVariables.get('tenantId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        }
+      ],
+      "event": []
+    }
+  ],
+  "event": [],
+  "variable": [
+    {
+      "type": "string",
+      "value": "https://api.mani.app/api/v1/core",
+      "key": "baseUrl"
+    },
+    {
+      "key": "tenantId",
+      "value": "trama-demo",
+      "type": "string"
+    },
+    {
+      "key": "allyEmail",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "allyPassword",
+      "value": "Cambiar123!",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "info": {
+    "_postman_id": "446659f7-37c7-42e8-a9a9-9d29e4466684",
+    "name": "MANI-APIGateway — Identidad y Registro de Aliado (Core)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": {
+      "content": "Contrato OpenAPI entre MANI-APIGateway y MANI-Node (Core) para el dominio de identidad: autenticación y registro de aliado persona natural. Vive en este repositorio (CFG-16) porque el Gateway es el límite público del contrato; MANI-Node lo implementa pero no lo posee.\n\n## Propagación del claim de tenant\nMANI es multi-tenant: cada petición debe resolverse en el contexto de un tenant (organización) específico, y el Core nunca puede confiar en un valor de tenant que un cliente final pueda falsificar.\n1. **Pre-autenticación** (`POST /auth/login`, `POST /auth/register/ally`):\n   el llamador todavía no tiene un JWT. El tenant se identifica con el\n   header `X-Tenant-Id`, que **únicamente MANI-APIGateway** debe fijar\n   (resuelto a partir del dominio/app-key de origen de la petición). El\n   Core responde `400 TENANT_NOT_FOUND` si el tenant no existe o está\n   inactivo.\n2. **Emisión del claim**: si el login o el registro son exitosos, Supabase\n   Auth emite un `accessToken` (JWT) cuyo payload incluye, bajo\n   `app_metadata`, el claim `tenant_id` con el id del tenant resuelto en\n   el paso anterior (ver `TokenClaims`; el Custom Access Token Hook de\n   Supabase, CFG-12, es quien lo puebla). Ese mismo id se refleja en\n   `ProfileSummary.tenantId` en la respuesta.\n3. **Post-autenticación** (`POST /auth/refresh`, `POST /auth/logout`, y\n   en general cualquier endpoint protegido con `bearerAuth`): el tenant\n   se deriva **exclusivamente** del claim dentro del JWT ya verificado.\n   El Core ignora cualquier header `X-Tenant-Id` enviado en estas\n   llamadas — aceptarlo permitiría a un cliente autenticado en el tenant\n   A leer/escribir datos del tenant B con solo cambiar un header.\n\nEsta regla (tenant por header solo pre-auth; tenant por claim de JWT ya autenticado) es la que deben implementar tanto el Gateway como el Core.\n",
+      "type": "text/plain"
+    }
+  }
+}
