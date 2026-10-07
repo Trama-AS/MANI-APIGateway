@@ -118,7 +118,9 @@ function testScript(exec) {
  */
 function wireUpIdentityFlow(collection) {
   collection.variable.push(
-    { key: 'tenantId', value: 'trama-demo', type: 'string' },
+    { key: 'tenantSlug', value: 'plomeria-express', type: 'string' },
+    { key: 'expectedTenantId', value: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', type: 'string' },
+    { key: 'tenantId', value: 'plomeria-express', type: 'string' },
     { key: 'allyEmail', value: '', type: 'string' },
     { key: 'allyPassword', value: 'Cambiar123!', type: 'string' },
     { key: 'accessToken', value: '', type: 'string' },
@@ -133,7 +135,7 @@ function wireUpIdentityFlow(collection) {
 
   // --- POST /auth/register/ally (multipart/form-data) ---
   const register = findItemByPath(collection, ['auth', 'register', 'ally']);
-  setHeaderValue(register.request.header, 'X-Tenant-Slug', '{{tenantId}}');
+  setHeaderValue(register.request.header, 'X-Tenant-Slug', '{{tenantSlug}}');
   setFormDataValue(register.request.body, 'fullName', 'María Fernanda Rojas');
   setFormDataValue(register.request.body, 'email', '{{allyEmail}}');
   setFormDataValue(register.request.body, 'password', '{{allyPassword}}');
@@ -175,14 +177,16 @@ function wireUpIdentityFlow(collection) {
       "    pm.expect(body.profile.status).to.eql('PENDING');",
       '  });',
       '',
-      "  pm.test('propagación del claim de tenant: profile.tenantId === X-Tenant-Id enviado', function () {",
-      "    pm.expect(body.profile.tenantId).to.eql(pm.collectionVariables.get('tenantId'));",
+      "  pm.test('propagación del claim de tenant: profile.tenantId resuelto desde el slug coincide con expectedTenantId', function () {",
+      "    const expectedId = pm.environment.get('expectedTenantId') || pm.collectionVariables.get('expectedTenantId');",
+      "    pm.expect(body.profile.tenantId).to.eql(expectedId);",
       '  });',
       '',
-      "  pm.test('propagación del claim de tenant: tenant_id del accessToken === X-Tenant-Id enviado', function () {",
+      "  pm.test('propagación del claim de tenant: tenant_id del accessToken coincide con expectedTenantId', function () {",
       '    const claims = decodeJwtPayload(body.tokens.accessToken);',
       "    pm.expect(claims, 'accessToken debe ser un JWT decodificable').to.not.equal(null);",
-      "    pm.expect(tenantIdFromClaims(claims)).to.eql(pm.collectionVariables.get('tenantId'));",
+      "    const expectedId = pm.environment.get('expectedTenantId') || pm.collectionVariables.get('expectedTenantId');",
+      "    pm.expect(tenantIdFromClaims(claims)).to.eql(expectedId);",
       '  });',
       '',
       "  pm.collectionVariables.set('accessToken', body.tokens.accessToken);",
@@ -193,7 +197,7 @@ function wireUpIdentityFlow(collection) {
 
   // --- POST /auth/login ---
   const login = findItemByPath(collection, ['auth', 'login']);
-  setHeaderValue(login.request.header, 'X-Tenant-Slug', '{{tenantId}}');
+  setHeaderValue(login.request.header, 'X-Tenant-Slug', '{{tenantSlug}}');
   login.request.body.raw = JSON.stringify({ email: '{{allyEmail}}', password: '{{allyPassword}}' }, null, 2);
   login.event.push(
     testScript([
@@ -210,14 +214,16 @@ function wireUpIdentityFlow(collection) {
       'if (pm.response.code === 200) {',
       '  const body = pm.response.json();',
       '',
-      "  pm.test('propagación del claim de tenant: profile.tenantId === X-Tenant-Id enviado', function () {",
-      "    pm.expect(body.profile.tenantId).to.eql(pm.collectionVariables.get('tenantId'));",
+      "  pm.test('propagación del claim de tenant: profile.tenantId coincide con expectedTenantId', function () {",
+      "    const expectedId = pm.environment.get('expectedTenantId') || pm.collectionVariables.get('expectedTenantId');",
+      "    pm.expect(body.profile.tenantId).to.eql(expectedId);",
       '  });',
       '',
-      "  pm.test('propagación del claim de tenant: tenant_id del accessToken === X-Tenant-Id enviado', function () {",
+      "  pm.test('propagación del claim de tenant: tenant_id del accessToken coincide con expectedTenantId', function () {",
       '    const claims = decodeJwtPayload(body.tokens.accessToken);',
       "    pm.expect(claims, 'accessToken debe ser un JWT decodificable').to.not.equal(null);",
-      "    pm.expect(tenantIdFromClaims(claims)).to.eql(pm.collectionVariables.get('tenantId'));",
+      "    const expectedId = pm.environment.get('expectedTenantId') || pm.collectionVariables.get('expectedTenantId');",
+      "    pm.expect(tenantIdFromClaims(claims)).to.eql(expectedId);",
       '  });',
       '',
       "  pm.collectionVariables.set('accessToken', body.tokens.accessToken);",
@@ -247,7 +253,8 @@ function wireUpIdentityFlow(collection) {
       "  pm.test('propagación del claim de tenant: el refresh preserva tenant_id del token original', function () {",
       '    const claims = decodeJwtPayload(body.accessToken);',
       "    pm.expect(claims, 'accessToken debe ser un JWT decodificable').to.not.equal(null);",
-      "    pm.expect(tenantIdFromClaims(claims)).to.eql(pm.collectionVariables.get('tenantId'));",
+      "    const expectedId = pm.environment.get('expectedTenantId') || pm.collectionVariables.get('expectedTenantId');",
+      "    pm.expect(tenantIdFromClaims(claims)).to.eql(expectedId);",
       '  });',
       '',
       "  pm.collectionVariables.set('accessToken', body.accessToken);",
@@ -273,7 +280,8 @@ function wireUpIdentityFlow(collection) {
       "pm.test('propagación del claim de tenant: el accessToken usado pertenecía al tenant de la sesión', function () {",
       "  const claims = decodeJwtPayload(pm.collectionVariables.get('accessToken'));",
       "  pm.expect(claims, 'accessToken debe ser un JWT decodificable').to.not.equal(null);",
-      "  pm.expect(tenantIdFromClaims(claims)).to.eql(pm.collectionVariables.get('tenantId'));",
+      "  const expectedId = pm.environment.get('expectedTenantId') || pm.collectionVariables.get('expectedTenantId');",
+      "  pm.expect(tenantIdFromClaims(claims)).to.eql(expectedId);",
       '});',
     ])
   );

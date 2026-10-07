@@ -159,7 +159,7 @@ paths:
       description: >
         Crea el usuario y el perfil de Aliado (rol ALLY) en estado PENDING,
         a la espera de verificación KYC, dentro del tenant resuelto por
-        `X-Tenant-Id`. Acepta `multipart/form-data` porque el registro
+        `X-Tenant-Slug` (ADR-0018). Acepta `multipart/form-data` porque el registro
         incluye la subida de documentos KYC (cédula obligatoria, otros
         opcionales); el campo de cada archivo es su tipo de documento en
         minúsculas (p. ej. `cedula_ciudadania`). Devuelve tokens de sesión
@@ -226,16 +226,7 @@ components:
         para resolver la organización sin confiar en IDs internos.
       schema:
         type: string
-        example: trama-demo
-    XTenantId:
-      name: X-Tenant-Id
-      in: header
-      required: false
-      description: >
-        Encabezado interno alternativo para resolución de tenant por ID.
-      schema:
-        type: string
-        example: trama-demo
+        example: plomeria-express
     XCorrelationId:
       name: X-Correlation-ID
       in: header

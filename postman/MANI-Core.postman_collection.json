@@ -14,7 +14,7 @@
           "request": {
             "name": "Registra un nuevo Aliado persona natural",
             "description": {
-              "content": "Crea el usuario y el perfil de Aliado (rol ALLY) en estado PENDING, a la espera de verificación KYC, dentro del tenant resuelto por `X-Tenant-Id`. Acepta `multipart/form-data` porque el registro incluye la subida de documentos KYC (cédula obligatoria, otros opcionales); el campo de cada archivo es su tipo de documento en minúsculas (p. ej. `cedula_ciudadania`). Devuelve tokens de sesión (con el claim `tenant_id` ya embebido) para que el Aliado pueda continuar el flujo de onboarding inmediatamente.\n",
+              "content": "Crea el usuario y el perfil de Aliado (rol ALLY) en estado PENDING, a la espera de verificación KYC, dentro del tenant resuelto por `X-Tenant-Slug` (ADR-0018). Acepta `multipart/form-data` porque el registro incluye la subida de documentos KYC (cédula obligatoria, otros opcionales); el campo de cada archivo es su tipo de documento en minúsculas (p. ej. `cedula_ciudadania`). Devuelve tokens de sesión (con el claim `tenant_id` ya embebido) para que el Aliado pueda continuar el flujo de onboarding inmediatamente.\n",
               "type": "text/plain"
             },
             "url": {
@@ -34,7 +34,7 @@
                 "disabled": false,
                 "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
                 "key": "X-Tenant-Slug",
-                "value": "{{tenantId}}"
+                "value": "{{tenantSlug}}"
               },
               {
                 "disabled": false,
@@ -139,7 +139,7 @@
                     "disabled": false,
                     "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
                     "key": "X-Tenant-Slug",
-                    "value": "trama-demo"
+                    "value": "plomeria-express"
                   },
                   {
                     "disabled": false,
@@ -171,7 +171,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "hFkftRJw@xRWWxkOqkjSEuzrGc.kbdf",
+                      "value": "4stKGRva@DOYNxknrJHpHY.mdga",
                       "type": "text"
                     },
                     {
@@ -247,7 +247,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"profile\": {\n    \"id\": \"string\",\n    \"tenantId\": \"trama-demo\",\n    \"role\": \"CLIENT\",\n    \"fullName\": \"string\",\n    \"status\": \"REJECTED\"\n  },\n  \"tokens\": {\n    \"accessToken\": \"string\",\n    \"refreshToken\": \"string\",\n    \"expiresIn\": 3600\n  }\n}",
+              "body": "{\n  \"profile\": {\n    \"id\": \"string\",\n    \"tenantId\": \"trama-demo\",\n    \"role\": \"ADMIN\",\n    \"fullName\": \"string\",\n    \"status\": \"REJECTED\"\n  },\n  \"tokens\": {\n    \"accessToken\": \"string\",\n    \"refreshToken\": \"string\",\n    \"expiresIn\": 3600\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -272,7 +272,7 @@
                     "disabled": false,
                     "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
                     "key": "X-Tenant-Slug",
-                    "value": "trama-demo"
+                    "value": "plomeria-express"
                   },
                   {
                     "disabled": false,
@@ -304,7 +304,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "hFkftRJw@xRWWxkOqkjSEuzrGc.kbdf",
+                      "value": "4stKGRva@DOYNxknrJHpHY.mdga",
                       "type": "text"
                     },
                     {
@@ -380,7 +380,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"VALIDATION_ERROR\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -405,7 +405,7 @@
                     "disabled": false,
                     "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
                     "key": "X-Tenant-Slug",
-                    "value": "trama-demo"
+                    "value": "plomeria-express"
                   },
                   {
                     "disabled": false,
@@ -437,7 +437,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "hFkftRJw@xRWWxkOqkjSEuzrGc.kbdf",
+                      "value": "4stKGRva@DOYNxknrJHpHY.mdga",
                       "type": "text"
                     },
                     {
@@ -513,7 +513,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"VALIDATION_ERROR\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -538,7 +538,7 @@
                     "disabled": false,
                     "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
                     "key": "X-Tenant-Slug",
-                    "value": "trama-demo"
+                    "value": "plomeria-express"
                   },
                   {
                     "disabled": false,
@@ -570,7 +570,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "hFkftRJw@xRWWxkOqkjSEuzrGc.kbdf",
+                      "value": "4stKGRva@DOYNxknrJHpHY.mdga",
                       "type": "text"
                     },
                     {
@@ -646,7 +646,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"VALIDATION_ERROR\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -697,14 +697,16 @@
                   "    pm.expect(body.profile.status).to.eql('PENDING');",
                   "  });",
                   "",
-                  "  pm.test('propagación del claim de tenant: profile.tenantId === X-Tenant-Id enviado', function () {",
-                  "    pm.expect(body.profile.tenantId).to.eql(pm.collectionVariables.get('tenantId'));",
+                  "  pm.test('propagación del claim de tenant: profile.tenantId resuelto desde el slug coincide con expectedTenantId', function () {",
+                  "    const expectedId = pm.environment.get('expectedTenantId') || pm.collectionVariables.get('expectedTenantId');",
+                  "    pm.expect(body.profile.tenantId).to.eql(expectedId);",
                   "  });",
                   "",
-                  "  pm.test('propagación del claim de tenant: tenant_id del accessToken === X-Tenant-Id enviado', function () {",
+                  "  pm.test('propagación del claim de tenant: tenant_id del accessToken coincide con expectedTenantId', function () {",
                   "    const claims = decodeJwtPayload(body.tokens.accessToken);",
                   "    pm.expect(claims, 'accessToken debe ser un JWT decodificable').to.not.equal(null);",
-                  "    pm.expect(tenantIdFromClaims(claims)).to.eql(pm.collectionVariables.get('tenantId'));",
+                  "    const expectedId = pm.environment.get('expectedTenantId') || pm.collectionVariables.get('expectedTenantId');",
+                  "    pm.expect(tenantIdFromClaims(claims)).to.eql(expectedId);",
                   "  });",
                   "",
                   "  pm.collectionVariables.set('accessToken', body.tokens.accessToken);",
@@ -754,7 +756,7 @@
                 "disabled": false,
                 "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
                 "key": "X-Tenant-Slug",
-                "value": "{{tenantId}}"
+                "value": "{{tenantSlug}}"
               },
               {
                 "disabled": false,
@@ -804,7 +806,7 @@
                     "disabled": false,
                     "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
                     "key": "X-Tenant-Slug",
-                    "value": "trama-demo"
+                    "value": "plomeria-express"
                   },
                   {
                     "disabled": false,
@@ -820,7 +822,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"OcQE@buQsbHCORkXoKiDxpn.hfjo\",\n  \"password\": \"stringstring\"\n}",
+                  "raw": "{\n  \"email\": \"Q9lNqufsg@YQfahpJQVzFWjaBbeRjBiPEdhrNUp.oba\",\n  \"password\": \"stringstring\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -836,7 +838,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"profile\": {\n    \"id\": \"string\",\n    \"tenantId\": \"trama-demo\",\n    \"role\": \"CLIENT\",\n    \"fullName\": \"string\",\n    \"status\": \"REJECTED\"\n  },\n  \"tokens\": {\n    \"accessToken\": \"string\",\n    \"refreshToken\": \"string\",\n    \"expiresIn\": 3600\n  }\n}",
+              "body": "{\n  \"profile\": {\n    \"id\": \"string\",\n    \"tenantId\": \"trama-demo\",\n    \"role\": \"ADMIN\",\n    \"fullName\": \"string\",\n    \"status\": \"REJECTED\"\n  },\n  \"tokens\": {\n    \"accessToken\": \"string\",\n    \"refreshToken\": \"string\",\n    \"expiresIn\": 3600\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -860,7 +862,7 @@
                     "disabled": false,
                     "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
                     "key": "X-Tenant-Slug",
-                    "value": "trama-demo"
+                    "value": "plomeria-express"
                   },
                   {
                     "disabled": false,
@@ -876,7 +878,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"OcQE@buQsbHCORkXoKiDxpn.hfjo\",\n  \"password\": \"stringstring\"\n}",
+                  "raw": "{\n  \"email\": \"Q9lNqufsg@YQfahpJQVzFWjaBbeRjBiPEdhrNUp.oba\",\n  \"password\": \"stringstring\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -892,7 +894,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"VALIDATION_ERROR\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -916,7 +918,7 @@
                     "disabled": false,
                     "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
                     "key": "X-Tenant-Slug",
-                    "value": "trama-demo"
+                    "value": "plomeria-express"
                   },
                   {
                     "disabled": false,
@@ -932,7 +934,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"OcQE@buQsbHCORkXoKiDxpn.hfjo\",\n  \"password\": \"stringstring\"\n}",
+                  "raw": "{\n  \"email\": \"Q9lNqufsg@YQfahpJQVzFWjaBbeRjBiPEdhrNUp.oba\",\n  \"password\": \"stringstring\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -948,7 +950,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"VALIDATION_ERROR\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -972,7 +974,7 @@
                     "disabled": false,
                     "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
                     "key": "X-Tenant-Slug",
-                    "value": "trama-demo"
+                    "value": "plomeria-express"
                   },
                   {
                     "disabled": false,
@@ -988,7 +990,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"OcQE@buQsbHCORkXoKiDxpn.hfjo\",\n  \"password\": \"stringstring\"\n}",
+                  "raw": "{\n  \"email\": \"Q9lNqufsg@YQfahpJQVzFWjaBbeRjBiPEdhrNUp.oba\",\n  \"password\": \"stringstring\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -1004,7 +1006,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"VALIDATION_ERROR\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -1040,14 +1042,16 @@
                   "if (pm.response.code === 200) {",
                   "  const body = pm.response.json();",
                   "",
-                  "  pm.test('propagación del claim de tenant: profile.tenantId === X-Tenant-Id enviado', function () {",
-                  "    pm.expect(body.profile.tenantId).to.eql(pm.collectionVariables.get('tenantId'));",
+                  "  pm.test('propagación del claim de tenant: profile.tenantId coincide con expectedTenantId', function () {",
+                  "    const expectedId = pm.environment.get('expectedTenantId') || pm.collectionVariables.get('expectedTenantId');",
+                  "    pm.expect(body.profile.tenantId).to.eql(expectedId);",
                   "  });",
                   "",
-                  "  pm.test('propagación del claim de tenant: tenant_id del accessToken === X-Tenant-Id enviado', function () {",
+                  "  pm.test('propagación del claim de tenant: tenant_id del accessToken coincide con expectedTenantId', function () {",
                   "    const claims = decodeJwtPayload(body.tokens.accessToken);",
                   "    pm.expect(claims, 'accessToken debe ser un JWT decodificable').to.not.equal(null);",
-                  "    pm.expect(tenantIdFromClaims(claims)).to.eql(pm.collectionVariables.get('tenantId'));",
+                  "    const expectedId = pm.environment.get('expectedTenantId') || pm.collectionVariables.get('expectedTenantId');",
+                  "    pm.expect(tenantIdFromClaims(claims)).to.eql(expectedId);",
                   "  });",
                   "",
                   "  pm.collectionVariables.set('accessToken', body.tokens.accessToken);",
@@ -1206,7 +1210,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"VALIDATION_ERROR\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -1256,7 +1260,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"VALIDATION_ERROR\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -1306,7 +1310,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"VALIDATION_ERROR\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -1345,7 +1349,8 @@
                   "  pm.test('propagación del claim de tenant: el refresh preserva tenant_id del token original', function () {",
                   "    const claims = decodeJwtPayload(body.accessToken);",
                   "    pm.expect(claims, 'accessToken debe ser un JWT decodificable').to.not.equal(null);",
-                  "    pm.expect(tenantIdFromClaims(claims)).to.eql(pm.collectionVariables.get('tenantId'));",
+                  "    const expectedId = pm.environment.get('expectedTenantId') || pm.collectionVariables.get('expectedTenantId');",
+                  "    pm.expect(tenantIdFromClaims(claims)).to.eql(expectedId);",
                   "  });",
                   "",
                   "  pm.collectionVariables.set('accessToken', body.accessToken);",
@@ -1478,7 +1483,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"VALIDATION_ERROR\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -1520,7 +1525,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"VALIDATION_ERROR\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -1556,7 +1561,8 @@
                   "pm.test('propagación del claim de tenant: el accessToken usado pertenecía al tenant de la sesión', function () {",
                   "  const claims = decodeJwtPayload(pm.collectionVariables.get('accessToken'));",
                   "  pm.expect(claims, 'accessToken debe ser un JWT decodificable').to.not.equal(null);",
-                  "  pm.expect(tenantIdFromClaims(claims)).to.eql(pm.collectionVariables.get('tenantId'));",
+                  "  const expectedId = pm.environment.get('expectedTenantId') || pm.collectionVariables.get('expectedTenantId');",
+                  "  pm.expect(tenantIdFromClaims(claims)).to.eql(expectedId);",
                   "});"
                 ]
               }
@@ -1578,8 +1584,18 @@
       "key": "baseUrl"
     },
     {
+      "key": "tenantSlug",
+      "value": "plomeria-express",
+      "type": "string"
+    },
+    {
+      "key": "expectedTenantId",
+      "value": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+      "type": "string"
+    },
+    {
       "key": "tenantId",
-      "value": "trama-demo",
+      "value": "plomeria-express",
       "type": "string"
     },
     {
