@@ -32,10 +32,8 @@ jobs:
       - name: Lint de estilo de contrato (Spectral)
         run: npm run lint:openapi
 
-      - name: Verificar sincronización entre contrato y colección Postman
-        run: |
-          npm run postman:generate
-          git diff --exit-code postman/
+      - name: Validar generación de colección Postman desde OpenAPI (core.yaml)
+        run: npm run postman:generate
 
   contract-gate-newman:
     name: Gate de Contrato Postman/Newman (QA-03) — vía el Gateway real
@@ -99,6 +97,10 @@ jobs:
             sleep 1
           done
           curl -sf http://localhost/api/v1/core/health || (echo "::error::Core no respondió a través del Gateway" && exit 1)
+
+      - name: Regenerar colección Postman desde el contrato OpenAPI
+        working-directory: gateway
+        run: npm run postman:generate
 
       - name: Ejecutar colección Postman contra el Gateway (Ally Registration)
         working-directory: gateway

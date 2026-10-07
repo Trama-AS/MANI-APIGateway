@@ -318,6 +318,7 @@ Converter.convert({ type: 'file', data: SPEC_PATH }, CONVERT_OPTIONS, (err, resu
   }
 
   const collection = wireUpIdentityFlow(result.output[0].data);
+  makeIdsDeterministic(collection);
 
   fs.writeFileSync(OUTPUT_PATH, JSON.stringify(collection, null, 2) + '\n', 'utf8');
   console.log(`✔ Colección generada en ${path.relative(process.cwd(), OUTPUT_PATH)}`);
