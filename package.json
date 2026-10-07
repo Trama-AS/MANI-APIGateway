@@ -9,7 +9,8 @@
     "postman:generate": "node scripts/generate-postman-collection.js",
     "postman:run": "newman run postman/MANI-Core.postman_collection.json --working-dir postman -e",
     "postman:run:dev": "npm run postman:run -- postman/environments/dev.postman_environment.json",
-    "postman:run:qa": "npm run postman:run -- postman/environments/qa.postman_environment.json"
+    "postman:run:qa": "npm run postman:run -- postman/environments/qa.postman_environment.json",
+    "postman:run:ally": "npm run postman:run:dev -- --folder \"Ally Registration\""
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "^13.1.0",
