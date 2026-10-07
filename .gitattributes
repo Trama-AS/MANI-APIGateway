@@ -1,0 +1,11 @@
+# Normaliza a LF. Los .sh y los .sql que Postgres ejecuta en docker-entrypoint-initdb.d
+# fallan con CRLF, incluso si el repo se clona en Windows. Misma regla que MANI-Flutter.
+* text=auto eol=lf
+*.sh text eol=lf
+*.sql text eol=lf
+*.conf text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.ps1 text eol=lf
