@@ -32,8 +32,15 @@ jobs:
       - name: Lint de estilo de contrato (Spectral)
         run: npm run lint:openapi
 
+      - name: Verificar sincronización entre contrato y colección Postman
+        run: |
+          npm run postman:generate
+          git diff --exit-code postman/
+
   contract-gate-newman:
     name: Gate de Contrato Postman/Newman (QA-03) — vía el Gateway real
+    # NOTA DE ARQUITECTURA: Este gate ejecuta Core en modo in-memory (NODE_ENV=development)
+    # a través de la instancia real de NGINX Gateway, hasta que el entorno desplegado en QA esté disponible.
     needs: contract-validation
     runs-on: ubuntu-latest
     steps:

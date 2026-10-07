@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const Converter = require('openapi-to-postmanv2');
 
 const SPEC_PATH = path.join(__dirname, '..', 'docs', 'openapi', 'core.yaml');
@@ -132,7 +133,7 @@ function wireUpIdentityFlow(collection) {
 
   // --- POST /auth/register/ally (multipart/form-data) ---
   const register = findItemByPath(collection, ['auth', 'register', 'ally']);
-  setHeaderValue(register.request.header, 'X-Tenant-Id', '{{tenantId}}');
+  setHeaderValue(register.request.header, 'X-Tenant-Slug', '{{tenantId}}');
   setFormDataValue(register.request.body, 'fullName', 'María Fernanda Rojas');
   setFormDataValue(register.request.body, 'email', '{{allyEmail}}');
   setFormDataValue(register.request.body, 'password', '{{allyPassword}}');
@@ -192,7 +193,7 @@ function wireUpIdentityFlow(collection) {
 
   // --- POST /auth/login ---
   const login = findItemByPath(collection, ['auth', 'login']);
-  setHeaderValue(login.request.header, 'X-Tenant-Id', '{{tenantId}}');
+  setHeaderValue(login.request.header, 'X-Tenant-Slug', '{{tenantId}}');
   login.request.body.raw = JSON.stringify({ email: '{{allyEmail}}', password: '{{allyPassword}}' }, null, 2);
   login.event.push(
     testScript([
@@ -278,6 +279,31 @@ function wireUpIdentityFlow(collection) {
   );
 
   return collection;
+}
+
+/**
+ * openapi-to-postmanv2 asigna un UUID aleatorio nuevo a cada "id"/"_postman_id"
+ * en cada corrida, así que dos generaciones del mismo contrato nunca son
+ * byte-idénticas — eso rompe cualquier chequeo de CI tipo
+ * "regenerar y diff contra lo comiteado". Se reemplaza cada id por un hash
+ * determinístico de la ruta del nodo en el árbol (mismo contrato -> mismo
+ * árbol -> mismos ids), con forma de UUID para no romper el schema de Postman.
+ */
+function makeIdsDeterministic(node, trail = []) {
+  if (Array.isArray(node)) {
+    node.forEach((child, i) => makeIdsDeterministic(child, [...trail, i]));
+    return;
+  }
+  if (node && typeof node === 'object') {
+    for (const [key, value] of Object.entries(node)) {
+      if ((key === 'id' || key === '_postman_id') && typeof value === 'string') {
+        const hash = crypto.createHash('md5').update([...trail, key].join('/')).digest('hex');
+        node[key] = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-${hash.slice(12, 16)}-${hash.slice(16, 20)}-${hash.slice(20, 32)}`;
+      } else {
+        makeIdsDeterministic(value, [...trail, key]);
+      }
+    }
+  }
 }
 
 Converter.convert({ type: 'file', data: SPEC_PATH }, CONVERT_OPTIONS, (err, result) => {

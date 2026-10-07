@@ -1,7 +1,7 @@
 {
   "item": [
     {
-      "id": "35be5101-e034-4906-a30b-447aea365f2e",
+      "id": "aba2dc66-662d-43b3-9f3e-975a7c7a97c3",
       "name": "Ally Registration",
       "description": {
         "content": "Registro de Aliados persona natural",
@@ -9,7 +9,7 @@
       },
       "item": [
         {
-          "id": "f6fc6900-ef9f-4a61-90ad-d478eb3e0712",
+          "id": "2774784d-2e3b-41f1-a7dd-f6592d72c705",
           "name": "Registra un nuevo Aliado persona natural",
           "request": {
             "name": "Registra un nuevo Aliado persona natural",
@@ -32,8 +32,8 @@
             "header": [
               {
                 "disabled": false,
-                "description": "(Required) Id del tenant resuelto por MANI-APIGateway a partir del dominio/app-key de origen. Solo se usa en endpoints pre-autenticación; el Gateway es el único llamador autorizado a fijarlo — un cliente final nunca debe poder establecerlo directamente.\n",
-                "key": "X-Tenant-Id",
+                "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
+                "key": "X-Tenant-Slug",
                 "value": "{{tenantId}}"
               },
               {
@@ -119,7 +119,7 @@
           },
           "response": [
             {
-              "id": "15f00b34-790e-4f02-a4e0-73be77d254bc",
+              "id": "2ef661d7-f434-4301-a6d3-fd6e9f19b212",
               "name": "Aliado registrado",
               "originalRequest": {
                 "url": {
@@ -137,8 +137,8 @@
                 "header": [
                   {
                     "disabled": false,
-                    "description": "(Required) Id del tenant resuelto por MANI-APIGateway a partir del dominio/app-key de origen. Solo se usa en endpoints pre-autenticación; el Gateway es el único llamador autorizado a fijarlo — un cliente final nunca debe poder establecerlo directamente.\n",
-                    "key": "X-Tenant-Id",
+                    "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
+                    "key": "X-Tenant-Slug",
                     "value": "trama-demo"
                   },
                   {
@@ -171,7 +171,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "D9Mdhj0XleCC@joqPQxITfILMxSSpXgYXNW.ht",
+                      "value": "IB7C3-4SeO@Y.bbim",
                       "type": "text"
                     },
                     {
@@ -247,12 +247,12 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"profile\": {\n    \"id\": \"string\",\n    \"tenantId\": \"trama-demo\",\n    \"role\": \"ALLY\",\n    \"fullName\": \"string\",\n    \"status\": \"VERIFIED\"\n  },\n  \"tokens\": {\n    \"accessToken\": \"string\",\n    \"refreshToken\": \"string\",\n    \"expiresIn\": 3600\n  }\n}",
+              "body": "{\n  \"profile\": {\n    \"id\": \"string\",\n    \"tenantId\": \"trama-demo\",\n    \"role\": \"ALLY\",\n    \"fullName\": \"string\",\n    \"status\": \"PENDING\"\n  },\n  \"tokens\": {\n    \"accessToken\": \"string\",\n    \"refreshToken\": \"string\",\n    \"expiresIn\": 3600\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "32cf63ff-fb10-413e-af00-4caec1aa4b8b",
+              "id": "21d3d6ed-c04a-4c47-bfa5-bd6a0f0fd980",
               "name": "Body inválido (`VALIDATION_ERROR`), tenant inexistente/inactivo (`TENANT_NOT_FOUND`) o categoría inexistente/inactiva (`CATEGORY_NOT_FOUND`)\n",
               "originalRequest": {
                 "url": {
@@ -270,8 +270,8 @@
                 "header": [
                   {
                     "disabled": false,
-                    "description": "(Required) Id del tenant resuelto por MANI-APIGateway a partir del dominio/app-key de origen. Solo se usa en endpoints pre-autenticación; el Gateway es el único llamador autorizado a fijarlo — un cliente final nunca debe poder establecerlo directamente.\n",
-                    "key": "X-Tenant-Id",
+                    "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
+                    "key": "X-Tenant-Slug",
                     "value": "trama-demo"
                   },
                   {
@@ -304,7 +304,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "D9Mdhj0XleCC@joqPQxITfILMxSSpXgYXNW.ht",
+                      "value": "IB7C3-4SeO@Y.bbim",
                       "type": "text"
                     },
                     {
@@ -380,12 +380,12 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"DOCUMENT_ALREADY_REGISTERED\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"UNAUTHORIZED\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "7f955aa5-14de-4059-839c-2bf138c4cf28",
+              "id": "0fc8395f-abb9-43e0-8eb6-21f784c8077b",
               "name": "Ya existe un usuario del tenant con ese email (`EMAIL_ALREADY_REGISTERED`) o, si se envió `documentNumber`, ya existe un aliado con ese número de documento (`DOCUMENT_ALREADY_REGISTERED`)\n",
               "originalRequest": {
                 "url": {
@@ -403,8 +403,8 @@
                 "header": [
                   {
                     "disabled": false,
-                    "description": "(Required) Id del tenant resuelto por MANI-APIGateway a partir del dominio/app-key de origen. Solo se usa en endpoints pre-autenticación; el Gateway es el único llamador autorizado a fijarlo — un cliente final nunca debe poder establecerlo directamente.\n",
-                    "key": "X-Tenant-Id",
+                    "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
+                    "key": "X-Tenant-Slug",
                     "value": "trama-demo"
                   },
                   {
@@ -437,7 +437,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "D9Mdhj0XleCC@joqPQxITfILMxSSpXgYXNW.ht",
+                      "value": "IB7C3-4SeO@Y.bbim",
                       "type": "text"
                     },
                     {
@@ -513,12 +513,12 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"DOCUMENT_ALREADY_REGISTERED\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"UNAUTHORIZED\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "eb8f98d2-d711-4ffe-b01e-abc89b2ec68d",
+              "id": "74f80d3a-fbe1-43a5-8e29-5c4352bc00ec",
               "name": "Error interno del servicio (`INTERNAL_ERROR`)",
               "originalRequest": {
                 "url": {
@@ -536,8 +536,8 @@
                 "header": [
                   {
                     "disabled": false,
-                    "description": "(Required) Id del tenant resuelto por MANI-APIGateway a partir del dominio/app-key de origen. Solo se usa en endpoints pre-autenticación; el Gateway es el único llamador autorizado a fijarlo — un cliente final nunca debe poder establecerlo directamente.\n",
-                    "key": "X-Tenant-Id",
+                    "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
+                    "key": "X-Tenant-Slug",
                     "value": "trama-demo"
                   },
                   {
@@ -570,7 +570,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "D9Mdhj0XleCC@joqPQxITfILMxSSpXgYXNW.ht",
+                      "value": "IB7C3-4SeO@Y.bbim",
                       "type": "text"
                     },
                     {
@@ -646,7 +646,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"DOCUMENT_ALREADY_REGISTERED\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"UNAUTHORIZED\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -722,7 +722,7 @@
       "event": []
     },
     {
-      "id": "84fad878-0d9a-4fae-9586-3c345f5a6260",
+      "id": "563d28db-16ff-4ee8-9854-b141a1fa3852",
       "name": "Auth",
       "description": {
         "content": "Autenticación e identidad de usuarios (Clientes, Aliados, Admins)",
@@ -730,7 +730,7 @@
       },
       "item": [
         {
-          "id": "4aebd510-8146-44e0-b4bf-3f10102ef2f6",
+          "id": "40fda64b-91d8-476f-bfc0-1f72119fc55a",
           "name": "Inicia sesión y obtiene tokens de acceso",
           "request": {
             "name": "Inicia sesión y obtiene tokens de acceso",
@@ -752,8 +752,8 @@
             "header": [
               {
                 "disabled": false,
-                "description": "(Required) Id del tenant resuelto por MANI-APIGateway a partir del dominio/app-key de origen. Solo se usa en endpoints pre-autenticación; el Gateway es el único llamador autorizado a fijarlo — un cliente final nunca debe poder establecerlo directamente.\n",
-                "key": "X-Tenant-Id",
+                "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
+                "key": "X-Tenant-Slug",
                 "value": "{{tenantId}}"
               },
               {
@@ -785,7 +785,7 @@
           },
           "response": [
             {
-              "id": "e78fdd28-c19a-4be8-a63c-9b6e5f5e55c9",
+              "id": "a02e011b-fd79-4076-94da-5807493913db",
               "name": "Credenciales válidas, sesión iniciada",
               "originalRequest": {
                 "url": {
@@ -802,8 +802,8 @@
                 "header": [
                   {
                     "disabled": false,
-                    "description": "(Required) Id del tenant resuelto por MANI-APIGateway a partir del dominio/app-key de origen. Solo se usa en endpoints pre-autenticación; el Gateway es el único llamador autorizado a fijarlo — un cliente final nunca debe poder establecerlo directamente.\n",
-                    "key": "X-Tenant-Id",
+                    "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
+                    "key": "X-Tenant-Slug",
                     "value": "trama-demo"
                   },
                   {
@@ -820,7 +820,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"lnQTckkv4T-Y@zlOxSMMDRqdnhmxmv.tdf\",\n  \"password\": \"stringstring\"\n}",
+                  "raw": "{\n  \"email\": \"k8FSsfHvOc-kD0l@OtEJdWkYJW.zbp\",\n  \"password\": \"stringstring\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -836,12 +836,12 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"profile\": {\n    \"id\": \"string\",\n    \"tenantId\": \"trama-demo\",\n    \"role\": \"ALLY\",\n    \"fullName\": \"string\",\n    \"status\": \"VERIFIED\"\n  },\n  \"tokens\": {\n    \"accessToken\": \"string\",\n    \"refreshToken\": \"string\",\n    \"expiresIn\": 3600\n  }\n}",
+              "body": "{\n  \"profile\": {\n    \"id\": \"string\",\n    \"tenantId\": \"trama-demo\",\n    \"role\": \"ALLY\",\n    \"fullName\": \"string\",\n    \"status\": \"PENDING\"\n  },\n  \"tokens\": {\n    \"accessToken\": \"string\",\n    \"refreshToken\": \"string\",\n    \"expiresIn\": 3600\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "4f4f5ed3-2e0d-4fea-99f4-8ce97aad0d2c",
+              "id": "866932a6-4f78-4e24-9387-e46a751da27a",
               "name": "Body inválido (`VALIDATION_ERROR`) o tenant inexistente/inactivo (`TENANT_NOT_FOUND`)\n",
               "originalRequest": {
                 "url": {
@@ -858,8 +858,8 @@
                 "header": [
                   {
                     "disabled": false,
-                    "description": "(Required) Id del tenant resuelto por MANI-APIGateway a partir del dominio/app-key de origen. Solo se usa en endpoints pre-autenticación; el Gateway es el único llamador autorizado a fijarlo — un cliente final nunca debe poder establecerlo directamente.\n",
-                    "key": "X-Tenant-Id",
+                    "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
+                    "key": "X-Tenant-Slug",
                     "value": "trama-demo"
                   },
                   {
@@ -876,7 +876,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"lnQTckkv4T-Y@zlOxSMMDRqdnhmxmv.tdf\",\n  \"password\": \"stringstring\"\n}",
+                  "raw": "{\n  \"email\": \"k8FSsfHvOc-kD0l@OtEJdWkYJW.zbp\",\n  \"password\": \"stringstring\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -892,12 +892,12 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"DOCUMENT_ALREADY_REGISTERED\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"UNAUTHORIZED\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "5e4d5500-7ff5-47d8-85f3-3a02ba86339b",
+              "id": "4ef20da0-189c-4784-b46b-866953390858",
               "name": "Credenciales incorrectas (`INVALID_CREDENTIALS`)",
               "originalRequest": {
                 "url": {
@@ -914,8 +914,8 @@
                 "header": [
                   {
                     "disabled": false,
-                    "description": "(Required) Id del tenant resuelto por MANI-APIGateway a partir del dominio/app-key de origen. Solo se usa en endpoints pre-autenticación; el Gateway es el único llamador autorizado a fijarlo — un cliente final nunca debe poder establecerlo directamente.\n",
-                    "key": "X-Tenant-Id",
+                    "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
+                    "key": "X-Tenant-Slug",
                     "value": "trama-demo"
                   },
                   {
@@ -932,7 +932,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"lnQTckkv4T-Y@zlOxSMMDRqdnhmxmv.tdf\",\n  \"password\": \"stringstring\"\n}",
+                  "raw": "{\n  \"email\": \"k8FSsfHvOc-kD0l@OtEJdWkYJW.zbp\",\n  \"password\": \"stringstring\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -948,12 +948,12 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"DOCUMENT_ALREADY_REGISTERED\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"UNAUTHORIZED\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "85e7f853-684b-48a2-8ebb-3056eda44cd2",
+              "id": "a682870d-7642-477e-847a-da28fb99767e",
               "name": "Error interno del servicio (`INTERNAL_ERROR`)",
               "originalRequest": {
                 "url": {
@@ -970,8 +970,8 @@
                 "header": [
                   {
                     "disabled": false,
-                    "description": "(Required) Id del tenant resuelto por MANI-APIGateway a partir del dominio/app-key de origen. Solo se usa en endpoints pre-autenticación; el Gateway es el único llamador autorizado a fijarlo — un cliente final nunca debe poder establecerlo directamente.\n",
-                    "key": "X-Tenant-Id",
+                    "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
+                    "key": "X-Tenant-Slug",
                     "value": "trama-demo"
                   },
                   {
@@ -988,7 +988,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"lnQTckkv4T-Y@zlOxSMMDRqdnhmxmv.tdf\",\n  \"password\": \"stringstring\"\n}",
+                  "raw": "{\n  \"email\": \"k8FSsfHvOc-kD0l@OtEJdWkYJW.zbp\",\n  \"password\": \"stringstring\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -1004,7 +1004,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"DOCUMENT_ALREADY_REGISTERED\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"UNAUTHORIZED\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -1062,7 +1062,7 @@
           }
         },
         {
-          "id": "acaff46a-b5d0-4a9a-89c4-90e7ead21247",
+          "id": "7c84e15c-a09b-4bc2-b651-59098daa6a37",
           "name": "Renueva el accessToken a partir de un refreshToken vigente",
           "request": {
             "name": "Renueva el accessToken a partir de un refreshToken vigente",
@@ -1111,7 +1111,7 @@
           },
           "response": [
             {
-              "id": "a9da62fc-9416-4b6f-b89b-28de49c0d36d",
+              "id": "71ad5ef3-2642-4449-9564-612b42d7c506",
               "name": "Token renovado",
               "originalRequest": {
                 "url": {
@@ -1161,7 +1161,7 @@
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "b34103fa-556d-41f4-8ccb-6b4348faa955",
+              "id": "47e30b54-45f8-4b79-9b69-571eeacf1163",
               "name": "Body inválido (`VALIDATION_ERROR`)",
               "originalRequest": {
                 "url": {
@@ -1206,12 +1206,12 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"DOCUMENT_ALREADY_REGISTERED\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"UNAUTHORIZED\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "bb38f965-8dd6-406e-8e10-0e88e5a4215c",
+              "id": "342db20d-8a50-4c79-b2c4-be5592cf36c5",
               "name": "refreshToken inválido o expirado (`TOKEN_INVALID` / `TOKEN_EXPIRED`)",
               "originalRequest": {
                 "url": {
@@ -1256,12 +1256,12 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"DOCUMENT_ALREADY_REGISTERED\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"UNAUTHORIZED\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "df504025-45cd-495d-9fc7-640d4dce04fe",
+              "id": "78779e06-7cea-4edb-9847-cd137c694ea9",
               "name": "Error interno del servicio (`INTERNAL_ERROR`)",
               "originalRequest": {
                 "url": {
@@ -1306,7 +1306,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"DOCUMENT_ALREADY_REGISTERED\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"UNAUTHORIZED\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -1359,7 +1359,7 @@
           }
         },
         {
-          "id": "439da7a2-0918-4c7a-b772-cdc5d6ceb1a4",
+          "id": "172b9fd5-edee-4bc9-bc92-d6e0f494a9d7",
           "name": "Cierra la sesión actual e invalida el refreshToken asociado",
           "request": {
             "name": "Cierra la sesión actual e invalida el refreshToken asociado",
@@ -1403,7 +1403,7 @@
           },
           "response": [
             {
-              "id": "552b5b98-ae9c-45c2-b5d3-893d7cc48062",
+              "id": "be1d8f0a-a78b-443c-8ea0-621a4796ddf4",
               "name": "Sesión cerrada correctamente",
               "originalRequest": {
                 "url": {
@@ -1441,7 +1441,7 @@
               "_postman_previewlanguage": "text"
             },
             {
-              "id": "95d4bb9d-4cbd-4701-addd-74ae5ad340df",
+              "id": "9a11621f-1b51-44f9-93c2-3cf4c4cc2589",
               "name": "accessToken ausente, inválido o expirado (`UNAUTHORIZED` / `TOKEN_INVALID` / `TOKEN_EXPIRED`)",
               "originalRequest": {
                 "url": {
@@ -1478,12 +1478,12 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"DOCUMENT_ALREADY_REGISTERED\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"UNAUTHORIZED\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "4fcd35a8-b9a4-40b7-932c-955496856ee9",
+              "id": "db103b50-53c8-4e77-b9bb-085fa65d2e2b",
               "name": "Error interno del servicio (`INTERNAL_ERROR`)",
               "originalRequest": {
                 "url": {
@@ -1520,7 +1520,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"DOCUMENT_ALREADY_REGISTERED\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"UNAUTHORIZED\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -1604,11 +1604,11 @@
     }
   ],
   "info": {
-    "_postman_id": "446659f7-37c7-42e8-a9a9-9d29e4466684",
+    "_postman_id": "6af6f377-a27e-459d-9a69-ce927744f5a5",
     "name": "MANI-APIGateway — Identidad y Registro de Aliado (Core)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "description": {
-      "content": "Contrato OpenAPI entre MANI-APIGateway y MANI-Node (Core) para el dominio de identidad: autenticación y registro de aliado persona natural. Vive en este repositorio (CFG-16) porque el Gateway es el límite público del contrato; MANI-Node lo implementa pero no lo posee.\n\n## Propagación del claim de tenant\nMANI es multi-tenant: cada petición debe resolverse en el contexto de un tenant (organización) específico, y el Core nunca puede confiar en un valor de tenant que un cliente final pueda falsificar.\n1. **Pre-autenticación** (`POST /auth/login`, `POST /auth/register/ally`):\n   el llamador todavía no tiene un JWT. El tenant se identifica con el\n   header `X-Tenant-Id`, que **únicamente MANI-APIGateway** debe fijar\n   (resuelto a partir del dominio/app-key de origen de la petición). El\n   Core responde `400 TENANT_NOT_FOUND` si el tenant no existe o está\n   inactivo.\n2. **Emisión del claim**: si el login o el registro son exitosos, Supabase\n   Auth emite un `accessToken` (JWT) cuyo payload incluye, bajo\n   `app_metadata`, el claim `tenant_id` con el id del tenant resuelto en\n   el paso anterior (ver `TokenClaims`; el Custom Access Token Hook de\n   Supabase, CFG-12, es quien lo puebla). Ese mismo id se refleja en\n   `ProfileSummary.tenantId` en la respuesta.\n3. **Post-autenticación** (`POST /auth/refresh`, `POST /auth/logout`, y\n   en general cualquier endpoint protegido con `bearerAuth`): el tenant\n   se deriva **exclusivamente** del claim dentro del JWT ya verificado.\n   El Core ignora cualquier header `X-Tenant-Id` enviado en estas\n   llamadas — aceptarlo permitiría a un cliente autenticado en el tenant\n   A leer/escribir datos del tenant B con solo cambiar un header.\n\nEsta regla (tenant por header solo pre-auth; tenant por claim de JWT ya autenticado) es la que deben implementar tanto el Gateway como el Core.\n",
+      "content": "Contrato OpenAPI entre MANI-APIGateway y MANI-Node (Core) para el dominio de identidad: autenticación y registro de aliado persona natural. Vive en este repositorio (CFG-16) porque el Gateway es el límite público del contrato; MANI-Node lo implementa pero no lo posee.\n\n## Propagación del claim de tenant\nMANI es multi-tenant: cada petición debe resolverse en el contexto de un tenant (organización) específico, y el Core nunca puede confiar en un valor de tenant que un cliente final pueda falsificar.\n1. **Pre-autenticación** (`POST /auth/login`, `POST /auth/register/ally`):\n   el llamador todavía no tiene un JWT. Conforme a ADR-0018, el tenant se identifica\n   con el header `X-Tenant-Slug` (slug público del tenant, ej. `trama-demo`),\n   descartando el uso de IDs internos confiados por el backend para evitar spoofing.\n   El Core responde `400 TENANT_NOT_FOUND` si el tenant no existe o está\n   inactivo.\n2. **Emisión del claim**: si el login o el registro son exitosos, Supabase\n   Auth emite un `accessToken` (JWT) cuyo payload incluye, bajo\n   `app_metadata`, el claim `tenant_id` con el id del tenant resuelto en\n   el paso anterior (ver `TokenClaims`; el Custom Access Token Hook de\n   Supabase, CFG-12, es quien lo puebla). Ese mismo id se refleja en\n   `ProfileSummary.tenantId` en la respuesta.\n3. **Post-autenticación** (`POST /auth/refresh`, `POST /auth/logout`, y\n   en general cualquier endpoint protegido con `bearerAuth`): el tenant\n   se deriva **exclusivamente** del claim dentro del JWT ya verificado.\n   El Core ignora cualquier header `X-Tenant-Id` enviado en estas\n   llamadas — aceptarlo permitiría a un cliente autenticado en el tenant\n   A leer/escribir datos del tenant B con solo cambiar un header.\n\nEsta regla (tenant por header solo pre-auth; tenant por claim de JWT ya autenticado) es la que deben implementar tanto el Gateway como el Core.\n",
       "type": "text/plain"
     }
   }

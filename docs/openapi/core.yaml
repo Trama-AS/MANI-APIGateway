@@ -15,10 +15,10 @@ info:
     valor de tenant que un cliente final pueda falsificar.
 
     1. **Pre-autenticación** (`POST /auth/login`, `POST /auth/register/ally`):
-       el llamador todavía no tiene un JWT. El tenant se identifica con el
-       header `X-Tenant-Id`, que **únicamente MANI-APIGateway** debe fijar
-       (resuelto a partir del dominio/app-key de origen de la petición). El
-       Core responde `400 TENANT_NOT_FOUND` si el tenant no existe o está
+       el llamador todavía no tiene un JWT. Conforme a ADR-0018, el tenant se identifica
+       con el header `X-Tenant-Slug` (slug público del tenant, ej. `trama-demo`),
+       descartando el uso de IDs internos confiados por el backend para evitar spoofing.
+       El Core responde `400 TENANT_NOT_FOUND` si el tenant no existe o está
        inactivo.
     2. **Emisión del claim**: si el login o el registro son exitosos, Supabase
        Auth emite un `accessToken` (JWT) cuyo payload incluye, bajo
@@ -59,7 +59,7 @@ paths:
         resuelto por `X-Tenant-Id` y devuelve un `accessToken`/`refreshToken`
         con el claim `tenant_id` embebido.
       parameters:
-        - $ref: '#/components/parameters/XTenantId'
+        - $ref: '#/components/parameters/XTenantSlug'
         - $ref: '#/components/parameters/XCorrelationId'
       requestBody:
         required: true
@@ -166,7 +166,7 @@ paths:
         (con el claim `tenant_id` ya embebido) para que el Aliado pueda
         continuar el flujo de onboarding inmediatamente.
       parameters:
-        - $ref: '#/components/parameters/XTenantId'
+        - $ref: '#/components/parameters/XTenantSlug'
         - $ref: '#/components/parameters/XCorrelationId'
       requestBody:
         required: true
@@ -217,15 +217,22 @@ components:
         `app_metadata`, `tenant_id` y `user_role`. Ver `TokenClaims`.
 
   parameters:
-    XTenantId:
-      name: X-Tenant-Id
+    XTenantSlug:
+      name: X-Tenant-Slug
       in: header
       required: true
       description: >
-        Id del tenant resuelto por MANI-APIGateway a partir del dominio/app-key
-        de origen. Solo se usa en endpoints pre-autenticación; el Gateway es
-        el único llamador autorizado a fijarlo — un cliente final nunca debe
-        poder establecerlo directamente.
+        Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación
+        para resolver la organización sin confiar en IDs internos.
+      schema:
+        type: string
+        example: trama-demo
+    XTenantId:
+      name: X-Tenant-Id
+      in: header
+      required: false
+      description: >
+        Encabezado interno alternativo para resolución de tenant por ID.
       schema:
         type: string
         example: trama-demo
@@ -399,7 +406,7 @@ components:
       type: object
       description: >
         Datos de registro para un Aliado persona natural. El tenant se toma
-        del header `X-Tenant-Id`, no del body. documentType/documentNumber
+        del header `X-Tenant-Slug` (ADR-0018), no del body. documentType/documentNumber
         son opcionales (el formulario actual de Flutter no los recolecta
         todavía; cuando los envíe, se validan y se usan para la verificación
         de duplicados).
