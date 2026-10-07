@@ -43,3 +43,12 @@ Este archivo resume las instrucciones de contexto, arquitectura de comunicación
 * **Correlation ID:** Asegurar que `X-Correlation-ID` siempre esté presente para trazabilidad distribuida en logs.
 * **CORS:** Headers pre-configurados para admitir navegadores web SPA (Flutter Web).
 * **Logs Estructurados:** Utilizar el formato JSON definido en `nginx.conf` para ingesta de métricas y observabilidad.
+
+---
+
+## 4. Infraestructura Compartida (CFG-33)
+* Este repo es el dueño de `database/` (init, migraciones y verificaciones), `scripts/` y `supabase/`, traídos desde `MANI-Flutter`.
+* **Migraciones:** archivo nuevo `database/migrations/NNN_descripcion.sql`, idempotente y con registro en `schema_migrations`. Una migración fusionada **nunca** se edita ni se borra: se corrige con una migración nueva.
+* **Sin lógica nueva en PL/pgSQL** (ADR-0022): la lógica de negocio vive en los servicios.
+* La BD local se levanta con el perfil `db` (`docker compose --profile db up -d`). Quién aplica las migraciones en cada ambiente está en el `README.md`.
+* Mantener LF en `.sh` y `.sql` (`.gitattributes`).

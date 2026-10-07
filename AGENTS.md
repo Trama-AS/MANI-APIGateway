@@ -38,3 +38,13 @@ docker run --rm -v ${PWD}/nginx.conf:/etc/nginx/nginx.conf nginx:alpine nginx -t
 # Levantar entorno local con Docker Compose
 docker-compose up -d --build
 ```
+
+---
+
+## 5. Infraestructura Compartida (CFG-33)
+Además del proxy, este repositorio aloja la infraestructura compartida que antes estaba en `MANI-Flutter`: `database/` (init, `migrations/` y `verify/`), `scripts/` (`migrate-local` y `sync-db-from-qa`) y `supabase/` (PoC y seeds de QA). El `docker-compose.yml` añade `postgres` y `adminer` con el perfil `db`, y `mani-web` con el perfil `web`.
+
+```bash
+docker compose --profile db up -d   # BD local + Adminer (http://localhost:8088)
+./scripts/migrate-local.sh          # migraciones pendientes
+```
