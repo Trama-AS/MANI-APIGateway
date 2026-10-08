@@ -91,11 +91,12 @@ function setFormDataValue(body, key, value) {
   if (param) param.value = value;
 }
 
-function setFormDataFile(body, key, src) {
+function setFormDataFile(body, key, src, contentType = 'application/pdf') {
   const param = body.formdata.find((p) => p.key === key);
   if (param) {
     param.type = 'file';
     param.src = src;
+    param.contentType = contentType;
   }
 }
 

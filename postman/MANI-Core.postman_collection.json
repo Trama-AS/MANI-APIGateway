@@ -83,7 +83,7 @@
                 {
                   "key": "cedula_ciudadania",
                   "type": "file",
-                  "contentType": "application/pdf, image/png, image/jpeg",
+                  "contentType": "application/pdf",
                   "description": "(Required) Documento KYC obligatorio (cédula). Al menos un archivo es requerido.",
                   "src": "fixtures/cedula-fake.pdf"
                 },
@@ -96,7 +96,7 @@
                 },
                 {
                   "key": "documentType",
-                  "value": "PASSPORT",
+                  "value": "CE",
                   "type": "text",
                   "description": "Tipo de documento de identidad (persona natural). Opcional. (This can only be one of CC,CE,PASSPORT)",
                   "disabled": true
@@ -171,7 +171,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "4stKGRva@DOYNxknrJHpHY.mdga",
+                      "value": "E0XYdIxFf@IeUMqbxEdlJGFlbtsOgYQPZo.qq",
                       "type": "text"
                     },
                     {
@@ -216,7 +216,7 @@
                         "type": "text/plain"
                       },
                       "key": "documentType",
-                      "value": "PASSPORT",
+                      "value": "CE",
                       "type": "text"
                     },
                     {
@@ -247,7 +247,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"profile\": {\n    \"id\": \"string\",\n    \"tenantId\": \"trama-demo\",\n    \"role\": \"ADMIN\",\n    \"fullName\": \"string\",\n    \"status\": \"REJECTED\"\n  },\n  \"tokens\": {\n    \"accessToken\": \"string\",\n    \"refreshToken\": \"string\",\n    \"expiresIn\": 3600\n  }\n}",
+              "body": "{\n  \"profile\": {\n    \"id\": \"string\",\n    \"tenantId\": \"trama-demo\",\n    \"role\": \"ADMIN\",\n    \"fullName\": \"string\",\n    \"status\": \"PENDING\"\n  },\n  \"tokens\": {\n    \"accessToken\": \"string\",\n    \"refreshToken\": \"string\",\n    \"expiresIn\": 3600\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -304,7 +304,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "4stKGRva@DOYNxknrJHpHY.mdga",
+                      "value": "E0XYdIxFf@IeUMqbxEdlJGFlbtsOgYQPZo.qq",
                       "type": "text"
                     },
                     {
@@ -349,7 +349,7 @@
                         "type": "text/plain"
                       },
                       "key": "documentType",
-                      "value": "PASSPORT",
+                      "value": "CE",
                       "type": "text"
                     },
                     {
@@ -380,7 +380,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"VALIDATION_ERROR\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"EMAIL_ALREADY_REGISTERED\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -437,7 +437,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "4stKGRva@DOYNxknrJHpHY.mdga",
+                      "value": "E0XYdIxFf@IeUMqbxEdlJGFlbtsOgYQPZo.qq",
                       "type": "text"
                     },
                     {
@@ -482,7 +482,7 @@
                         "type": "text/plain"
                       },
                       "key": "documentType",
-                      "value": "PASSPORT",
+                      "value": "CE",
                       "type": "text"
                     },
                     {
@@ -513,7 +513,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"VALIDATION_ERROR\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"EMAIL_ALREADY_REGISTERED\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -570,7 +570,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "4stKGRva@DOYNxknrJHpHY.mdga",
+                      "value": "E0XYdIxFf@IeUMqbxEdlJGFlbtsOgYQPZo.qq",
                       "type": "text"
                     },
                     {
@@ -615,7 +615,7 @@
                         "type": "text/plain"
                       },
                       "key": "documentType",
-                      "value": "PASSPORT",
+                      "value": "CE",
                       "type": "text"
                     },
                     {
@@ -646,7 +646,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"VALIDATION_ERROR\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"EMAIL_ALREADY_REGISTERED\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -822,7 +822,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"Q9lNqufsg@YQfahpJQVzFWjaBbeRjBiPEdhrNUp.oba\",\n  \"password\": \"stringstring\"\n}",
+                  "raw": "{\n  \"email\": \"t-3f60KFkLpwB2p@nkKaj.mndb\",\n  \"password\": \"stringstring\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -838,7 +838,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"profile\": {\n    \"id\": \"string\",\n    \"tenantId\": \"trama-demo\",\n    \"role\": \"ADMIN\",\n    \"fullName\": \"string\",\n    \"status\": \"REJECTED\"\n  },\n  \"tokens\": {\n    \"accessToken\": \"string\",\n    \"refreshToken\": \"string\",\n    \"expiresIn\": 3600\n  }\n}",
+              "body": "{\n  \"profile\": {\n    \"id\": \"string\",\n    \"tenantId\": \"trama-demo\",\n    \"role\": \"ADMIN\",\n    \"fullName\": \"string\",\n    \"status\": \"PENDING\"\n  },\n  \"tokens\": {\n    \"accessToken\": \"string\",\n    \"refreshToken\": \"string\",\n    \"expiresIn\": 3600\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -878,7 +878,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"Q9lNqufsg@YQfahpJQVzFWjaBbeRjBiPEdhrNUp.oba\",\n  \"password\": \"stringstring\"\n}",
+                  "raw": "{\n  \"email\": \"t-3f60KFkLpwB2p@nkKaj.mndb\",\n  \"password\": \"stringstring\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -894,7 +894,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"VALIDATION_ERROR\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"EMAIL_ALREADY_REGISTERED\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -934,7 +934,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"Q9lNqufsg@YQfahpJQVzFWjaBbeRjBiPEdhrNUp.oba\",\n  \"password\": \"stringstring\"\n}",
+                  "raw": "{\n  \"email\": \"t-3f60KFkLpwB2p@nkKaj.mndb\",\n  \"password\": \"stringstring\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -950,7 +950,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"VALIDATION_ERROR\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"EMAIL_ALREADY_REGISTERED\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -990,7 +990,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"Q9lNqufsg@YQfahpJQVzFWjaBbeRjBiPEdhrNUp.oba\",\n  \"password\": \"stringstring\"\n}",
+                  "raw": "{\n  \"email\": \"t-3f60KFkLpwB2p@nkKaj.mndb\",\n  \"password\": \"stringstring\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -1006,7 +1006,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"VALIDATION_ERROR\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"EMAIL_ALREADY_REGISTERED\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -1210,7 +1210,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"VALIDATION_ERROR\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"EMAIL_ALREADY_REGISTERED\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -1260,7 +1260,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"VALIDATION_ERROR\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"EMAIL_ALREADY_REGISTERED\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -1310,7 +1310,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"VALIDATION_ERROR\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"EMAIL_ALREADY_REGISTERED\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -1483,7 +1483,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"VALIDATION_ERROR\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"EMAIL_ALREADY_REGISTERED\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -1525,7 +1525,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"VALIDATION_ERROR\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"EMAIL_ALREADY_REGISTERED\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
