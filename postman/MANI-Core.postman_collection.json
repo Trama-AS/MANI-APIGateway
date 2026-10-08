@@ -96,7 +96,7 @@
                 },
                 {
                   "key": "documentType",
-                  "value": "CE",
+                  "value": "CC",
                   "type": "text",
                   "description": "Tipo de documento de identidad (persona natural). Opcional. (This can only be one of CC,CE,PASSPORT)",
                   "disabled": true
@@ -171,7 +171,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "E0XYdIxFf@IeUMqbxEdlJGFlbtsOgYQPZo.qq",
+                      "value": "QKIPjbrAHncGaR@MWcusXIeyFjxzKInmDpapUU.rp",
                       "type": "text"
                     },
                     {
@@ -216,7 +216,7 @@
                         "type": "text/plain"
                       },
                       "key": "documentType",
-                      "value": "CE",
+                      "value": "CC",
                       "type": "text"
                     },
                     {
@@ -247,7 +247,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"profile\": {\n    \"id\": \"string\",\n    \"tenantId\": \"trama-demo\",\n    \"role\": \"ADMIN\",\n    \"fullName\": \"string\",\n    \"status\": \"PENDING\"\n  },\n  \"tokens\": {\n    \"accessToken\": \"string\",\n    \"refreshToken\": \"string\",\n    \"expiresIn\": 3600\n  }\n}",
+              "body": "{\n  \"profile\": {\n    \"id\": \"string\",\n    \"tenantId\": \"trama-demo\",\n    \"role\": \"ALLY\",\n    \"fullName\": \"string\",\n    \"status\": \"PENDING\"\n  },\n  \"tokens\": {\n    \"accessToken\": \"string\",\n    \"refreshToken\": \"string\",\n    \"expiresIn\": 3600\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -304,7 +304,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "E0XYdIxFf@IeUMqbxEdlJGFlbtsOgYQPZo.qq",
+                      "value": "QKIPjbrAHncGaR@MWcusXIeyFjxzKInmDpapUU.rp",
                       "type": "text"
                     },
                     {
@@ -349,7 +349,7 @@
                         "type": "text/plain"
                       },
                       "key": "documentType",
-                      "value": "CE",
+                      "value": "CC",
                       "type": "text"
                     },
                     {
@@ -380,7 +380,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"EMAIL_ALREADY_REGISTERED\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -437,7 +437,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "E0XYdIxFf@IeUMqbxEdlJGFlbtsOgYQPZo.qq",
+                      "value": "QKIPjbrAHncGaR@MWcusXIeyFjxzKInmDpapUU.rp",
                       "type": "text"
                     },
                     {
@@ -482,7 +482,7 @@
                         "type": "text/plain"
                       },
                       "key": "documentType",
-                      "value": "CE",
+                      "value": "CC",
                       "type": "text"
                     },
                     {
@@ -513,7 +513,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"EMAIL_ALREADY_REGISTERED\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -570,7 +570,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "E0XYdIxFf@IeUMqbxEdlJGFlbtsOgYQPZo.qq",
+                      "value": "QKIPjbrAHncGaR@MWcusXIeyFjxzKInmDpapUU.rp",
                       "type": "text"
                     },
                     {
@@ -615,7 +615,7 @@
                         "type": "text/plain"
                       },
                       "key": "documentType",
-                      "value": "CE",
+                      "value": "CC",
                       "type": "text"
                     },
                     {
@@ -646,7 +646,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"EMAIL_ALREADY_REGISTERED\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -733,11 +733,11 @@
       "item": [
         {
           "id": "0e7176f5-cc11-b8e0-4c1f-e5e960c3182d",
-          "name": "Inicia sesión y obtiene tokens de acceso",
+          "name": "[PENDIENTE] Inicia sesión y obtiene tokens de acceso",
           "request": {
-            "name": "Inicia sesión y obtiene tokens de acceso",
+            "name": "[PENDIENTE] Inicia sesión y obtiene tokens de acceso",
             "description": {
-              "content": "Autentica un usuario (CLIENT, ALLY o ADMIN) dentro del tenant resuelto por `X-Tenant-Id` y devuelve un `accessToken`/`refreshToken` con el claim `tenant_id` embebido.\n",
+              "content": "[PENDIENTE DE IMPLEMENTACIÓN EN CORE NODE] Especificación del contrato para cuando Core implemente autenticación. Autentica un usuario (CLIENT, ALLY o ADMIN) dentro del tenant resuelto por `X-Tenant-Slug` (ADR-0018) y devuelve un `accessToken`/`refreshToken` con el claim `tenant_id` embebido.\n",
               "type": "text/plain"
             },
             "url": {
@@ -822,7 +822,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"t-3f60KFkLpwB2p@nkKaj.mndb\",\n  \"password\": \"stringstring\"\n}",
+                  "raw": "{\n  \"email\": \"7NY@lVHTcjEutFBzNslmDNCKcqILKPxe.nw\",\n  \"password\": \"stringstring\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -838,7 +838,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"profile\": {\n    \"id\": \"string\",\n    \"tenantId\": \"trama-demo\",\n    \"role\": \"ADMIN\",\n    \"fullName\": \"string\",\n    \"status\": \"PENDING\"\n  },\n  \"tokens\": {\n    \"accessToken\": \"string\",\n    \"refreshToken\": \"string\",\n    \"expiresIn\": 3600\n  }\n}",
+              "body": "{\n  \"profile\": {\n    \"id\": \"string\",\n    \"tenantId\": \"trama-demo\",\n    \"role\": \"ALLY\",\n    \"fullName\": \"string\",\n    \"status\": \"PENDING\"\n  },\n  \"tokens\": {\n    \"accessToken\": \"string\",\n    \"refreshToken\": \"string\",\n    \"expiresIn\": 3600\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -878,7 +878,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"t-3f60KFkLpwB2p@nkKaj.mndb\",\n  \"password\": \"stringstring\"\n}",
+                  "raw": "{\n  \"email\": \"7NY@lVHTcjEutFBzNslmDNCKcqILKPxe.nw\",\n  \"password\": \"stringstring\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -894,7 +894,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"EMAIL_ALREADY_REGISTERED\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -934,7 +934,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"t-3f60KFkLpwB2p@nkKaj.mndb\",\n  \"password\": \"stringstring\"\n}",
+                  "raw": "{\n  \"email\": \"7NY@lVHTcjEutFBzNslmDNCKcqILKPxe.nw\",\n  \"password\": \"stringstring\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -950,7 +950,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"EMAIL_ALREADY_REGISTERED\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -990,7 +990,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"t-3f60KFkLpwB2p@nkKaj.mndb\",\n  \"password\": \"stringstring\"\n}",
+                  "raw": "{\n  \"email\": \"7NY@lVHTcjEutFBzNslmDNCKcqILKPxe.nw\",\n  \"password\": \"stringstring\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -1006,7 +1006,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"EMAIL_ALREADY_REGISTERED\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -1067,11 +1067,11 @@
         },
         {
           "id": "2af3c7ad-4775-30f5-ee9d-e9dac1f9ce90",
-          "name": "Renueva el accessToken a partir de un refreshToken vigente",
+          "name": "[PENDIENTE] Renueva el accessToken a partir de un refreshToken vigente",
           "request": {
-            "name": "Renueva el accessToken a partir de un refreshToken vigente",
+            "name": "[PENDIENTE] Renueva el accessToken a partir de un refreshToken vigente",
             "description": {
-              "content": "El tenant del nuevo accessToken se conserva del claim `tenant_id` del refreshToken original; este endpoint no acepta `X-Tenant-Id`.\n",
+              "content": "[PENDIENTE DE IMPLEMENTACIÓN EN CORE NODE] Especificación del contrato para cuando Core implemente renovación de sesión. El tenant del nuevo accessToken se conserva del claim `tenant_id` del refreshToken original; este endpoint no acepta `X-Tenant-Slug` ni `X-Tenant-Id`.\n",
               "type": "text/plain"
             },
             "url": {
@@ -1210,7 +1210,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"EMAIL_ALREADY_REGISTERED\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -1260,7 +1260,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"EMAIL_ALREADY_REGISTERED\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -1310,7 +1310,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"EMAIL_ALREADY_REGISTERED\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -1365,11 +1365,11 @@
         },
         {
           "id": "b23ca05e-0951-63a7-ab02-db80ea9a9f5c",
-          "name": "Cierra la sesión actual e invalida el refreshToken asociado",
+          "name": "[PENDIENTE] Cierra la sesión actual e invalida el refreshToken asociado",
           "request": {
-            "name": "Cierra la sesión actual e invalida el refreshToken asociado",
+            "name": "[PENDIENTE] Cierra la sesión actual e invalida el refreshToken asociado",
             "description": {
-              "content": "El tenant se deriva del claim `tenant_id` del accessToken; no acepta `X-Tenant-Id`.",
+              "content": "[PENDIENTE DE IMPLEMENTACIÓN EN CORE NODE] Especificación del contrato para cuando Core implemente cierre de sesión. El tenant se deriva del claim `tenant_id` del accessToken; no acepta `X-Tenant-Slug` ni `X-Tenant-Id`.\n",
               "type": "text/plain"
             },
             "url": {
@@ -1483,7 +1483,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"EMAIL_ALREADY_REGISTERED\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -1525,7 +1525,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"EMAIL_ALREADY_REGISTERED\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }

@@ -47,22 +47,18 @@ tags:
     description: Autenticación e identidad de usuarios (Clientes, Aliados, Admins)
   - name: Ally Registration
     description: Registro de Aliados persona natural
-  - name: Catalog
-    description: >
-      Catálogo de categorías de servicio. US-03.1.1-M2.1 cubre la gestión en
-      Core Node (este contrato); US-03.1.1-M2.2 deja declarada, sin
-      implementar, la frontera de evaluación de reglas hacia el Rules Service
-      (MANI-Java) sobre estas mismas categorías.
 
 paths:
   /auth/login:
     post:
       tags: [Auth]
       operationId: login
-      summary: Inicia sesión y obtiene tokens de acceso
+      summary: '[PENDIENTE] Inicia sesión y obtiene tokens de acceso'
       description: >
+        [PENDIENTE DE IMPLEMENTACIÓN EN CORE NODE]
+        Especificación del contrato para cuando Core implemente autenticación.
         Autentica un usuario (CLIENT, ALLY o ADMIN) dentro del tenant
-        resuelto por `X-Tenant-Id` y devuelve un `accessToken`/`refreshToken`
+        resuelto por `X-Tenant-Slug` (ADR-0018) y devuelve un `accessToken`/`refreshToken`
         con el claim `tenant_id` embebido.
       parameters:
         - $ref: '#/components/parameters/XTenantSlug'
@@ -101,10 +97,12 @@ paths:
     post:
       tags: [Auth]
       operationId: refreshToken
-      summary: Renueva el accessToken a partir de un refreshToken vigente
+      summary: '[PENDIENTE] Renueva el accessToken a partir de un refreshToken vigente'
       description: >
+        [PENDIENTE DE IMPLEMENTACIÓN EN CORE NODE]
+        Especificación del contrato para cuando Core implemente renovación de sesión.
         El tenant del nuevo accessToken se conserva del claim `tenant_id`
-        del refreshToken original; este endpoint no acepta `X-Tenant-Id`.
+        del refreshToken original; este endpoint no acepta `X-Tenant-Slug` ni `X-Tenant-Id`.
       parameters:
         - $ref: '#/components/parameters/XCorrelationId'
       requestBody:
@@ -139,8 +137,11 @@ paths:
     post:
       tags: [Auth]
       operationId: logout
-      summary: Cierra la sesión actual e invalida el refreshToken asociado
-      description: El tenant se deriva del claim `tenant_id` del accessToken; no acepta `X-Tenant-Id`.
+      summary: '[PENDIENTE] Cierra la sesión actual e invalida el refreshToken asociado'
+      description: >
+        [PENDIENTE DE IMPLEMENTACIÓN EN CORE NODE]
+        Especificación del contrato para cuando Core implemente cierre de sesión.
+        El tenant se deriva del claim `tenant_id` del accessToken; no acepta `X-Tenant-Slug` ni `X-Tenant-Id`.
       security:
         - bearerAuth: []
       parameters:
@@ -212,247 +213,6 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /catalog/categories:
-    get:
-      tags: [Catalog]
-      operationId: listCategoriesForTenant
-      summary: Lista las categorías de servicio del tenant autenticado (Backoffice)
-      description: >
-        Gestión aislada por tenant (US-03.1.1-M2.1): el tenant se deriva
-        exclusivamente del claim `app_metadata.tenant_id` del JWT, nunca de un
-        header. Solo el rol `ADMIN` (`admin_tenant` en el claim) puede
-        invocar los endpoints de `/catalog/categories/*`; el listado público
-        sin autenticar vive en `GET /catalog` (fuera de este contrato, sin
-        cambios).
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/XCorrelationId'
-        - name: onlyActive
-          in: query
-          required: false
-          schema:
-            type: boolean
-            default: false
-      responses:
-        '200':
-          description: Categorías del tenant (incluye inactivas salvo `onlyActive=true`)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CategoryListResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '500':
-          $ref: '#/components/responses/InternalError'
-    post:
-      tags: [Catalog]
-      operationId: createCategory
-      summary: Crea una categoría de servicio para el tenant autenticado
-      description: >
-        El nombre debe tener entre 3 y 60 caracteres y contener al menos una
-        letra (mismo criterio que `crear_categoria_servicio()` en
-        `database/migrations/003_categorias_servicio.sql`), y debe ser único
-        dentro del tenant sin distinguir mayúsculas ni espacios extremos
-        (`ux_categoria_tenant_nombre`). `flujoOperativo` es obligatorio, sin
-        valor por defecto: el Backoffice debe elegir explícitamente si la
-        categoría opera con `COTIZACION_PREVIA` o `TARIFA_ESTANDAR`.
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/XCorrelationId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateCategoryRequest'
-      responses:
-        '201':
-          description: Categoría creada
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CategoryResponse'
-        '400':
-          description: >-
-            Body inválido (`VALIDATION_ERROR`): nombre fuera de rango, sin
-            letras, o flujoOperativo ausente/inválido.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          description: Ya existe una categoría con ese nombre en este tenant (`CATEGORY_NAME_ALREADY_EXISTS`)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
-  /catalog/categories/{id}:
-    parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-    get:
-      tags: [Catalog]
-      operationId: getCategory
-      summary: Obtiene una categoría de servicio del tenant autenticado
-      description: El tenant se deriva del claim `app_metadata.tenant_id` del JWT; una categoría de otro tenant responde 404.
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/XCorrelationId'
-      responses:
-        '200':
-          description: Categoría encontrada
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CategoryResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          description: No existe o no pertenece a este tenant (`CATEGORY_NOT_FOUND`)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/InternalError'
-    put:
-      tags: [Catalog]
-      operationId: updateCategory
-      summary: Actualiza name/description/flujoOperativo de una categoría del tenant autenticado
-      description: Requiere al menos uno de `name`, `description` o `flujoOperativo`.
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/XCorrelationId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateCategoryRequest'
-      responses:
-        '200':
-          description: Categoría actualizada
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CategoryResponse'
-        '400':
-          description: Body inválido (`VALIDATION_ERROR`)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          description: No existe o no pertenece a este tenant (`CATEGORY_NOT_FOUND`)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '409':
-          description: El nuevo `name` ya lo usa otra categoría de este tenant (`CATEGORY_NAME_ALREADY_EXISTS`)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
-  /catalog/categories/{id}/activate:
-    patch:
-      tags: [Catalog]
-      operationId: activateCategory
-      summary: Activa una categoría de servicio (flujo operativo de activación)
-      description: >
-        No borra la categoría físicamente; solo cambia `estado` a `ACTIVO`,
-        preservando las referencias existentes en `aliado_categoria`.
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-        - $ref: '#/components/parameters/XCorrelationId'
-      responses:
-        '200':
-          description: Categoría activada
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CategoryResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          description: No existe o no pertenece a este tenant (`CATEGORY_NOT_FOUND`)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
-  /catalog/categories/{id}/deactivate:
-    patch:
-      tags: [Catalog]
-      operationId: deactivateCategory
-      summary: Desactiva una categoría de servicio (flujo operativo de desactivación)
-      description: >
-        No borra la categoría físicamente; solo cambia `estado` a `INACTIVO`,
-        preservando las referencias existentes en `aliado_categoria`.
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-        - $ref: '#/components/parameters/XCorrelationId'
-      responses:
-        '200':
-          description: Categoría desactivada
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CategoryResponse'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          description: No existe o no pertenece a este tenant (`CATEGORY_NOT_FOUND`)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
 components:
   securitySchemes:
     bearerAuth:
@@ -492,22 +252,6 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
-    Unauthorized:
-      description: Falta el header `Authorization`, o el JWT es inválido/expiró (`UNAUTHORIZED` / `TOKEN_INVALID` / `TOKEN_EXPIRED`)
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-    Forbidden:
-      description: >
-        El usuario autenticado no tiene el rol requerido (`FORBIDDEN`). Los
-        endpoints de `/catalog/categories/*` exigen rol `ADMIN`
-        (`admin_tenant` en el claim); cualquier otro rol recibe este error
-        aunque el JWT sea válido.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
 
   schemas:
     ErrorCode:
@@ -517,27 +261,21 @@ components:
         - VALIDATION_ERROR
         - INVALID_CREDENTIALS
         - UNAUTHORIZED
-        - FORBIDDEN
         - TOKEN_INVALID
         - TOKEN_EXPIRED
         - TENANT_NOT_FOUND
         - CATEGORY_NOT_FOUND
-        - CATEGORY_NAME_ALREADY_EXISTS
         - EMAIL_ALREADY_REGISTERED
         - DOCUMENT_ALREADY_REGISTERED
         - INTERNAL_ERROR
       x-code-meanings:
         VALIDATION_ERROR: 'HTTP 400 — el body no cumple el esquema (campo faltante/formato inválido).'
         INVALID_CREDENTIALS: 'HTTP 401 — email y/o password no coinciden con ningún usuario del tenant.'
-        FORBIDDEN: 'HTTP 403 — el usuario autenticado no tiene el rol requerido (p. ej. gestión de categorías exige ADMIN).'
-        CATEGORY_NAME_ALREADY_EXISTS: 'HTTP 409 — ya existe una categoría con ese nombre (sin distinguir mayúsculas/espacios) en este tenant.'
         UNAUTHORIZED: 'HTTP 401 — falta el header Authorization en un endpoint protegido.'
         TOKEN_INVALID: 'HTTP 401 — el JWT no tiene un formato o firma válidos.'
         TOKEN_EXPIRED: 'HTTP 401 — el JWT es válido pero ya expiró.'
         TENANT_NOT_FOUND: 'HTTP 400 — X-Tenant-Id no corresponde a un tenant existente/activo.'
-        CATEGORY_NOT_FOUND: >-
-          HTTP 400 en /auth/register/ally (categoriaId no corresponde a una categoría existente/activa del tenant) o
-          HTTP 404 en /catalog/categories/* (el id no existe o no pertenece al tenant autenticado).
+        CATEGORY_NOT_FOUND: 'HTTP 400 — categoriaId no corresponde a una categoría existente/activa del tenant.'
         EMAIL_ALREADY_REGISTERED: 'HTTP 409 — ya existe un usuario con ese email en el tenant.'
         DOCUMENT_ALREADY_REGISTERED: 'HTTP 409 — se envió documentNumber y ya existe un Aliado con ese número en el tenant.'
         INTERNAL_ERROR: 'HTTP 500 — fallo no controlado del servicio.'
@@ -717,83 +455,4 @@ components:
           $ref: '#/components/schemas/ProfileSummary'
         tokens:
           $ref: '#/components/schemas/AuthTokens'
-      required: [profile, tokens]
-
-    FlujoOperativo:
-      type: string
-      description: >
-        COTIZACION_PREVIA: el aliado diagnostica y cotiza antes de ejecutar.
-        TARIFA_ESTANDAR: se cobra la tarifa de referencia del tenant, sin
-        cotización previa. Ver database/migrations/003_categorias_servicio.sql.
-      enum: [COTIZACION_PREVIA, TARIFA_ESTANDAR]
-
-    Category:
-      type: object
-      properties:
-        id:
-          type: string
-        name:
-          type: string
-          minLength: 3
-          maxLength: 60
-          example: Plomería y Redes Hidráulicas
-        description:
-          type: string
-          description: >-
-            Reservado para una futura migración; `categoria_servicio` no
-            tiene todavía una columna `descripcion`, así que Core Node
-            siempre devuelve cadena vacía para categorías persistidas en
-            Supabase.
-        active:
-          type: boolean
-        tenantId:
-          type: string
-        flujoOperativo:
-          $ref: '#/components/schemas/FlujoOperativo'
-      required: [id, name, active, tenantId, flujoOperativo]
-
-    CategoryResponse:
-      type: object
-      properties:
-        category:
-          $ref: '#/components/schemas/Category'
-      required: [category]
-
-    CategoryListResponse:
-      type: object
-      properties:
-        categories:
-          type: array
-          items:
-            $ref: '#/components/schemas/Category'
-      required: [categories]
-
-    CreateCategoryRequest:
-      type: object
-      properties:
-        name:
-          type: string
-          minLength: 3
-          maxLength: 60
-          description: Debe contener al menos una letra; único por tenant (sin distinguir mayúsculas/espacios extremos).
-          example: Plomería y Redes Hidráulicas
-        description:
-          type: string
-        flujoOperativo:
-          $ref: '#/components/schemas/FlujoOperativo'
-      required: [name, flujoOperativo]
-
-    UpdateCategoryRequest:
-      type: object
-      description: Al menos uno de los tres campos es requerido.
-      properties:
-        name:
-          type: string
-          minLength: 3
-          maxLength: 60
-        description:
-          type: string
-        flujoOperativo:
-          $ref: '#/components/schemas/FlujoOperativo'
-      minProperties: 1
       required: [profile, tokens]
