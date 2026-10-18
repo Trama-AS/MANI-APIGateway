@@ -213,6 +213,55 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /auth/register/ally/company:
+    post:
+      tags: [Ally Registration]
+      operationId: registerAllyCompany
+      summary: Registra un nuevo Aliado empresa (persona jurídica)
+      description: >
+        Crea el usuario y el perfil de Aliado empresa (rol ALLY) en estado PENDING,
+        con sus documentos KYC (Cámara de Comercio obligatoria) y datos del representante
+        legal, dentro del tenant resuelto por `X-Tenant-Slug` (ADR-0018 / US-02.1.2-M2).
+      parameters:
+        - $ref: '#/components/parameters/XTenantSlug'
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RegisterAllyCompanyRequest'
+            encoding:
+              camara_comercio:
+                contentType: application/pdf, image/png, image/jpeg
+      responses:
+        '201':
+          description: Aliado empresa registrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterAllyResponse'
+        '400':
+          description: >
+            Body inválido (`VALIDATION_ERROR`), tenant inexistente/inactivo
+            (`TENANT_NOT_FOUND`) o categoría inexistente/inactiva
+            (`CATEGORY_NOT_FOUND`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: >
+            Ya existe un usuario con ese email (`EMAIL_ALREADY_REGISTERED`)
+            o la empresa ya está registrada con ese NIT en este tenant
+            (`COMPANY_ALREADY_REGISTERED`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -456,3 +505,52 @@ components:
         tokens:
           $ref: '#/components/schemas/AuthTokens'
       required: [profile, tokens]
+
+    RegisterAllyCompanyRequest:
+      type: object
+      description: Datos de registro para un Aliado persona jurídica (empresa).
+      properties:
+        razonSocial:
+          type: string
+          example: Soluciones Industriales SAS
+        nit:
+          type: string
+          example: 900123456-1
+        nombreRepresentante:
+          type: string
+          example: Carlos Gomez
+        docRepresentante:
+          type: string
+          example: '1020304050'
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+        phone:
+          type: string
+          example: '+573001234567'
+        categoriaId:
+          type: string
+          description: Id de categoria_servicio opcional.
+        camara_comercio:
+          type: string
+          format: binary
+          description: Documento KYC obligatorio (Cámara de Comercio).
+        rut_empresa:
+          type: string
+          format: binary
+          description: Documento KYC opcional (RUT).
+        cedula_representante:
+          type: string
+          format: binary
+          description: Documento KYC opcional (Cédula representante legal).
+      required:
+        - razonSocial
+        - nit
+        - nombreRepresentante
+        - email
+        - password
+        - camara_comercio
