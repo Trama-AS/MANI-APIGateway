@@ -119,3 +119,93 @@ jobs:
           name: newman-report
           path: gateway/newman/report.xml
           retention-days: 14
+
+  contract-gate-rules:
+    name: Gate de Contrato Rules (US-03.1.1-M6) — Gateway + Core + MANI-Java reales
+    # Core se toma de main porque ahí vive /api/v1/auth/validate-token (CFG-22),
+    # que el Gateway usa en auth_request antes de reenviar /api/v1/rules/*.
+    needs: contract-validation
+    runs-on: ubuntu-latest
+    env:
+      JWT_SECRET_CI: ci-rules-jwt-secret-32-characters!!
+    steps:
+      - name: Checkout Gateway
+        uses: actions/checkout@v4
+        with:
+          path: gateway
+
+      - name: Checkout Core Node
+        uses: actions/checkout@v4
+        with:
+          repository: Trama-AS/MANI-Node
+          ref: main
+          path: core
+
+      - name: Checkout Rules Java
+        uses: actions/checkout@v4
+        with:
+          repository: Trama-AS/MANI-Java
+          ref: develop
+          path: rules
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: gateway/package-lock.json
+
+      - name: Instalar dependencias del Gateway (Newman)
+        working-directory: gateway
+        run: npm ci
+
+      - name: Construir imágenes
+        run: |
+          docker build -t mani-core-node:ci core
+          docker build -t mani-rules-java:ci rules
+          docker build -t mani-api-gateway:ci gateway
+
+      - name: Levantar Core + Rules + Gateway
+        run: |
+          docker network create mani-ci-network
+          docker run -d --name core-service --network mani-ci-network --network-alias core-service \
+            -e NODE_ENV=development -e SUPABASE_JWT_SECRET="$JWT_SECRET_CI" mani-core-node:ci
+          docker run -d --name rules-service --network mani-ci-network --network-alias rules-service \
+            mani-rules-java:ci
+          docker run -d --name gateway --network mani-ci-network -p 80:80 mani-api-gateway:ci
+
+      - name: Esperar a Rules y Core a través del Gateway
+        run: |
+          for i in $(seq 1 90); do
+            if curl -sf http://localhost/api/v1/rules/health > /dev/null && curl -sf http://localhost/api/v1/core/health > /dev/null; then
+              echo "Listos"; exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Rules o Core no respondieron a través del Gateway"; exit 1
+
+      - name: Verificar que la colección versionada coincide con el generador
+        working-directory: gateway
+        run: |
+          npm run postman:generate:rules
+          git diff --exit-code postman/MANI-Rules.postman_collection.json
+
+      - name: Ejecutar colección Rules contra el Gateway
+        working-directory: gateway
+        run: >
+          npm run postman:run:rules -- --env-var baseUrl=http://localhost --env-var "jwtSecret=$JWT_SECRET_CI"
+          --reporters cli,junit --reporter-junit-export newman/rules-report.xml
+
+      - name: Logs de los contenedores (si algo falló)
+        if: failure()
+        run: |
+          echo "--- gateway ---"; docker logs gateway || true
+          echo "--- core-service ---"; docker logs core-service || true
+          echo "--- rules-service ---"; docker logs rules-service || true
+
+      - name: Publicar reporte de Newman (Rules)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newman-report-rules
+          path: gateway/newman/rules-report.xml

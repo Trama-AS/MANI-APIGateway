@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.3.0
+  version: 0.5.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -46,7 +46,9 @@ tags:
   - name: Auth
     description: Autenticación e identidad de usuarios (Clientes, Aliados, Admins)
   - name: Ally Registration
-    description: Registro de Aliados persona natural
+    description: Registro de Aliados persona natural y empresa
+  - name: Service Requests
+    description: Creación de solicitudes de servicio por el cliente (US-04.1.1-M2 / SCRUM-1072)
 
 paths:
   /auth/login:
@@ -262,6 +264,87 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /solicitudes:
+    post:
+      tags: [Service Requests]
+      operationId: createServiceRequest
+      summary: El cliente crea una solicitud de servicio
+      description: >
+        Crea la solicitud en estado `PENDIENTE` en Core (ARQ-03: Core crea la solicitud, Dispatch la orquesta
+        después). Porta la función `crear_solicitud` al servicio (ADR-0022): el tenant y el cliente salen del
+        JWT (`bearerAuth`), nunca del cuerpo ni de `X-Tenant-Id`. La ubicación es un sitio propio del cliente
+        (`sitioId`) o una dirección nueva con `zonaId` activa. Las fotos (hasta 5 imágenes) viajan como
+        `multipart/form-data` en el campo `fotos`; Core las guarda en Storage bajo `{tenant}/{usuario}/`.
+        Con `claveIdempotencia` el reintento devuelve la solicitud existente con `200` en lugar de `201`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateServiceRequestRequest'
+          multipart/form-data:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/CreateServiceRequestRequest'
+                - type: object
+                  properties:
+                    fotos:
+                      type: array
+                      maxItems: 5
+                      description: Imágenes PNG, JPEG o WEBP de hasta 5 MB cada una.
+                      items:
+                        type: string
+                        format: binary
+            encoding:
+              fotos:
+                contentType: image/png, image/jpeg, image/webp
+      responses:
+        '201':
+          description: Solicitud creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateServiceRequestResponse'
+        '200':
+          description: Reintento con la misma `claveIdempotencia`; devuelve la solicitud ya creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateServiceRequestResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-SOL-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: La cuenta no es un cliente activo del tenant del JWT (`MANI-SOL-403C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: >
+            Datos rechazados: categoría no disponible (`MANI-SOL-422C`), descripción fuera de 20 a 1000 caracteres
+            (`MANI-SOL-422D`), sitio inexistente o dirección inválida (`MANI-SOL-422S`), zona no disponible
+            (`MANI-SOL-422Z`), fotos inválidas (`MANI-SOL-422F`) o clave de idempotencia inválida (`MANI-SOL-422K`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -316,6 +399,16 @@ components:
         - CATEGORY_NOT_FOUND
         - EMAIL_ALREADY_REGISTERED
         - DOCUMENT_ALREADY_REGISTERED
+        - COMPANY_ALREADY_REGISTERED
+        - SERVICE_UNAVAILABLE
+        - MANI-SOL-401
+        - MANI-SOL-403C
+        - MANI-SOL-422C
+        - MANI-SOL-422D
+        - MANI-SOL-422S
+        - MANI-SOL-422Z
+        - MANI-SOL-422F
+        - MANI-SOL-422K
         - INTERNAL_ERROR
       x-code-meanings:
         VALIDATION_ERROR: 'HTTP 400 — el body no cumple el esquema (campo faltante/formato inválido).'
@@ -327,6 +420,16 @@ components:
         CATEGORY_NOT_FOUND: 'HTTP 400 — categoriaId no corresponde a una categoría existente/activa del tenant.'
         EMAIL_ALREADY_REGISTERED: 'HTTP 409 — ya existe un usuario con ese email en el tenant.'
         DOCUMENT_ALREADY_REGISTERED: 'HTTP 409 — se envió documentNumber y ya existe un Aliado con ese número en el tenant.'
+        COMPANY_ALREADY_REGISTERED: 'HTTP 409 — la empresa ya está registrada con ese NIT en el tenant (registro de aliado empresa).'
+        SERVICE_UNAVAILABLE: 'HTTP 503 — una dependencia (p. ej. la base de datos) no está disponible; no hay respaldo local.'
+        MANI-SOL-401: 'HTTP 401 — sesión requerida para crear la solicitud.'
+        MANI-SOL-403C: 'HTTP 403 — solo un cliente activo del tenant puede publicar solicitudes.'
+        MANI-SOL-422C: 'HTTP 422 — la categoría no existe, no está activa o es de otro tenant.'
+        MANI-SOL-422D: 'HTTP 422 — la descripción debe tener entre 20 y 1000 caracteres.'
+        MANI-SOL-422S: 'HTTP 422 — el sitio no es del cliente o la dirección no tiene entre 5 y 200 caracteres.'
+        MANI-SOL-422Z: 'HTTP 422 — la zona no existe o no está activa.'
+        MANI-SOL-422F: 'HTTP 422 — más de 5 fotos o un archivo que no es imagen.'
+        MANI-SOL-422K: 'HTTP 422 — la clave de idempotencia no es un UUID.'
         INTERNAL_ERROR: 'HTTP 500 — fallo no controlado del servicio.'
 
     ErrorResponse:
@@ -554,3 +657,61 @@ components:
         - email
         - password
         - camara_comercio
+
+    CreateServiceRequestRequest:
+      type: object
+      description: Debe venir `sitioId` o la pareja `direccion` + `zonaId`.
+      required: [categoriaId, descripcion]
+      properties:
+        categoriaId:
+          type: string
+          format: uuid
+          description: Categoría ACTIVO del tenant del JWT.
+        descripcion:
+          type: string
+          minLength: 20
+          maxLength: 1000
+        sitioId:
+          type: string
+          format: uuid
+          description: Sitio existente del cliente. Si viene, se ignoran `direccion` y `zonaId`.
+        direccion:
+          type: string
+          minLength: 5
+          maxLength: 200
+          description: Dirección nueva (crea un sitio del cliente).
+        zonaId:
+          type: string
+          format: uuid
+          description: Zona activa de la dirección nueva.
+        claveIdempotencia:
+          type: string
+          format: uuid
+          description: Clave del cliente para reintentos seguros.
+
+    ServiceRequest:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        estado: { type: string, example: PENDIENTE }
+        categoriaId: { type: string, format: uuid }
+        categoria: { type: string, example: Plomería }
+        flujoOperativo: { type: string, nullable: true, example: COTIZACION_PREVIA }
+        descripcion: { type: string }
+        sitioId: { type: string, format: uuid }
+        direccion: { type: string }
+        zonaId: { type: string, format: uuid }
+        zona: { type: string, example: Chapinero }
+        zonaPadre: { type: string, nullable: true, example: Bogotá }
+        fotos: { type: integer, description: Cantidad de fotos registradas }
+        createdAt: { type: string, format: date-time }
+      required: [id, estado, categoriaId, descripcion, sitioId, zonaId, createdAt]
+
+    CreateServiceRequestResponse:
+      type: object
+      properties:
+        solicitud:
+          $ref: '#/components/schemas/ServiceRequest'
+        correlationId:
+          type: string
+      required: [solicitud, correlationId]
