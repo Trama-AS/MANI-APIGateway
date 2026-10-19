@@ -98,6 +98,9 @@ jobs:
           done
           curl -sf http://localhost/api/v1/core/health || (echo "::error::Core no respondió a través del Gateway" && exit 1)
 
+      - name: Verificar que las rutas internas de Core no se exponen (SCRUM-1073)
+        run: bash gateway/tests/gateway/rutas-internas-core.sh http://localhost
+
       - name: Regenerar colección Postman desde el contrato OpenAPI
         working-directory: gateway
         run: npm run postman:generate
