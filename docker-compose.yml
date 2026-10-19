@@ -11,22 +11,35 @@ services:
       - mani-network
     depends_on:
       - core-service
-      - rules-service
-      - dispatch-service
 
   core-service:
     image: mani-core-node:local
     container_name: mani-core-service
     restart: unless-stopped
+    environment:
+      # El Dockerfile de MANI-Node fija NODE_ENV=production por defecto, que exige
+      # credenciales reales de Supabase. Para DEV local sin esas credenciales,
+      # cae a los repositorios en memoria (ver MANI-Node/src/container.js).
+      NODE_ENV: ${CORE_NODE_ENV:-development}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
     expose:
       - "3000"
     networks:
       - mani-network
 
+  # rules-service/dispatch-service son perfil "full": Java/.NET todavía no
+  # tienen imagen local la mayoría del tiempo. Sin el perfil, "docker compose
+  # up" (gateway + core-service) no intenta construirlos/descargarlos — el
+  # Gateway sigue arrancando gracias al resolver dinámico de nginx.conf, y
+  # /api/v1/rules/* y /api/v1/dispatch/* devuelven 502 hasta que existan.
+  # Levantar también estos: docker compose --profile full up -d
   rules-service:
     image: mani-rules-java:local
     container_name: mani-rules-service
     restart: unless-stopped
+    profiles: ["full"]
     expose:
       - "8080"
     networks:
@@ -36,6 +49,7 @@ services:
     image: mani-dispatch-dotnet:local
     container_name: mani-dispatch-service
     restart: unless-stopped
+    profiles: ["full"]
     expose:
       - "5000"
     networks:

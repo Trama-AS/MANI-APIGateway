@@ -1,0 +1,121 @@
+name: CI — Gateway Contract & Quality Gate
+
+on:
+  push:
+    branches: [main, develop, CFG-16]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  contract-validation:
+    name: Validar y Auditar Contrato OpenAPI (CFG-16)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Validar sintaxis de NGINX
+        run: docker run --rm -v "${{ github.workspace }}/nginx.conf:/etc/nginx/nginx.conf" nginx:alpine nginx -t
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Validar esquema OpenAPI (Swagger Parser)
+        run: npm run validate:openapi
+
+      - name: Lint de estilo de contrato (Spectral)
+        run: npm run lint:openapi
+
+      - name: Validar generación de colección Postman desde OpenAPI (core.yaml)
+        run: npm run postman:generate
+
+  contract-gate-newman:
+    name: Gate de Contrato Postman/Newman (QA-03) — vía el Gateway real
+    # NOTA DE ARQUITECTURA: Este gate ejecuta Core en modo in-memory (NODE_ENV=development)
+    # a través de la instancia real de NGINX Gateway, hasta que el entorno desplegado en QA esté disponible.
+    needs: contract-validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Gateway
+        uses: actions/checkout@v4
+        with:
+          path: gateway
+
+      - name: Checkout Core Node
+        uses: actions/checkout@v4
+        with:
+          repository: Trama-AS/MANI-Node
+          ref: develop
+          path: core
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: gateway/package-lock.json
+
+      - name: Instalar dependencias del Gateway (Newman/Spectral)
+        working-directory: gateway
+        run: npm ci
+
+      - name: Construir imagen de Core
+        working-directory: core
+        run: docker build -t mani-core-node:ci .
+
+      - name: Construir imagen del Gateway
+        working-directory: gateway
+        run: docker build -t mani-api-gateway:ci .
+
+      - name: Crear red y levantar Core + Gateway
+        run: |
+          docker network create mani-ci-network
+          docker run -d --name core-service --network mani-ci-network \
+            --network-alias core-service \
+            -e NODE_ENV=development \
+            mani-core-node:ci
+          docker run -d --name gateway --network mani-ci-network \
+            -p 80:80 \
+            mani-api-gateway:ci
+
+      # El Gateway resuelve "core-service" vía el DNS embebido de Docker
+      # (nginx.conf: resolver 127.0.0.11) — por eso el alias de red importa.
+      - name: Esperar a que el Gateway y Core (vía Gateway) respondan
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost/health > /dev/null; then echo "Gateway listo"; break; fi
+            sleep 1
+          done
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost/api/v1/core/health > /dev/null; then echo "Core (vía Gateway) listo"; break; fi
+            sleep 1
+          done
+          curl -sf http://localhost/api/v1/core/health || (echo "::error::Core no respondió a través del Gateway" && exit 1)
+
+      - name: Regenerar colección Postman desde el contrato OpenAPI
+        working-directory: gateway
+        run: npm run postman:generate
+
+      - name: Ejecutar colección Postman contra el Gateway (Ally Registration)
+        working-directory: gateway
+        run: npm run postman:run:ally -- --reporters cli,junit --reporter-junit-export newman/report.xml
+
+      - name: Logs de los contenedores (si algo falló)
+        if: failure()
+        run: |
+          echo "--- gateway ---"; docker logs gateway || true
+          echo "--- core-service ---"; docker logs core-service || true
+
+      - name: Publicar reporte de Newman
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: newman-report
+          path: gateway/newman/report.xml
+          retention-days: 14
