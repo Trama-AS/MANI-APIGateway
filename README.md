@@ -134,6 +134,27 @@ curl -i http://localhost/health
 
 ---
 
+## 📐 Contratos publicados
+
+| Contrato | Servicio | Suite Newman |
+| :--- | :--- | :--- |
+| `docs/openapi/core.yaml` | MANI-Node (identidad y registro) | `postman/MANI-Core.postman_collection.json` |
+| `docs/openapi/rules.yaml` | MANI-Java (reglas de categoría, US-03.1.1-M6) | `postman/MANI-Rules.postman_collection.json` |
+
+```bash
+npm run validate:openapi        # valida ambos contratos
+npm run lint:openapi            # Spectral sobre ambos
+npm run postman:generate:rules  # regenera la colección Rules (no editarla a mano)
+
+# Suite Rules contra el Gateway real (requiere core-service con validate-token y rules-service):
+docker compose --profile full up -d
+npm run postman:run:rules -- --env-var baseUrl=http://localhost --env-var jwtSecret=<SUPABASE_JWT_SECRET>
+```
+
+La suite Rules cubre categoría válida, inválida (nombre, límites 3/60, flujo), inactiva, actualización parcial, autorización por rol, aislamiento de tenant (el `X-Tenant-Id` del cliente se ignora y un `tenantId` ajeno en el cuerpo da `403 TENANT_MISMATCH`) y errores de petición. CI la ejecuta en el job `contract-gate-rules`.
+
+---
+
 ## 👥 Equipo y Gobernanza
 * **Organización:** [TRAMA · Ingeniería de Software](https://github.com/Trama-AS)
 * **Repositorio Oficial:** [MANI-APIGateway](https://github.com/Trama-AS/MANI-APIGateway)
