@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.4.0
+  version: 0.5.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -49,6 +49,8 @@ tags:
     description: Registro de Aliados persona natural
   - name: Service Requests
     description: Creación de solicitudes de servicio por el cliente (US-04.1.1-M2 / SCRUM-1072)
+  - name: Ally Availability
+    description: Intervalos en los que el aliado está "No disponible" (US-02.1.6 / SCRUM-855)
 
 paths:
   /auth/login:
@@ -296,6 +298,136 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /profiles/me/unavailability:
+    get:
+      tags: [Ally Availability]
+      operationId: listAllyUnavailability
+      summary: Lista las ausencias vigentes y futuras del aliado autenticado
+      description: >
+        Devuelve las ausencias que aún no terminan, ordenadas por inicio, y si el
+        aliado está disponible en este momento (`availableNow`). Tenant y rol se
+        derivan exclusivamente del JWT; solo responde a un aliado del tenant.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Ausencias del aliado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllyAbsenceListResponse'
+        '401':
+          $ref: '#/components/responses/AbsenceUnauthorized'
+        '403':
+          $ref: '#/components/responses/AbsenceForbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Ally Availability]
+      operationId: createAllyUnavailability
+      summary: Marca al aliado como "No disponible" durante un intervalo
+      description: >
+        Mientras dure el intervalo [startsAt, endsAt) el aliado sale de la
+        elegibilidad del despacho (SCRUM-861). El intervalo es semiabierto: una
+        ausencia puede empezar justo cuando termina otra.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AllyAbsenceRequest'
+      responses:
+        '201':
+          description: Ausencia registrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllyAbsenceResponse'
+        '401':
+          $ref: '#/components/responses/AbsenceUnauthorized'
+        '403':
+          $ref: '#/components/responses/AbsenceForbidden'
+        '409':
+          $ref: '#/components/responses/AbsenceOverlap'
+        '422':
+          $ref: '#/components/responses/AbsenceInvalid'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /profiles/me/unavailability/{absenceId}:
+    parameters:
+      - name: absenceId
+        in: path
+        required: true
+        description: Id de la ausencia. Una ausencia de otro aliado o de otro tenant responde 404.
+        schema:
+          type: string
+          format: uuid
+    patch:
+      tags: [Ally Availability]
+      operationId: updateAllyUnavailability
+      summary: Edita una ausencia del aliado autenticado
+      description: >
+        Edición parcial: los campos que no se envían conservan su valor. Enviar
+        `note: null` la borra. El intervalo resultante se valida igual que al crear.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AllyAbsencePatch'
+      responses:
+        '200':
+          description: Ausencia actualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllyAbsenceResponse'
+        '401':
+          $ref: '#/components/responses/AbsenceUnauthorized'
+        '403':
+          $ref: '#/components/responses/AbsenceForbidden'
+        '404':
+          $ref: '#/components/responses/AbsenceNotFound'
+        '409':
+          $ref: '#/components/responses/AbsenceOverlap'
+        '422':
+          $ref: '#/components/responses/AbsenceInvalid'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [Ally Availability]
+      operationId: deleteAllyUnavailability
+      summary: Elimina una ausencia; el aliado vuelve a estar disponible
+      description: >
+        Si la ausencia cubría el instante actual, el aliado vuelve a ser elegible
+        para el despacho en cuanto se elimina.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '204':
+          description: Ausencia eliminada
+        '401':
+          $ref: '#/components/responses/AbsenceUnauthorized'
+        '403':
+          $ref: '#/components/responses/AbsenceForbidden'
+        '404':
+          $ref: '#/components/responses/AbsenceNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -336,6 +468,42 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
 
+    AbsenceUnauthorized:
+      description: >
+        Falta el header Authorization (`UNAUTHORIZED`), el JWT es inválido o
+        expiró (`TOKEN_INVALID` / `TOKEN_EXPIRED`), o la sesión no trae usuario y
+        tenant (`MANI-AUS-401`)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AbsenceErrorResponse'
+    AbsenceForbidden:
+      description: El usuario no es un aliado del tenant del JWT (`MANI-AUS-403`)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AbsenceErrorResponse'
+    AbsenceNotFound:
+      description: La ausencia no existe para este aliado y tenant (`MANI-AUS-404`)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AbsenceErrorResponse'
+    AbsenceOverlap:
+      description: El intervalo se cruza con otra ausencia del aliado (`MANI-AUS-409`)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AbsenceErrorResponse'
+    AbsenceInvalid:
+      description: >
+        Horario inválido (`MANI-AUS-422H`: fin no posterior al inicio, más de 365
+        días o ausencia ya terminada) o datos inválidos (`MANI-AUS-422V`: fecha sin
+        zona horaria, motivo fuera del catálogo o nota de más de 280 caracteres)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AbsenceErrorResponse'
   schemas:
     ErrorCode:
       type: string
@@ -615,3 +783,126 @@ components:
         correlationId:
           type: string
       required: [solicitud, correlationId]
+
+    AbsenceErrorResponse:
+      type: object
+      description: >
+        Error de los endpoints de disponibilidad. Mismo formato que
+        `ErrorResponse`, con el catálogo de códigos propio del dominio.
+      properties:
+        error:
+          type: string
+          example: 'MANI-AUS-409: el intervalo se cruza con otra ausencia registrada'
+        code:
+          type: string
+          enum:
+            - UNAUTHORIZED
+            - TOKEN_INVALID
+            - TOKEN_EXPIRED
+            - MANI-AUS-401
+            - MANI-AUS-403
+            - MANI-AUS-404
+            - MANI-AUS-409
+            - MANI-AUS-422H
+            - MANI-AUS-422V
+            - INTERNAL_ERROR
+        correlationId:
+          type: string
+          example: node-1791318617328
+      required: [error, correlationId]
+
+    AllyAbsenceReason:
+      type: string
+      enum: [VACACIONES, ENFERMEDAD, OTRO]
+
+    AllyAbsenceRequest:
+      type: object
+      properties:
+        startsAt:
+          type: string
+          format: date-time
+          description: Inicio de la ausencia, ISO-8601 con zona horaria obligatoria.
+          example: '2026-10-20T08:00:00-05:00'
+        endsAt:
+          type: string
+          format: date-time
+          description: Fin (exclusivo). Posterior a startsAt, en el futuro y a máximo 365 días del inicio.
+          example: '2026-10-25T18:00:00-05:00'
+        reason:
+          $ref: '#/components/schemas/AllyAbsenceReason'
+        note:
+          type: string
+          nullable: true
+          maxLength: 280
+          example: Vacaciones familiares
+      required: [startsAt, endsAt, reason]
+
+    AllyAbsencePatch:
+      type: object
+      minProperties: 1
+      properties:
+        startsAt:
+          type: string
+          format: date-time
+          example: '2026-10-20T08:00:00-05:00'
+        endsAt:
+          type: string
+          format: date-time
+          example: '2026-10-26T18:00:00-05:00'
+        reason:
+          $ref: '#/components/schemas/AllyAbsenceReason'
+        note:
+          type: string
+          nullable: true
+          maxLength: 280
+
+    AllyAbsence:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        startsAt:
+          type: string
+          format: date-time
+          example: '2026-10-20T13:00:00.000Z'
+        endsAt:
+          type: string
+          format: date-time
+          example: '2026-10-25T23:00:00.000Z'
+        reason:
+          $ref: '#/components/schemas/AllyAbsenceReason'
+        note:
+          type: string
+          nullable: true
+        active:
+          type: boolean
+          description: true si la ausencia cubre el instante actual (el aliado está "No disponible" ahora).
+      required: [id, startsAt, endsAt, reason, note, active]
+
+    AllyAbsenceResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        correlationId:
+          type: string
+        data:
+          $ref: '#/components/schemas/AllyAbsence'
+      required: [data, correlationId]
+
+    AllyAbsenceListResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        correlationId:
+          type: string
+        availableNow:
+          type: boolean
+          description: false si alguna ausencia cubre el instante actual.
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AllyAbsence'
+      required: [availableNow, data, correlationId]
