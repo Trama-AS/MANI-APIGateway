@@ -124,6 +124,8 @@ function wireUpIdentityFlow(collection) {
     { key: 'tenantId', value: 'plomeria-express', type: 'string' },
     { key: 'allyEmail', value: '', type: 'string' },
     { key: 'allyPassword', value: 'Cambiar123!', type: 'string' },
+    { key: 'companyEmail', value: '', type: 'string' },
+    { key: 'companyNit', value: '', type: 'string' },
     { key: 'accessToken', value: '', type: 'string' },
     { key: 'refreshToken', value: '', type: 'string' }
   );
@@ -141,6 +143,8 @@ function wireUpIdentityFlow(collection) {
   setFormDataValue(register.request.body, 'email', '{{allyEmail}}');
   setFormDataValue(register.request.body, 'password', '{{allyPassword}}');
   setFormDataValue(register.request.body, 'categoriaId', 'cat-1');
+  // SCRUM-856: Core exige la aceptación expresa de términos (acceptsTerms=true).
+  setFormDataValue(register.request.body, 'acceptsTerms', 'true');
   // src relativo al --working-dir con el que se invoca Newman (ver package.json: postman/).
   setFormDataFile(register.request.body, 'cedula_ciudadania', 'fixtures/cedula-fake.pdf');
   disableFormDataField(register.request.body, 'rut_certificado');
@@ -192,6 +196,66 @@ function wireUpIdentityFlow(collection) {
       '',
       "  pm.collectionVariables.set('accessToken', body.tokens.accessToken);",
       "  pm.collectionVariables.set('refreshToken', body.tokens.refreshToken);",
+      '}',
+    ])
+  );
+
+  // --- POST /auth/register/ally/company (multipart/form-data, SCRUM-1063) ---
+  // Sin esta configuración la colección enviaba el ejemplo del contrato con
+  // archivos inexistentes: Core respondía 400 y, como la petición no tenía
+  // asserts, el gate pasaba sin probar el registro de empresa.
+  const company = findItemByPath(collection, ['auth', 'register', 'ally', 'company']);
+  setHeaderValue(company.request.header, 'X-Tenant-Slug', '{{tenantSlug}}');
+  setFormDataValue(company.request.body, 'razonSocial', 'Soluciones Industriales SAS');
+  setFormDataValue(company.request.body, 'nit', '{{companyNit}}');
+  setFormDataValue(company.request.body, 'nombreRepresentante', 'Carlos Gómez');
+  setFormDataValue(company.request.body, 'docRepresentante', '1020304050');
+  setFormDataValue(company.request.body, 'email', '{{companyEmail}}');
+  setFormDataValue(company.request.body, 'password', '{{allyPassword}}');
+  setFormDataValue(company.request.body, 'categoriaId', 'cat-1');
+  disableFormDataField(company.request.body, 'phone');
+  setFormDataFile(company.request.body, 'camara_comercio', 'fixtures/camara-comercio-fake.pdf');
+  setFormDataFile(company.request.body, 'rut_empresa', 'fixtures/rut-empresa-fake.pdf');
+  setFormDataFile(company.request.body, 'cedula_representante', 'fixtures/cedula-representante-fake.pdf');
+
+  company.event.push(
+    {
+      listen: 'prerequest',
+      script: {
+        type: 'text/javascript',
+        exec: [
+          '// Email y NIT únicos por corrida para no chocar con EMAIL_ALREADY_REGISTERED ni COMPANY_ALREADY_REGISTERED',
+          'const sufijo = Date.now();',
+          "pm.collectionVariables.set('companyEmail', `empresa.${sufijo}@mani.test`);",
+          "pm.collectionVariables.set('companyNit', `9${String(sufijo).slice(-8)}-1`);",
+        ],
+      },
+    },
+    testScript([
+      ...DECODE_JWT_HELPER,
+      '',
+      "pm.test('responde 201 Created', function () {",
+      '  pm.response.to.have.status(201);',
+      '});',
+      '',
+      "pm.test('el body cumple el esquema RegisterAllyResponse', function () {",
+      `  pm.response.to.have.jsonSchema(${JSON.stringify(AUTH_RESPONSE_SCHEMA)});`,
+      '});',
+      '',
+      'if (pm.response.code === 201) {',
+      '  const body = pm.response.json();',
+      '',
+      "  pm.test('la empresa queda como aliado en rol ALLY y estado PENDING', function () {",
+      "    pm.expect(body.profile.role).to.eql('ALLY');",
+      "    pm.expect(body.profile.status).to.eql('PENDING');",
+      '  });',
+      '',
+      "  pm.test('propagación del claim de tenant: tenant_id del accessToken coincide con expectedTenantId', function () {",
+      '    const claims = decodeJwtPayload(body.tokens.accessToken);',
+      "    pm.expect(claims, 'accessToken debe ser un JWT decodificable').to.not.equal(null);",
+      "    const expectedId = pm.environment.get('expectedTenantId') || pm.collectionVariables.get('expectedTenantId');",
+      "    pm.expect(tenantIdFromClaims(claims)).to.eql(expectedId);",
+      '  });',
       '}',
     ])
   );
