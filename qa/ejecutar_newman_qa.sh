@@ -54,6 +54,7 @@ usuarios = {
     'admin_t2': ('30000000-0000-4000-8000-000000000021', t2, 'ADMIN_TENANT'),
     'cliente_t2': ('30000000-0000-4000-8000-000000000022', t2, 'CLIENTE'),
     'aliado_t2': ('30000000-0000-4000-8000-000000000023', t2, 'ALIADO'),
+    'aliado_t1b': ('ee52e2b9-3044-4e30-b0b9-cb744e677527', t1, 'ALIADO'),
     'aliado_poc1': ('30000000-0000-4000-8000-900000000001', '10000000-0000-4000-8000-900000000001', 'ALIADO'),
     'aliado_poc2': ('30000000-0000-4000-8000-900000000002', '10000000-0000-4000-8000-900000000001', 'ALIADO'),
 }
@@ -89,17 +90,60 @@ PY
 
   echo "== 3. Redaccion del reporte y borrado de tokens"
   DIR="$dir" python3 - <<'PY'
-import json, os, re
+import json, os, re, sys
 d = os.environ['DIR']
 tokens = [v['value'] for v in json.load(open(f'{d}/entorno.json'))['values'] if v['key'].startswith('token_')]
 texto = open(f'{d}/resultado_crudo.json', encoding='utf8').read()
 for t in tokens:
     texto = texto.replace(t, '<token_redactado>')
-texto = re.sub(r'eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}', '<jwt_redactado>', texto)
 reporte = json.loads(texto)
 for clave in ('environment', 'globals'):
     reporte.get('run', {}).pop(clave, None)
     reporte.pop(clave, None)
+
+JWT = re.compile(r'eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}')
+SENSIBLES = re.compile(r'("(?:temporaryPassword|accessToken|refreshToken|access_token|refresh_token|password|token|apikey|secret)"\s*:\s*")([^"]*)(")', re.I)
+
+def limpiar(s):
+    return JWT.sub('<jwt_redactado>', SENSIBLES.sub(r'\1<redactado>\3', s))
+
+def cuerpo_de(resp):
+    flujo = resp.get('stream')
+    if isinstance(flujo, dict) and flujo.get('data') is not None:
+        return bytes(flujo['data']).decode('utf8', 'replace')
+    return ''
+
+# Newman guarda las respuestas como arreglos de bytes: se decodifican, se enmascaran las
+# credenciales y se guarda solo el texto limpio (nunca los bytes originales).
+for ex in reporte['run']['executions']:
+    resp = ex.setdefault('response', {})
+    resp['body_texto'] = limpiar(cuerpo_de(resp))[:4000]
+    resp.pop('stream', None)
+    for peticion in (ex.get('request') or {}, (ex.get('item') or {}).get('request') or {}):
+        cuerpo = peticion.get('body')
+        if isinstance(cuerpo, dict) and isinstance(cuerpo.get('raw'), str):
+            cuerpo['raw'] = limpiar(cuerpo['raw'])
+        for h in peticion.get('header') or []:
+            if isinstance(h, dict) and str(h.get('key', '')).lower() == 'authorization':
+                h['value'] = 'Bearer <token_redactado>'
+
+def cadenas(o):
+    if isinstance(o, str):
+        yield o
+    elif isinstance(o, dict):
+        for v in o.values():
+            yield from cadenas(v)
+    elif isinstance(o, list):
+        for v in o:
+            yield from cadenas(v)
+
+malas = [s[:40] for s in cadenas(reporte)
+         if JWT.search(s) or re.search(r'"(?:temporaryPassword|accessToken|refreshToken)"\s*:\s*"(?!<redactado>)', s)]
+if malas:
+    for f in ('resultado_crudo.json', 'entorno.json'):
+        if os.path.exists(f'{d}/{f}'):
+            os.remove(f'{d}/{f}')
+    sys.exit('ABORTA: el reporte aun contiene credenciales; no se guarda evidencia')
 open(f'{d}/resultado_redactado.json', 'w', encoding='utf8').write(json.dumps(reporte))
 
 # Resumen por caso para la matriz.
@@ -108,15 +152,12 @@ for ex in reporte['run']['executions']:
     nombre = ex['item']['name']
     codigo = ex.get('response', {}).get('code')
     fallas = [a['assertion'] for a in ex.get('assertions', []) if a.get('error')]
-    cuerpo = ''
-    try:
-        cuerpo = bytes(ex['response']['stream']['data']).decode('utf8', 'replace')[:180].replace('\n', ' ')
-    except Exception:
-        pass
+    cuerpo = ex.get('response', {}).get('body_texto', '')[:180].replace('\n', ' ')
     filas.append({'caso': nombre, 'http': codigo, 'resultado': 'FALLA' if fallas else 'OK', 'fallas': fallas, 'cuerpo': cuerpo})
 json.dump(filas, open(f'{d}/resumen.json', 'w', encoding='utf8'), ensure_ascii=False, indent=1)
 st = reporte['run']['stats']
 print(f"Solicitudes {st['requests']['total']} | aserciones {st['assertions']['total']} | fallidas {st['assertions']['failed']}")
+print('Redaccion verificada: sin JWT ni contrasenas temporales en el reporte')
 for f in filas:
     print(f"{f['resultado']:5} {f['http']} {f['caso']}" + (f"  <- {f['cuerpo']}" if f['resultado'] == 'FALLA' else ''))
 PY

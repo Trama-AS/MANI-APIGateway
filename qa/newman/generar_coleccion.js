@@ -54,7 +54,7 @@ const CASOS = [
     extra: `pm.test('B2-01 sin categorias de t2', () => pm.expect(JSON.stringify(pm.response.json())).to.not.include('${D.categoria_t2}'));` },
   { id: 'B3-01', historia: 'CROSS_TENANT', nombre: 'B3 escritura: admin t1 no configura reglas del sitio de t2', metodo: 'PUT',
     url: `${CORE}/sites/${D.sitio_t2}/rules`, token: 'admin_t1', cuerpo: { instruccionesIngreso: 'QA cross-tenant' }, esperado: [403, 404] },
-  { id: 'B4-01', historia: 'CROSS_TENANT', nombre: 'B4 borrado: aliado t1 no borra una ausencia ajena', metodo: 'DELETE',
+  { id: 'B4-01', historia: 'CROSS_TENANT', nombre: 'B4 control: borrar una ausencia inexistente responde 404 (no prueba aislamiento; el borrado ajeno real es 855-04)', metodo: 'DELETE',
     url: `${CORE}/profiles/me/unavailability/00000000-0000-4000-8000-0000000000aa`, token: 'aliado_t1', esperado: [403, 404] },
   { id: 'B5-01', historia: 'CROSS_TENANT', nombre: 'B5 token expirado responde 401', metodo: 'GET', url: `${CORE}/profiles/me`, token: 'expirado', esperado: [401] },
   { id: 'B5-02', historia: 'CROSS_TENANT', nombre: 'B5 token con firma alterada responde 401', metodo: 'GET', url: `${CORE}/profiles/me`, token: 'alterado', esperado: [401] },
@@ -97,7 +97,7 @@ const CASOS = [
     cuerpo: { horario: { dias: ['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES'], horaInicio: '08:00', horaFin: '17:00' },
       permisosRequeridos: ['ARL'], elementosProteccion: ['CASCO'], instruccionesIngreso: 'Registrarse en porteria (QA {{corrida}})',
       requiereAprobacionPrevia: false, contactoAcceso: 'Porteria 3001234567' }, esperado: [200] },
-  { id: '853-02', historia: 'SCRUM-853', nombre: 'Aliado t1 lee las reglas del sitio', metodo: 'GET', url: `${CORE}/sites/${D.sitio_t1}/rules`, token: 'aliado_t1', esperado: [200] },
+  { id: '853-02', historia: 'SCRUM-853', nombre: 'Aliado t1 sin servicio asignado no lee las reglas del sitio', metodo: 'GET', url: `${CORE}/sites/${D.sitio_t1}/rules`, token: 'aliado_t1b', esperado: [403] },
   { id: '853-03', historia: 'SCRUM-853', nombre: 'Aliado t2 no lee reglas del sitio de t1', metodo: 'GET', url: `${CORE}/sites/${D.sitio_t1}/rules`, token: 'aliado_t2', esperado: [403, 404] },
 
   // ---------- SCRUM-854 Editar perfil propio ----------
@@ -130,7 +130,7 @@ const CASOS = [
   { id: '856-03', historia: 'SCRUM-856', nombre: 'Consentimiento sobre un documento de t2 se rechaza', metodo: 'POST', url: `${CORE}/legal/consents`, token: 'cliente_t1',
     cuerpo: { documentoLegalIds: [D.doc_legal_t2] }, esperado: [400, 403, 404, 422] },
   { id: '856-04', historia: 'SCRUM-856', nombre: 'Registro de aliado sin aceptar términos se rechaza', metodo: 'POST', url: `${CORE}/auth/register/ally`,
-    headers: { 'X-Tenant-Slug': 'acme-servicios' }, cuerpo: { email: 'sinterminos.{{corrida}}@qa.mani.test', password: 'Qa-{{corrida}}-x', acceptsTerms: false },
+    headers: { 'X-Tenant-Slug': 'acme-servicios' }, cuerpo: { email: 'sinterminos.{{corrida}}@qa.mani.test', password: 'ContrasenaDePrueba-{{corrida}}', acceptsTerms: false },
     esperado: [400, 422] },
 
   // ---------- SCRUM-858 / SCRUM-1069 Categorías ----------
@@ -205,6 +205,9 @@ const CASOS = [
   { id: '1074-01', historia: 'SCRUM-1074', nombre: 'Aliado t1 acepta la solicitud t1', metodo: 'POST', url: `${DISPATCH}/requests/{{solicitud_t1}}/accept`, token: 'aliado_t1', esperado: [200] },
   { id: '1074-02', historia: 'SCRUM-1074', nombre: 'Reaceptación del mismo aliado es idempotente', metodo: 'POST', url: `${DISPATCH}/requests/{{solicitud_t1}}/accept`, token: 'aliado_t1', esperado: [200],
     extra: `pm.test('1074-02 mismo aliado asignado', () => pm.expect(pm.response.text()).to.include('${D.aliado_t1}'));` },
+  { id: '853-04', historia: 'SCRUM-853', carpeta: 'SCRUM-1074', nombre: 'Aliado t1 con el servicio asignado lee las reglas del sitio (criterio de aceptacion de 853)', metodo: 'GET',
+    url: `${CORE}/sites/${D.sitio_t1}/rules`, token: 'aliado_t1', esperado: [200],
+    extra: "pm.test('853-04 trae las reglas destacadas', () => pm.expect(pm.response.text()).to.include('reglasDestacadas'));" },
   { id: '1074-05', historia: 'SCRUM-1074', nombre: 'Aliado PoC 1 acepta la solicitud PoC', metodo: 'POST', url: `${DISPATCH}/requests/${D.solicitud_poc}/accept`, token: 'aliado_poc1', esperado: [200] },
   { id: '1074-06', historia: 'SCRUM-1074', nombre: 'Un segundo aliado no puede aceptar la misma solicitud (409)', metodo: 'POST', url: `${DISPATCH}/requests/${D.solicitud_poc}/accept`, token: 'aliado_poc2', esperado: [409] },
   { id: '1074-03', historia: 'SCRUM-1074', nombre: 'Aliado de t2 no acepta solicitudes de t1', metodo: 'POST', url: `${DISPATCH}/requests/{{solicitud_t1}}/accept`, token: 'aliado_t2', esperado: [403, 404, 409] },
@@ -236,9 +239,10 @@ function itemDe(caso) {
 
 const carpetas = [];
 for (const caso of CASOS) {
-  let carpeta = carpetas.find((c) => c.name === caso.historia);
+  const nombre_carpeta = caso.carpeta || caso.historia;
+  let carpeta = carpetas.find((c) => c.name === nombre_carpeta);
   if (!carpeta) {
-    carpeta = { name: caso.historia, item: [] };
+    carpeta = { name: nombre_carpeta, item: [] };
     carpetas.push(carpeta);
   }
   carpeta.item.push(itemDe(caso));

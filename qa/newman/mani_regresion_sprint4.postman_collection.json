@@ -305,7 +305,7 @@
           }
         },
         {
-          "name": "[B4-01] CROSS_TENANT - B4 borrado: aliado t1 no borra una ausencia ajena",
+          "name": "[B4-01] CROSS_TENANT - B4 control: borrar una ausencia inexistente responde 404 (no prueba aislamiento; el borrado ajeno real es 855-04)",
           "event": [
             {
               "listen": "test",
@@ -874,14 +874,14 @@
           }
         },
         {
-          "name": "[853-02] SCRUM-853 - Aliado t1 lee las reglas del sitio",
+          "name": "[853-02] SCRUM-853 - Aliado t1 sin servicio asignado no lee las reglas del sitio",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('853-02 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                  "pm.test('853-02 estado esperado 403', () => pm.expect(pm.response.code).to.be.oneOf([403]));"
                 ]
               }
             }
@@ -895,7 +895,7 @@
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{token_aliado_t1}}"
+                "value": "Bearer {{token_aliado_t1b}}"
               }
             ],
             "url": "{{base_url}}/api/v1/core/sites/70000000-0000-4000-8000-000000000011/rules"
@@ -1395,7 +1395,7 @@
             "url": "{{base_url}}/api/v1/core/auth/register/ally",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"sinterminos.{{corrida}}@qa.mani.test\",\n  \"password\": \"Qa-{{corrida}}-x\",\n  \"acceptsTerms\": false\n}"
+              "raw": "{\n  \"email\": \"sinterminos.{{corrida}}@qa.mani.test\",\n  \"password\": \"ContrasenaDePrueba-{{corrida}}\",\n  \"acceptsTerms\": false\n}"
             }
           }
         }
@@ -2377,6 +2377,35 @@
               }
             ],
             "url": "{{base_url}}/api/v1/dispatch/requests/{{solicitud_t1}}/accept"
+          }
+        },
+        {
+          "name": "[853-04] SCRUM-853 - Aliado t1 con el servicio asignado lee las reglas del sitio (criterio de aceptacion de 853)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('853-04 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('853-04 trae las reglas destacadas', () => pm.expect(pm.response.text()).to.include('reglasDestacadas'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-853-04-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_aliado_t1}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/sites/70000000-0000-4000-8000-000000000011/rules"
           }
         },
         {
