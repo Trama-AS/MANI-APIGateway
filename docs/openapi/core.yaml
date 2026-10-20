@@ -202,7 +202,8 @@ paths:
                 $ref: '#/components/schemas/RegisterAllyResponse'
         '400':
           description: >
-            Body inválido (`VALIDATION_ERROR`), tenant inexistente/inactivo
+            Body inválido (`VALIDATION_ERROR`), términos y condiciones no
+            aceptados (`TERMS_NOT_ACCEPTED`), tenant inexistente/inactivo
             (`TENANT_NOT_FOUND`) o categoría inexistente/inactiva
             (`CATEGORY_NOT_FOUND`)
           content:
@@ -860,6 +861,7 @@ components:
         - EMAIL_ALREADY_REGISTERED
         - DOCUMENT_ALREADY_REGISTERED
         - COMPANY_ALREADY_REGISTERED
+        - TERMS_NOT_ACCEPTED
         - SERVICE_UNAVAILABLE
         - MANI-SOL-401
         - MANI-SOL-403C
@@ -883,6 +885,7 @@ components:
         EMAIL_ALREADY_REGISTERED: 'HTTP 409 — ya existe un usuario con ese email en el tenant.'
         DOCUMENT_ALREADY_REGISTERED: 'HTTP 409 — se envió documentNumber y ya existe un Aliado con ese número en el tenant.'
         COMPANY_ALREADY_REGISTERED: 'HTTP 409 — la empresa ya está registrada con ese NIT en el tenant (registro de aliado empresa).'
+        TERMS_NOT_ACCEPTED: 'HTTP 400 — el registro de aliado persona natural llegó sin acceptsTerms=true (SCRUM-856).'
         SERVICE_UNAVAILABLE: 'HTTP 503 — una dependencia (p. ej. la base de datos) no está disponible; no hay respaldo local.'
         MANI-SOL-401: 'HTTP 401 — sesión requerida para crear la solicitud.'
         MANI-SOL-403C: 'HTTP 403 — solo un cliente activo del tenant puede publicar solicitudes.'
@@ -1055,12 +1058,22 @@ components:
           type: string
           format: binary
           description: Documento KYC opcional (RUT/certificado).
+        acceptsTerms:
+          type: boolean
+          description: >
+            Aceptación expresa de los Términos y Condiciones y de la Política de
+            Datos Personales (SCRUM-856, Ley 1581). Debe llegar en `true`; si
+            falta o llega con otro valor, Core responde 400 `TERMS_NOT_ACCEPTED`
+            y no crea ningún registro. Al aceptar, Core guarda el consentimiento
+            con versión, usuario y fecha.
+          example: true
       required:
         - fullName
         - email
         - password
         - categoriaId
         - cedula_ciudadania
+        - acceptsTerms
 
     RegisterAllyResponse:
       type: object
