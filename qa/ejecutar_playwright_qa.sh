@@ -9,6 +9,10 @@ set -euo pipefail
 
 main() {
   local marca dir env_qa imagen
+  if ! docker info >/dev/null 2>&1; then
+    echo "ABORTA: Docker no esta disponible para el usuario $(id -un); Playwright corre en contenedor" >&2
+    return 1
+  fi
   marca=$(date -u +%Y%m%dT%H%M%SZ)
   dir="${HOME}/scrum_1267/playwright_${marca}"
   env_qa="${ENV_QA:-/opt/mani/.env.qa}"
@@ -46,12 +50,16 @@ os.chmod(os.environ['SALIDA'], 0o600)
 print(f'OK: {len(usuarios)} tokens')
 PY
 
-  echo "== 2. Playwright (${imagen}) contra localhost"
+  # En la VM de QA las URLs son localhost; desde el runner de Calidad llegan por el entorno (workflow qa-regresion.yml).
+  local url_gateway="${URL_GATEWAY:-http://localhost}"
+  local url_flutter="${URL_FLUTTER:-http://localhost:8080}"
+  local url_landing="${URL_LANDING:-http://localhost:3001}"
+  echo "== 2. Playwright (${imagen}) contra ${url_gateway}"
   set +e
   docker run --rm --network host --ipc=host --env-file "$dir/tokens.env" \
-    -e URL_GATEWAY=http://localhost -e URL_FLUTTER=http://localhost:8080 -e URL_LANDING=http://localhost:3001 \
+    -e URL_GATEWAY="$url_gateway" -e URL_FLUTTER="$url_flutter" -e URL_LANDING="$url_landing" \
     -v "$dir":/suite -w /suite "$imagen" \
-    bash -c 'npm install --no-audit --no-fund --silent >/dev/null 2>&1 && npx playwright test'
+    bash -c 'npm ci --no-audit --no-fund --silent >/dev/null 2>&1 && npx playwright test'
   local codigo=$?
   set -e
   rm -f "$dir/tokens.env"
@@ -77,6 +85,8 @@ s = r.get('stats', {})
 print(f"Totales: esperados={s.get('expected')} fallidos={s.get('unexpected')} omitidos={s.get('skipped')}")
 PY
   echo "DIRECTORIO_EVIDENCIA=${dir}"
+  # En CI el codigo de Playwright es el gate; en los lotes manuales se sigue con el resto.
+  if [ "${SALIR_CON_CODIGO:-0}" = "1" ]; then return "$codigo"; fi
 }
 
 main < /dev/null

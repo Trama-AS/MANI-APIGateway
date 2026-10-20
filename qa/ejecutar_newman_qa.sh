@@ -13,6 +13,10 @@ set -euo pipefail
 
 main() {
   local marca dir env_qa
+  if ! docker info >/dev/null 2>&1; then
+    echo "ABORTA: Docker no esta disponible para el usuario $(id -un); Newman corre en contenedor" >&2
+    return 1
+  fi
   marca=$(date -u +%Y%m%dT%H%M%SZ)
   dir="${HOME}/scrum_1267/${marca}"
   env_qa="${ENV_QA:-/opt/mani/.env.qa}"

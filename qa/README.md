@@ -5,11 +5,18 @@ Suites de regresión funcional, API, E2E y multi-tenant que se ejecutan contra e
 
 | Ruta | Qué es | Subtarea |
 |---|---|---|
-| `newman/generar_coleccion.js` | Genera `newman/mani_regresion_sprint4.postman_collection.json` (77 casos en 18 carpetas: perímetro, cross-tenant B1-B6 y las historias del Sprint 4). No editar el JSON a mano. | SCRUM-1277 / SCRUM-1279 |
+| `newman/generar_coleccion.js` | Genera `newman/mani_regresion_sprint4.postman_collection.json` (77 casos en 18 carpetas: perímetro, cross-tenant B1-B6 y las historias del Sprint 4; 1074-05 y 1074-06 excluidos). No editar el JSON a mano. | SCRUM-1277 / SCRUM-1279 |
 | `ejecutar_newman_qa.sh` | Firma tokens HS256 de prueba con el secreto de QA, corre Newman en contenedor, decodifica y enmascara las respuestas y verifica que el reporte no tenga credenciales. | SCRUM-1277 |
-| `playwright/` | Landing (SCRUM-1335), configuración de Flutter Web y recorrido E2E 1072 → 861/862 → 1073 → 1074. | SCRUM-1278 |
-| `ejecutar_playwright_qa.sh` | Corre la suite Playwright en la imagen oficial `mcr.microsoft.com/playwright:v1.48.2-jammy`. | SCRUM-1278 |
-| `../.github/workflows/qa-regresion.yml` | Gate de CI: Newman contra QA desde el runner `nbig02-calidad` (requiere el secreto `QA_JWT_SECRET`). | SCRUM-1277 |
+| `playwright/` | Landing (SCRUM-1335), configuración de Flutter Web y recorrido E2E por API 1072 → 861/862 → 1073 → 1074. | SCRUM-1278 |
+| `ejecutar_playwright_qa.sh` | Corre la suite Playwright en la imagen oficial `mcr.microsoft.com/playwright:v1.48.2-jammy` con `npm ci`. | SCRUM-1278 |
+| `../.github/workflows/qa-regresion.yml` | Gate de CI: jobs `newman_qa` y `playwright_qa` en el runner `[self-hosted, calidad]` con el environment `qa-regresion`. | SCRUM-1277 / SCRUM-1278 |
+
+## Relación con las colecciones de `postman/`
+
+`postman/MANI-Core.postman_collection.json` y `postman/MANI-Rules.postman_collection.json` se generan desde los
+contratos OpenAPI y corren en `ci.yml` contra servicios en memoria: verifican el contrato. La colección de `qa/`
+corre contra el ambiente de QA desplegado, con datos de MANI-QA y varios tenants: verifica el comportamiento
+integrado (Gateway, Core, Rules y Dispatch). Ninguna reemplaza a la otra.
 
 ## Ejecución
 
@@ -24,13 +31,44 @@ Desde la VM de Calidad (alcanza QA por la red privada):
 
 ```bash
 BASE_URL=http://10.43.100.141 ENV_QA=/ruta/a/archivo_con_SUPABASE_JWT_SECRET COLECCION=qa/newman/mani_regresion_sprint4.postman_collection.json bash qa/ejecutar_newman_qa.sh
+URL_GATEWAY=http://10.43.100.141 URL_FLUTTER=http://10.43.100.141:8080 URL_LANDING=http://10.43.100.141:3001 ENV_QA=/ruta/a/archivo_con_SUPABASE_JWT_SECRET SUITE_DIR=qa/playwright bash qa/ejecutar_playwright_qa.sh
 ```
+
+## Habilitación del gate de CI (DevOps)
+
+Según `governance/GOBIERNO_DEL_EQUIPO.md` §2.3 de MANI-docs, CI/CD y secretos los decide DevOps; lo siguiente es la
+configuración que el workflow espera. Los jobs corren en el runner `nbig02-calidad` (etiqueta `calidad`) de la guía
+CFG4-03, y los ejecutores usan Docker: el usuario del runner debe poder ejecutar `docker`.
+
+1. Crear el environment `qa-regresion` con revisor obligatorio y el secreto de environment `QA_JWT_SECRET`.
+2. Crear las variables `QA_GATEWAY_URL` (el mismo nombre de `/opt/quality/.env.quality`), `QA_FLUTTER_URL` y `QA_LANDING_URL`.
+3. Crear la variable de repositorio `QA_REGRESION_HABILITADA=true`.
+
+Mientras no exista la variable del paso 3, los jobs quedan omitidos y no afectan el estado del PR. Con ella, cada
+corrida espera la aprobación del revisor y cualquier aserción fallida deja el job en rojo. Se publican como artefacto
+la evidencia redactada de Newman y el resumen y las capturas de Playwright; el reporte HTML y los traces no se
+publican porque contienen tokens de prueba (ya vencidos) y el repositorio es público.
 
 ## Datos
 
-Los casos usan los tenants de prueba de MANI-QA `acme-servicios` (t1) y `nova-mantenimiento` (t2), y el
-tenant `poc-concurrencia` para la doble aceptación. Cada corrida crea datos marcados con `QA <corrida>`
-(empleado, cliente empresa, sede, categoría, ausencia, consentimiento y solicitud).
+Los casos usan los tenants de prueba de MANI-QA `acme-servicios` (t1) y `nova-mantenimiento` (t2) de
+`supabase/seed/seed_qa_multitenant.sql`. Excepciones conocidas, que se llevan a la semilla en la Fase B del plan de QA:
+
+- `aliado_t1b` (aliado de t1 sin servicio asignado, caso 853-02) no está en la semilla.
+- Los documentos legales de cada tenant se leen en la corrida (856-00 y 856-01) en lugar de fijar sus IDs.
+- 1074-05 y 1074-06 están excluidos: usan la solicitud PoC del tenant `poc-concurrencia`, reservada para QAS-07
+  (SCRUM-1266). Se reemplazan por una solicitud creada en la corrida y un segundo aliado elegible de t1.
+
+Cada corrida crea datos marcados con `QA <corrida>` (empleado, cliente empresa, sede, categoría, ausencia y
+solicitud). Los casos que dependen de un valor guardado por otro caso (por ejemplo `solicitud_t1`) verifican
+primero que el valor exista, para que un id vacío no produzca un falso aprobado.
+
+## Identidad de prueba
+
+Toda la colección usa tokens HS256 sintéticos firmados con el JWT secret legado de MANI-QA. Un usuario real recibe
+un token ES256 de Supabase Auth, que `validate-token` de Core rechaza (defecto R-10 del reporte, comprobado en
+SCRUM-1266). Por eso los resultados prueban la lógica de los servicios a través del Gateway, no el acceso de un
+usuario real.
 
 ## Evidencia
 
@@ -46,5 +84,5 @@ resultados vive en MANI-docs (`product/REPORTE_QA_REGRESION_SCRUM-1267.md`).
   peticiones del navegador provoca preflight CORS contra el CDN de Google (CanvasKit y fuentes) y Flutter Web no
   arranca. El `X-Correlation-ID` se envía solo en las llamadas de API (`cabeceras()` de `tests/datos_qa.js`).
 - Los casos FW-02 y FW-03 fallan mientras la imagen de Flutter de QA se construya con `.env.example`: es la
-  evidencia del defecto D-04 del reporte, no un error de la prueba.
-- El caso 853-04 falla mientras el aliado asignado no pueda leer las reglas del sitio (D-02 del reporte).
+  evidencia del defecto R-04 del reporte, no un error de la prueba.
+- El caso 853-04 falla mientras el aliado asignado no pueda leer las reglas del sitio (R-02 del reporte).

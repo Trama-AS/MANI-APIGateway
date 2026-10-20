@@ -1,9 +1,18 @@
 name: QA - Regresion Sprint 4 contra QA
 
-# SCRUM-1267 / SCRUM-1277: corre la coleccion Newman de regresion contra el Gateway de QA
-# desde el runner self-hosted de la VM de Calidad (alcanza la red privada de QA).
-# El secreto QA_JWT_SECRET (JWT secret legado de MANI-QA) firma los tokens de prueba
-# dentro del job; nunca se imprime. Una asercion fallida deja el job en rojo (gate).
+# SCRUM-1267 / SCRUM-1277 / SCRUM-1278: corre la coleccion Newman y la suite Playwright de regresion contra
+# el Gateway de QA desde el runner self-hosted de la VM de Calidad (alcanza la red privada de QA).
+#
+# Habilitacion (DevOps):
+#   1. Environment `qa-regresion` en MANI-APIGateway con revisor obligatorio (DevOps) y el secreto de
+#      environment QA_JWT_SECRET (JWT secret legado de MANI-QA). El secreto firma los tokens de prueba
+#      dentro del job y nunca se imprime.
+#   2. Variables de repositorio QA_GATEWAY_URL, QA_FLUTTER_URL y QA_LANDING_URL.
+#   3. Variable de repositorio QA_REGRESION_HABILITADA=true.
+# Mientras la variable 3 no exista, los jobs quedan omitidos (skipped): ni pasan ni fallan. Con ella, cada
+# corrida espera la aprobacion del revisor del environment y una asercion fallida deja el job en rojo (gate).
+#
+# workflow_dispatch solo aparece cuando este archivo llega a la rama por defecto (main).
 
 on:
   workflow_dispatch:
@@ -24,8 +33,11 @@ jobs:
   newman_qa:
     name: Regresion Newman en QA
     runs-on: [self-hosted, calidad]
+    environment: qa-regresion
     # No se ejecuta para PR desde forks: el job usa un secreto y un runner con acceso a QA.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    if: >-
+      vars.QA_REGRESION_HABILITADA == 'true' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -37,10 +49,11 @@ jobs:
       - name: Ejecutar Newman contra QA
         env:
           QA_JWT_SECRET: ${{ secrets.QA_JWT_SECRET }}
-          BASE_URL: http://10.43.100.141
+          BASE_URL: ${{ vars.QA_GATEWAY_URL }}
           SALIR_CON_CODIGO: '1'
         run: |
-          if [ -z "$QA_JWT_SECRET" ]; then echo "::error::Falta el secreto QA_JWT_SECRET"; exit 1; fi
+          if [ -z "$QA_JWT_SECRET" ]; then echo "::error::Falta el secreto QA_JWT_SECRET en el environment qa-regresion"; exit 1; fi
+          if [ -z "$BASE_URL" ]; then echo "::error::Falta la variable QA_GATEWAY_URL"; exit 1; fi
           env_temporal="$RUNNER_TEMP/qa_jwt.env"
           umask 077
           printf 'SUPABASE_JWT_SECRET=%s\n' "$QA_JWT_SECRET" > "$env_temporal"
@@ -59,4 +72,54 @@ jobs:
         with:
           name: regresion-newman-qa
           path: evidencia_qa/
+          retention-days: 30
+
+  playwright_qa:
+    name: Regresion Playwright en QA
+    runs-on: [self-hosted, calidad]
+    environment: qa-regresion
+    needs: newman_qa
+    if: >-
+      always() && vars.QA_REGRESION_HABILITADA == 'true' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ejecutar Playwright contra QA
+        env:
+          QA_JWT_SECRET: ${{ secrets.QA_JWT_SECRET }}
+          URL_GATEWAY: ${{ vars.QA_GATEWAY_URL }}
+          URL_FLUTTER: ${{ vars.QA_FLUTTER_URL }}
+          URL_LANDING: ${{ vars.QA_LANDING_URL }}
+          SALIR_CON_CODIGO: '1'
+        run: |
+          if [ -z "$QA_JWT_SECRET" ]; then echo "::error::Falta el secreto QA_JWT_SECRET en el environment qa-regresion"; exit 1; fi
+          if [ -z "$URL_GATEWAY" ] || [ -z "$URL_FLUTTER" ] || [ -z "$URL_LANDING" ]; then
+            echo "::error::Faltan las variables QA_GATEWAY_URL, QA_FLUTTER_URL o QA_LANDING_URL"; exit 1
+          fi
+          env_temporal="$RUNNER_TEMP/qa_jwt.env"
+          umask 077
+          printf 'SUPABASE_JWT_SECRET=%s\n' "$QA_JWT_SECRET" > "$env_temporal"
+          set +e
+          HOME="$RUNNER_TEMP" ENV_QA="$env_temporal" SUITE_DIR="$PWD/qa/playwright" \
+            bash qa/ejecutar_playwright_qa.sh | tee "$RUNNER_TEMP/playwright.log"
+          codigo=${PIPESTATUS[0]}
+          rm -f "$env_temporal"
+          # Se publican el resumen JSON y las capturas. El reporte HTML y los traces no se publican:
+          # contienen los tokens de prueba (ya vencidos) y el repositorio es publico.
+          mkdir -p evidencia_playwright
+          for d in "$RUNNER_TEMP"/scrum_1267/playwright_*; do
+            cp "$d/resultados.json" evidencia_playwright/ 2>/dev/null || true
+            (cd "$d" && find artefactos -name '*.png' -exec cp --parents {} "$GITHUB_WORKSPACE/evidencia_playwright/" \; 2>/dev/null) || true
+          done
+          exit "$codigo"
+
+      - name: Publicar evidencia de Playwright
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regresion-playwright-qa
+          path: evidencia_playwright/
           retention-days: 30
