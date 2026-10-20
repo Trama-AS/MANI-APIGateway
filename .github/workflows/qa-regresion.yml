@@ -1,0 +1,62 @@
+name: QA - Regresion Sprint 4 contra QA
+
+# SCRUM-1267 / SCRUM-1277: corre la coleccion Newman de regresion contra el Gateway de QA
+# desde el runner self-hosted de la VM de Calidad (alcanza la red privada de QA).
+# El secreto QA_JWT_SECRET (JWT secret legado de MANI-QA) firma los tokens de prueba
+# dentro del job; nunca se imprime. Una asercion fallida deja el job en rojo (gate).
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [develop, release]
+    paths:
+      - 'qa/**'
+      - '.github/workflows/qa-regresion.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qa-regresion
+  cancel-in-progress: false
+
+jobs:
+  newman_qa:
+    name: Regresion Newman en QA
+    runs-on: [self-hosted, calidad]
+    # No se ejecuta para PR desde forks: el job usa un secreto y un runner con acceso a QA.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generar coleccion
+        run: node qa/newman/generar_coleccion.js
+
+      - name: Ejecutar Newman contra QA
+        env:
+          QA_JWT_SECRET: ${{ secrets.QA_JWT_SECRET }}
+          BASE_URL: http://10.43.100.141
+          SALIR_CON_CODIGO: '1'
+        run: |
+          if [ -z "$QA_JWT_SECRET" ]; then echo "::error::Falta el secreto QA_JWT_SECRET"; exit 1; fi
+          env_temporal="$RUNNER_TEMP/qa_jwt.env"
+          umask 077
+          printf 'SUPABASE_JWT_SECRET=%s\n' "$QA_JWT_SECRET" > "$env_temporal"
+          set +e
+          HOME="$RUNNER_TEMP" ENV_QA="$env_temporal" COLECCION="$PWD/qa/newman/mani_regresion_sprint4.postman_collection.json" \
+            bash qa/ejecutar_newman_qa.sh | tee "$RUNNER_TEMP/newman.log"
+          codigo=${PIPESTATUS[0]}
+          rm -f "$env_temporal"
+          mkdir -p evidencia_qa
+          cp "$RUNNER_TEMP"/scrum_1267/*/resumen.json "$RUNNER_TEMP"/scrum_1267/*/resultado_redactado.json evidencia_qa/ 2>/dev/null || true
+          exit "$codigo"
+
+      - name: Publicar evidencia redactada
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regresion-newman-qa
+          path: evidencia_qa/
+          retention-days: 30

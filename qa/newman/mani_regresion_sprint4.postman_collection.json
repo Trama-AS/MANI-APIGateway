@@ -1,0 +1,2497 @@
+{
+  "info": {
+    "name": "MANI - Regresion Sprint 4 en QA (SCRUM-1267)",
+    "description": "Regresion funcional, API y multi-tenant de las historias del Sprint 4 a traves del API Gateway de QA. Generada por qa/newman/generar_coleccion.js; no editar a mano.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.collectionVariables.get('corrida')) pm.collectionVariables.set('corrida', String(Date.now()).slice(-8));",
+          "if (!pm.collectionVariables.get('clave_idempotencia')) pm.collectionVariables.set('clave_idempotencia', require('uuid').v4());",
+          "const inicio = new Date(Date.now() + 30 * 864e5); const fin = new Date(Date.now() + 32 * 864e5);",
+          "if (!pm.collectionVariables.get('inicio_ausencia')) { pm.collectionVariables.set('inicio_ausencia', inicio.toISOString()); pm.collectionVariables.set('fin_ausencia', fin.toISOString()); }"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost"
+    }
+  ],
+  "item": [
+    {
+      "name": "PERIMETRO",
+      "item": [
+        {
+          "name": "[PER-01] PERIMETRO - Salud del Gateway",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('PER-01 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-PER-01-{{corrida}}"
+              }
+            ],
+            "url": "{{base_url}}/health"
+          }
+        },
+        {
+          "name": "[PER-02] PERIMETRO - Salud de Core con base conectada",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('PER-02 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('PER-02 base de datos conectada', () => pm.expect(pm.response.json().database.connected).to.eql(true));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-PER-02-{{corrida}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/health"
+          }
+        },
+        {
+          "name": "[PER-03] PERIMETRO - Salud de Rules",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('PER-03 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-PER-03-{{corrida}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/rules/health"
+          }
+        },
+        {
+          "name": "[PER-04] PERIMETRO - Salud de Dispatch",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('PER-04 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-PER-04-{{corrida}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/dispatch/health"
+          }
+        },
+        {
+          "name": "[PER-05] PERIMETRO - dev-token no existe fuera de desarrollo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('PER-05 estado esperado 401/403/404', () => pm.expect(pm.response.code).to.be.oneOf([401, 403, 404]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-PER-05-{{corrida}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/auth/dev-token",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenantId\": \"10000000-0000-4000-8000-000000000011\",\n  \"role\": \"ADMIN_TENANT\"\n}"
+            }
+          }
+        },
+        {
+          "name": "[PER-06] PERIMETRO - Ruta protegida sin token responde 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('PER-06 estado esperado 401', () => pm.expect(pm.response.code).to.be.oneOf([401]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-PER-06-{{corrida}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/profiles/me"
+          }
+        },
+        {
+          "name": "[PER-07] PERIMETRO - X-Correlation-ID presente en la respuesta",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('PER-07 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('PER-07 correlation id', () => pm.expect(pm.response.headers.get('X-Correlation-ID')).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-PER-07-{{corrida}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/health"
+          }
+        }
+      ]
+    },
+    {
+      "name": "CROSS_TENANT",
+      "item": [
+        {
+          "name": "[B1-01] CROSS_TENANT - B1 lectura: admin t1 no lee sitios de un cliente de t2",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('B1-01 estado esperado 403/404', () => pm.expect(pm.response.code).to.be.oneOf([403, 404]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-B1-01-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin_t1}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/clients/40000000-0000-4000-8000-000000000021/sites"
+          }
+        },
+        {
+          "name": "[B2-01] CROSS_TENANT - B2 listado: categorías de admin t1 sin ids de t2",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('B2-01 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('B2-01 sin categorias de t2', () => pm.expect(JSON.stringify(pm.response.json())).to.not.include('60000000-0000-4000-8000-000000000021'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-B2-01-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin_t1}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/catalog/categories"
+          }
+        },
+        {
+          "name": "[B3-01] CROSS_TENANT - B3 escritura: admin t1 no configura reglas del sitio de t2",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('B3-01 estado esperado 403/404', () => pm.expect(pm.response.code).to.be.oneOf([403, 404]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-B3-01-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin_t1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/sites/70000000-0000-4000-8000-000000000021/rules",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"instruccionesIngreso\": \"QA cross-tenant\"\n}"
+            }
+          }
+        },
+        {
+          "name": "[B4-01] CROSS_TENANT - B4 borrado: aliado t1 no borra una ausencia ajena",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('B4-01 estado esperado 403/404', () => pm.expect(pm.response.code).to.be.oneOf([403, 404]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-B4-01-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_aliado_t1}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/profiles/me/unavailability/00000000-0000-4000-8000-0000000000aa"
+          }
+        },
+        {
+          "name": "[B5-01] CROSS_TENANT - B5 token expirado responde 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('B5-01 estado esperado 401', () => pm.expect(pm.response.code).to.be.oneOf([401]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-B5-01-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_expirado}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/profiles/me"
+          }
+        },
+        {
+          "name": "[B5-02] CROSS_TENANT - B5 token con firma alterada responde 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('B5-02 estado esperado 401', () => pm.expect(pm.response.code).to.be.oneOf([401]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-B5-02-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_alterado}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/profiles/me"
+          }
+        },
+        {
+          "name": "[B5-03] CROSS_TENANT - B5 token sin tenant_id responde 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('B5-03 estado esperado 401', () => pm.expect(pm.response.code).to.be.oneOf([401]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-B5-03-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_sin_tenant}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/profiles/me"
+          }
+        },
+        {
+          "name": "[B5-04] CROSS_TENANT - B5 X-Tenant-Id del cliente no gana sobre el claim",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('B5-04 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('B5-04 sigue viendo solo t1', () => pm.expect(JSON.stringify(pm.response.json())).to.not.include('60000000-0000-4000-8000-000000000021'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-B5-04-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin_t1}}"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "10000000-0000-4000-8000-000000000021"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/catalog/categories"
+          }
+        },
+        {
+          "name": "[B6-01] CROSS_TENANT - B6 KYC: admin t1 no ve la verificación de un aliado de t2",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('B6-01 estado esperado 403/404', () => pm.expect(pm.response.code).to.be.oneOf([403, 404]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-B6-01-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin_t1}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/aliados/50000000-0000-4000-8000-000000000021/verificacion"
+          }
+        }
+      ]
+    },
+    {
+      "name": "SCRUM-850",
+      "item": [
+        {
+          "name": "[850-01] SCRUM-850 - Admin t1 registra un empleado directo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('850-01 estado esperado 201', () => pm.expect(pm.response.code).to.be.oneOf([201]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-850-01-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin_t1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/allies/employees",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombreCompleto\": \"Empleado QA {{corrida}}\",\n  \"email\": \"empleado.{{corrida}}@qa.mani.test\",\n  \"telefono\": \"3001234567\",\n  \"tipoDocumento\": \"CC\",\n  \"numeroDocumento\": \"9{{corrida}}\",\n  \"categoriaId\": \"60000000-0000-4000-8000-000000000011\"\n}"
+            }
+          }
+        },
+        {
+          "name": "[850-02] SCRUM-850 - Correo repetido se rechaza",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('850-02 estado esperado 400/409/422', () => pm.expect(pm.response.code).to.be.oneOf([400, 409, 422]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-850-02-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin_t1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/allies/employees",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombreCompleto\": \"Empleado QA {{corrida}}\",\n  \"email\": \"empleado.{{corrida}}@qa.mani.test\",\n  \"telefono\": \"3001234567\",\n  \"tipoDocumento\": \"CC\",\n  \"numeroDocumento\": \"8{{corrida}}\",\n  \"categoriaId\": \"60000000-0000-4000-8000-000000000011\"\n}"
+            }
+          }
+        },
+        {
+          "name": "[850-03] SCRUM-850 - Un cliente no puede registrar empleados",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('850-03 estado esperado 403', () => pm.expect(pm.response.code).to.be.oneOf([403]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-850-03-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_cliente_t1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/allies/employees",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombreCompleto\": \"No permitido\",\n  \"email\": \"np.{{corrida}}@qa.mani.test\",\n  \"tipoDocumento\": \"CC\",\n  \"numeroDocumento\": \"7{{corrida}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "[850-04] SCRUM-850 - Categoría de otro tenant se rechaza",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('850-04 estado esperado 400/403/404/422', () => pm.expect(pm.response.code).to.be.oneOf([400, 403, 404, 422]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-850-04-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin_t1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/allies/employees",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombreCompleto\": \"Empleado Cruce {{corrida}}\",\n  \"email\": \"cruce.{{corrida}}@qa.mani.test\",\n  \"telefono\": \"3001234567\",\n  \"tipoDocumento\": \"CC\",\n  \"numeroDocumento\": \"6{{corrida}}\",\n  \"categoriaId\": \"60000000-0000-4000-8000-000000000021\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "SCRUM-852",
+      "item": [
+        {
+          "name": "[852-00] SCRUM-852 - Admin t1 registra un cliente empresa con una sede",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('852-00 estado esperado 201', () => pm.expect(pm.response.code).to.be.oneOf([201]));",
+                  "try { const json = pm.response.json(); const v = json.client && json.client.id; if (v) pm.collectionVariables.set('cliente_empresa', v); } catch (e) {}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-852-00-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin_t1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/clients/company",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"razonSocial\": \"Empresa QA {{corrida}} SAS\",\n  \"nit\": \"901{{corrida}}\",\n  \"email\": \"empresa.cliente.{{corrida}}@qa.mani.test\",\n  \"telefono\": \"6011234567\",\n  \"nombreRepresentante\": \"Representante QA\",\n  \"sitios\": [\n    {\n      \"nombre\": \"Sede principal QA\",\n      \"direccion\": \"Carrera 7 # 72-10 Bogota\",\n      \"zonaId\": \"20000000-0000-4000-8000-000000000002\"\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "[852-01] SCRUM-852 - Lista las sedes del cliente empresa",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('852-01 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-852-01-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin_t1}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/clients/{{cliente_empresa}}/sites"
+          }
+        },
+        {
+          "name": "[852-02] SCRUM-852 - Agrega una segunda sede al cliente empresa",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('852-02 estado esperado 201', () => pm.expect(pm.response.code).to.be.oneOf([201]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-852-02-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin_t1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/clients/{{cliente_empresa}}/sites",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Sede norte QA {{corrida}}\",\n  \"direccion\": \"Calle 140 # 15-20 Bogota\",\n  \"zonaId\": \"20000000-0000-4000-8000-000000000002\",\n  \"contactoNombre\": \"QA\",\n  \"contactoTelefono\": \"3001234567\"\n}"
+            }
+          }
+        },
+        {
+          "name": "[852-04] SCRUM-852 - NIT repetido en el mismo tenant se rechaza",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('852-04 estado esperado 400/409/422', () => pm.expect(pm.response.code).to.be.oneOf([400, 409, 422]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-852-04-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin_t1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/clients/company",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"razonSocial\": \"Empresa QA duplicada\",\n  \"nit\": \"901{{corrida}}\",\n  \"email\": \"empresa.dup.{{corrida}}@qa.mani.test\",\n  \"sitios\": []\n}"
+            }
+          }
+        },
+        {
+          "name": "[852-05] SCRUM-852 - Admin t2 no ve las sedes del cliente empresa de t1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('852-05 estado esperado 403/404', () => pm.expect(pm.response.code).to.be.oneOf([403, 404]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-852-05-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin_t2}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/clients/{{cliente_empresa}}/sites"
+          }
+        },
+        {
+          "name": "[852-03] SCRUM-852 - Un aliado no puede agregar sitios",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('852-03 estado esperado 403', () => pm.expect(pm.response.code).to.be.oneOf([403]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-852-03-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_aliado_t1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/clients/40000000-0000-4000-8000-000000000011/sites",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"No permitido\",\n  \"direccion\": \"Calle 1 # 2-3\",\n  \"zonaId\": \"20000000-0000-4000-8000-000000000002\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "SCRUM-853",
+      "item": [
+        {
+          "name": "[853-01] SCRUM-853 - Cliente t1 configura reglas de su sitio",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('853-01 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-853-01-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_cliente_t1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/sites/70000000-0000-4000-8000-000000000011/rules",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"horario\": {\n    \"dias\": [\n      \"LUNES\",\n      \"MARTES\",\n      \"MIERCOLES\",\n      \"JUEVES\",\n      \"VIERNES\"\n    ],\n    \"horaInicio\": \"08:00\",\n    \"horaFin\": \"17:00\"\n  },\n  \"permisosRequeridos\": [\n    \"ARL\"\n  ],\n  \"elementosProteccion\": [\n    \"CASCO\"\n  ],\n  \"instruccionesIngreso\": \"Registrarse en porteria (QA {{corrida}})\",\n  \"requiereAprobacionPrevia\": false,\n  \"contactoAcceso\": \"Porteria 3001234567\"\n}"
+            }
+          }
+        },
+        {
+          "name": "[853-02] SCRUM-853 - Aliado t1 lee las reglas del sitio",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('853-02 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-853-02-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_aliado_t1}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/sites/70000000-0000-4000-8000-000000000011/rules"
+          }
+        },
+        {
+          "name": "[853-03] SCRUM-853 - Aliado t2 no lee reglas del sitio de t1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('853-03 estado esperado 403/404', () => pm.expect(pm.response.code).to.be.oneOf([403, 404]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-853-03-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_aliado_t2}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/sites/70000000-0000-4000-8000-000000000011/rules"
+          }
+        }
+      ]
+    },
+    {
+      "name": "SCRUM-854",
+      "item": [
+        {
+          "name": "[854-01] SCRUM-854 - Cliente t1 consulta su perfil",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('854-01 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-854-01-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_cliente_t1}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/profiles/me"
+          }
+        },
+        {
+          "name": "[854-02] SCRUM-854 - Cliente t1 edita su teléfono",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('854-02 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-854-02-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_cliente_t1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/profiles/me",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telefono\": \"3009876543\"\n}"
+            }
+          }
+        },
+        {
+          "name": "[854-03] SCRUM-854 - No se puede cambiar el rol desde el perfil",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('854-03 estado esperado 200/400/403/422', () => pm.expect(pm.response.code).to.be.oneOf([200, 400, 403, 422]));",
+                  "pm.test('854-03 rol sin cambio', () => pm.expect(JSON.stringify(pm.response.json())).to.not.include('ADMIN_TENANT'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-854-03-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_cliente_t1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/profiles/me",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rol\": \"ADMIN_TENANT\",\n  \"tenantId\": \"10000000-0000-4000-8000-000000000021\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "SCRUM-855",
+      "item": [
+        {
+          "name": "[855-01] SCRUM-855 - Aliado t1 registra una ausencia",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('855-01 estado esperado 201', () => pm.expect(pm.response.code).to.be.oneOf([201]));",
+                  "try { const json = pm.response.json(); const v = json.absence ? json.absence.id : (json.id || (json.data && json.data.id)); if (v) pm.collectionVariables.set('ausencia_id', v); } catch (e) {}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-855-01-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_aliado_t1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/profiles/me/unavailability",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"startsAt\": \"{{inicio_ausencia}}\",\n  \"endsAt\": \"{{fin_ausencia}}\",\n  \"reason\": \"VACACIONES\",\n  \"note\": \"QA {{corrida}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "[855-02] SCRUM-855 - Aliado t1 lista sus ausencias",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('855-02 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-855-02-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_aliado_t1}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/profiles/me/unavailability"
+          }
+        },
+        {
+          "name": "[855-03] SCRUM-855 - Motivo fuera del catálogo se rechaza",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('855-03 estado esperado 400/422', () => pm.expect(pm.response.code).to.be.oneOf([400, 422]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-855-03-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_aliado_t1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/profiles/me/unavailability",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"startsAt\": \"{{inicio_ausencia}}\",\n  \"endsAt\": \"{{fin_ausencia}}\",\n  \"reason\": \"PASEO\"\n}"
+            }
+          }
+        },
+        {
+          "name": "[855-04] SCRUM-855 - Aliado t2 no borra la ausencia de t1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('855-04 estado esperado 403/404', () => pm.expect(pm.response.code).to.be.oneOf([403, 404]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-855-04-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_aliado_t2}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/profiles/me/unavailability/{{ausencia_id}}"
+          }
+        },
+        {
+          "name": "[855-05] SCRUM-855 - Aliado t1 borra su ausencia",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('855-05 estado esperado 204', () => pm.expect(pm.response.code).to.be.oneOf([204]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-855-05-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_aliado_t1}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/profiles/me/unavailability/{{ausencia_id}}"
+          }
+        },
+        {
+          "name": "[855-06] SCRUM-855 - Un cliente no gestiona disponibilidad",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('855-06 estado esperado 403', () => pm.expect(pm.response.code).to.be.oneOf([403]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-855-06-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_cliente_t1}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/profiles/me/unavailability"
+          }
+        }
+      ]
+    },
+    {
+      "name": "SCRUM-856",
+      "item": [
+        {
+          "name": "[856-01] SCRUM-856 - Documentos legales activos del tenant t1 (sesion iniciada)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('856-01 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "try { const json = pm.response.json(); const v = (pm.response.text().match(/\"id\":\"([0-9a-f-]{36})\"/) || [])[1]; if (v) pm.collectionVariables.set('doc_legal_t1', v); } catch (e) {}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-856-01-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_cliente_t1}}"
+              },
+              {
+                "key": "X-Tenant-Slug",
+                "value": "acme-servicios"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/legal/documents/active"
+          }
+        },
+        {
+          "name": "[856-05] SCRUM-856 - Documentos legales visibles antes del registro (sin token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('856-05 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-856-05-{{corrida}}"
+              },
+              {
+                "key": "X-Tenant-Slug",
+                "value": "acme-servicios"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/legal/documents/active"
+          }
+        },
+        {
+          "name": "[856-02] SCRUM-856 - Cliente t1 registra su consentimiento",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('856-02 estado esperado 200/201', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-856-02-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_cliente_t1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/legal/consents",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"documentoLegalIds\": [\n    \"{{doc_legal_t1}}\"\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "[856-03] SCRUM-856 - Consentimiento sobre un documento de t2 se rechaza",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('856-03 estado esperado 400/403/404/422', () => pm.expect(pm.response.code).to.be.oneOf([400, 403, 404, 422]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-856-03-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_cliente_t1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/legal/consents",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"documentoLegalIds\": [\n    \"1d708f01-c2d5-40ca-8fad-3bfabe2ea25a\"\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "[856-04] SCRUM-856 - Registro de aliado sin aceptar términos se rechaza",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('856-04 estado esperado 400/422', () => pm.expect(pm.response.code).to.be.oneOf([400, 422]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-856-04-{{corrida}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Slug",
+                "value": "acme-servicios"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/auth/register/ally",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"sinterminos.{{corrida}}@qa.mani.test\",\n  \"password\": \"Qa-{{corrida}}-x\",\n  \"acceptsTerms\": false\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "SCRUM-858",
+      "item": [
+        {
+          "name": "[858-01] SCRUM-858 - Admin t1 lista categorías con conteo de aliados",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('858-01 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('858-01 trae alliesCount', () => pm.expect(JSON.stringify(pm.response.json())).to.include('alliesCount'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-858-01-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin_t1}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/catalog/categories"
+          }
+        },
+        {
+          "name": "[858-02] SCRUM-858 - Admin t1 crea una categoría (pasa por Rules)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('858-02 estado esperado 201', () => pm.expect(pm.response.code).to.be.oneOf([201]));",
+                  "try { const json = pm.response.json(); const v = json.category && json.category.id; if (v) pm.collectionVariables.set('categoria_nueva', v); } catch (e) {}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-858-02-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin_t1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/catalog/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Categoria QA {{corrida}}\",\n  \"description\": \"Creada por la regresion SCRUM-1267\",\n  \"flujoOperativo\": \"TARIFA_ESTANDAR\"\n}"
+            }
+          }
+        },
+        {
+          "name": "[858-03] SCRUM-858 - Admin t1 desactiva la categoría",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('858-03 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-858-03-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin_t1}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/catalog/categories/{{categoria_nueva}}/deactivate"
+          }
+        },
+        {
+          "name": "[858-04] SCRUM-858 - Categoría desactivada no aparece en la vitrina pública",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('858-04 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('858-04 no aparece', () => pm.expect(JSON.stringify(pm.response.json())).to.not.include(pm.collectionVariables.get('categoria_nueva') || 'sin-id'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-858-04-{{corrida}}"
+              },
+              {
+                "key": "X-Tenant-Slug",
+                "value": "acme-servicios"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/catalog"
+          }
+        },
+        {
+          "name": "[858-05] SCRUM-858 - Admin t1 reactiva la categoría",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('858-05 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-858-05-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin_t1}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/catalog/categories/{{categoria_nueva}}/activate"
+          }
+        },
+        {
+          "name": "[858-06] SCRUM-858 - Un cliente no administra categorías",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('858-06 estado esperado 403', () => pm.expect(pm.response.code).to.be.oneOf([403]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-858-06-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_cliente_t1}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/catalog/categories/{{categoria_nueva}}/deactivate"
+          }
+        },
+        {
+          "name": "[858-07] SCRUM-858 - Admin t2 no ve la categoría de t1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('858-07 estado esperado 403/404', () => pm.expect(pm.response.code).to.be.oneOf([403, 404]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-858-07-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin_t2}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/catalog/categories/{{categoria_nueva}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "SCRUM-1069",
+      "item": [
+        {
+          "name": "[1069-01] SCRUM-1069 - Vitrina pública por slug del tenant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('1069-01 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('1069-01 con categorias', () => pm.expect((pm.response.json().categories || []).length).to.be.above(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-1069-01-{{corrida}}"
+              },
+              {
+                "key": "X-Tenant-Slug",
+                "value": "acme-servicios"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/catalog"
+          }
+        }
+      ]
+    },
+    {
+      "name": "SCRUM-1070",
+      "item": [
+        {
+          "name": "[1070-01] SCRUM-1070 - Nombre de 2 caracteres se rechaza por Rules",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('1070-01 estado esperado 400/422', () => pm.expect(pm.response.code).to.be.oneOf([400, 422]));",
+                  "pm.test('1070-01 codigo de Rules', () => pm.expect(pm.response.text()).to.include('MANI-CAT-422'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-1070-01-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin_t1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/catalog/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"ab\",\n  \"description\": \"invalida\",\n  \"flujoOperativo\": \"TARIFA_ESTANDAR\"\n}"
+            }
+          }
+        },
+        {
+          "name": "[1070-02] SCRUM-1070 - Flujo operativo desconocido se rechaza por Rules",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('1070-02 estado esperado 400/422', () => pm.expect(pm.response.code).to.be.oneOf([400, 422]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-1070-02-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin_t1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/catalog/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Categoria Flujo {{corrida}}\",\n  \"flujoOperativo\": \"INVENTADO\"\n}"
+            }
+          }
+        },
+        {
+          "name": "[1070-03] SCRUM-1070 - Rules directo: aliado no evalúa CREATE",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('1070-03 estado esperado 403', () => pm.expect(pm.response.code).to.be.oneOf([403]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-1070-03-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_aliado_t1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/rules/categories/evaluate",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"context\": {\n    \"operation\": \"CREATE\",\n    \"name\": \"Prueba QA\",\n    \"flujoOperativo\": \"TARIFA_ESTANDAR\"\n  }\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "SCRUM-1066",
+      "item": [
+        {
+          "name": "[1066-01] SCRUM-1066 - Admin t1 lista aliados por verificar",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('1066-01 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-1066-01-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin_t1}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/aliados/verificacion"
+          }
+        },
+        {
+          "name": "[1066-02] SCRUM-1066 - Admin t1 ve el detalle de su aliado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('1066-02 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-1066-02-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin_t1}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/aliados/50000000-0000-4000-8000-000000000011/verificacion"
+          }
+        },
+        {
+          "name": "[1066-03] SCRUM-1066 - Un aliado no lista verificaciones",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('1066-03 estado esperado 403', () => pm.expect(pm.response.code).to.be.oneOf([403]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-1066-03-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_aliado_t1}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/aliados/verificacion"
+          }
+        }
+      ]
+    },
+    {
+      "name": "SCRUM-1063",
+      "item": [
+        {
+          "name": "[1063-01] SCRUM-1063 - Registro de aliado empresa sin documentos se rechaza",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('1063-01 estado esperado 400/422', () => pm.expect(pm.response.code).to.be.oneOf([400, 422]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-1063-01-{{corrida}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Slug",
+                "value": "acme-servicios"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/auth/register/ally/company",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"razonSocial\": \"Empresa QA {{corrida}}\",\n  \"nit\": \"900{{corrida}}\",\n  \"email\": \"empresa.{{corrida}}@qa.mani.test\",\n  \"acceptsTerms\": true\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "SCRUM-1072",
+      "item": [
+        {
+          "name": "[1072-01] SCRUM-1072 - Cliente t1 crea una solicitud en su sitio",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('1072-01 estado esperado 201', () => pm.expect(pm.response.code).to.be.oneOf([201]));",
+                  "try { const json = pm.response.json(); const v = (json.solicitud && json.solicitud.id) || json.id; if (v) pm.collectionVariables.set('solicitud_t1', v); } catch (e) {}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-1072-01-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_cliente_t1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/solicitudes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoriaId\": \"60000000-0000-4000-8000-000000000011\",\n  \"descripcion\": \"Fuga en el lavamanos del bano principal (QA {{corrida}})\",\n  \"sitioId\": \"70000000-0000-4000-8000-000000000011\",\n  \"claveIdempotencia\": \"{{clave_idempotencia}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "[1072-02] SCRUM-1072 - Misma clave de idempotencia no duplica",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('1072-02 estado esperado 200/201', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                  "pm.test('1072-02 mismo id', () => pm.expect(JSON.stringify(pm.response.json())).to.include(pm.collectionVariables.get('solicitud_t1') || 'sin-id'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-1072-02-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_cliente_t1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/solicitudes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoriaId\": \"60000000-0000-4000-8000-000000000011\",\n  \"descripcion\": \"Fuga en el lavamanos del bano principal (QA {{corrida}})\",\n  \"sitioId\": \"70000000-0000-4000-8000-000000000011\",\n  \"claveIdempotencia\": \"{{clave_idempotencia}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "[1072-03] SCRUM-1072 - Descripción corta se rechaza",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('1072-03 estado esperado 400/422', () => pm.expect(pm.response.code).to.be.oneOf([400, 422]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-1072-03-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_cliente_t1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/solicitudes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoriaId\": \"60000000-0000-4000-8000-000000000011\",\n  \"descripcion\": \"corta\",\n  \"sitioId\": \"70000000-0000-4000-8000-000000000011\"\n}"
+            }
+          }
+        },
+        {
+          "name": "[1072-04] SCRUM-1072 - Un aliado no publica solicitudes",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('1072-04 estado esperado 403', () => pm.expect(pm.response.code).to.be.oneOf([403]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-1072-04-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_aliado_t1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/solicitudes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoriaId\": \"60000000-0000-4000-8000-000000000011\",\n  \"descripcion\": \"Intento de aliado publicando una solicitud\",\n  \"sitioId\": \"70000000-0000-4000-8000-000000000011\"\n}"
+            }
+          }
+        },
+        {
+          "name": "[1072-05] SCRUM-1072 - Categoría de t2 se rechaza para cliente t1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('1072-05 estado esperado 400/403/404/422', () => pm.expect(pm.response.code).to.be.oneOf([400, 403, 404, 422]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-1072-05-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_cliente_t1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/solicitudes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categoriaId\": \"60000000-0000-4000-8000-000000000021\",\n  \"descripcion\": \"Intento con categoria de otro tenant QA\",\n  \"sitioId\": \"70000000-0000-4000-8000-000000000011\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "SCRUM-861",
+      "item": [
+        {
+          "name": "[861-01] SCRUM-861 - Match de aliados por cobertura y categoría",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('861-01 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('861-01 incluye aliado t1', () => pm.expect(pm.response.text()).to.include('50000000-0000-4000-8000-000000000011'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-861-01-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin_t1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/dispatch/match",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestId\": \"{{solicitud_t1}}\",\n  \"zonaId\": \"20000000-0000-4000-8000-000000000002\",\n  \"categoriaId\": \"60000000-0000-4000-8000-000000000011\"\n}"
+            }
+          }
+        },
+        {
+          "name": "[861-02] SCRUM-861 - Match sin token responde 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('861-02 estado esperado 401', () => pm.expect(pm.response.code).to.be.oneOf([401]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-861-02-{{corrida}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/dispatch/match",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"zonaId\": \"20000000-0000-4000-8000-000000000002\",\n  \"categoriaId\": \"60000000-0000-4000-8000-000000000011\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "SCRUM-862",
+      "item": [
+        {
+          "name": "[862-01] SCRUM-862 - Elegibles filtrados por PERSONA_NATURAL",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('862-01 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('862-01 no trae aliados de t2', () => pm.expect(pm.response.text()).to.not.include('50000000-0000-4000-8000-000000000021'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-862-01-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin_t1}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/dispatch/requests/{{solicitud_t1}}/eligible-allies?zonaId=20000000-0000-4000-8000-000000000002&categoriaId=60000000-0000-4000-8000-000000000011&tipo=PERSONA_NATURAL"
+          }
+        },
+        {
+          "name": "[862-02] SCRUM-862 - Tipo inválido se rechaza",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('862-02 estado esperado 400/422', () => pm.expect(pm.response.code).to.be.oneOf([400, 422]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-862-02-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin_t1}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/dispatch/requests/{{solicitud_t1}}/eligible-allies?zonaId=20000000-0000-4000-8000-000000000002&categoriaId=60000000-0000-4000-8000-000000000011&tipo=MARCIANO"
+          }
+        }
+      ]
+    },
+    {
+      "name": "SCRUM-1073",
+      "item": [
+        {
+          "name": "[1073-01] SCRUM-1073 - Orquesta el despacho de la solicitud t1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('1073-01 estado esperado 200/201/202', () => pm.expect(pm.response.code).to.be.oneOf([200, 201, 202]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-1073-01-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin_t1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/dispatch/requests/orchestrate",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestId\": \"{{solicitud_t1}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "[1073-02] SCRUM-1073 - Ruta interna allies/eligible cerrada desde fuera",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('1073-02 estado esperado 403/404', () => pm.expect(pm.response.code).to.be.oneOf([403, 404]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-1073-02-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin_t1}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/allies/eligible"
+          }
+        },
+        {
+          "name": "[1073-03] SCRUM-1073 - Ruta interna notifications cerrada desde fuera",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('1073-03 estado esperado 403/404', () => pm.expect(pm.response.code).to.be.oneOf([403, 404]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-1073-03-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_admin_t1}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/core/notifications",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "SCRUM-1074",
+      "item": [
+        {
+          "name": "[1074-01] SCRUM-1074 - Aliado t1 acepta la solicitud t1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('1074-01 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-1074-01-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_aliado_t1}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/dispatch/requests/{{solicitud_t1}}/accept"
+          }
+        },
+        {
+          "name": "[1074-02] SCRUM-1074 - Reaceptación del mismo aliado es idempotente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('1074-02 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "pm.test('1074-02 mismo aliado asignado', () => pm.expect(pm.response.text()).to.include('50000000-0000-4000-8000-000000000011'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-1074-02-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_aliado_t1}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/dispatch/requests/{{solicitud_t1}}/accept"
+          }
+        },
+        {
+          "name": "[1074-05] SCRUM-1074 - Aliado PoC 1 acepta la solicitud PoC",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('1074-05 estado esperado 200', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-1074-05-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_aliado_poc1}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/dispatch/requests/a0000000-0000-4000-8000-900000000001/accept"
+          }
+        },
+        {
+          "name": "[1074-06] SCRUM-1074 - Un segundo aliado no puede aceptar la misma solicitud (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('1074-06 estado esperado 409', () => pm.expect(pm.response.code).to.be.oneOf([409]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-1074-06-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_aliado_poc2}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/dispatch/requests/a0000000-0000-4000-8000-900000000001/accept"
+          }
+        },
+        {
+          "name": "[1074-03] SCRUM-1074 - Aliado de t2 no acepta solicitudes de t1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('1074-03 estado esperado 403/404/409', () => pm.expect(pm.response.code).to.be.oneOf([403, 404, 409]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-1074-03-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_aliado_t2}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/dispatch/requests/{{solicitud_t1}}/accept"
+          }
+        },
+        {
+          "name": "[1074-04] SCRUM-1074 - Un cliente no acepta solicitudes",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('1074-04 estado esperado 403', () => pm.expect(pm.response.code).to.be.oneOf([403]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Correlation-ID",
+                "value": "qa1267-1074-04-{{corrida}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token_cliente_t1}}"
+              }
+            ],
+            "url": "{{base_url}}/api/v1/dispatch/requests/{{solicitud_t1}}/accept"
+          }
+        }
+      ]
+    }
+  ]
+}

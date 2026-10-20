@@ -1,0 +1,9 @@
+# Artefactos de ejecucion (la evidencia redactada se versiona en MANI-docs)
+playwright/reporte_html/
+playwright/artefactos/
+playwright/resultados.json
+playwright/test-results/
+evidencia/
+
+# La raiz ignora newman/ (reportes locales); aqui newman/ contiene la coleccion versionada
+!newman/
