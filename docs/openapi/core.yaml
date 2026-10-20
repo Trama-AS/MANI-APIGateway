@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.6.0
+  version: 0.7.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -1324,6 +1324,20 @@ components:
           nullable: true
           enum: [COTIZACION_PREVIA, TARIFA_ESTANDAR, null]
           description: null en filas históricas anteriores a US-03.1.1-M2 (seed QA).
+        createdAt:
+          type: string
+          format: date-time
+          description: >
+            Solo en las respuestas de administración (`/catalog/categories/*`).
+            No aparece en la vitrina pública `GET /catalog`.
+        alliesCount:
+          type: integer
+          minimum: 0
+          description: >
+            Aliados que declaran la categoría (US-03.1.2: el administrador ve a
+            quién afecta antes de desactivarla; desactivar no los desvincula ni
+            corta los servicios en curso). Solo en las respuestas de
+            administración; no aparece en la vitrina pública `GET /catalog`.
       required: [id, name, active, description, tenantId, flujoOperativo]
 
     CategoryResponse:
