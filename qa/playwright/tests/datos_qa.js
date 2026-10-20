@@ -20,7 +20,11 @@ function token(nombre) {
 }
 
 function cabeceras(nombre) {
-  return { Authorization: `Bearer ${token(nombre)}`, 'Content-Type': 'application/json' };
+  return {
+    Authorization: `Bearer ${token(nombre)}`,
+    'Content-Type': 'application/json',
+    'X-Correlation-ID': `qa1267-pw-${nombre}-${Date.now()}`,
+  };
 }
 
 module.exports = { url_gateway, url_flutter, url_landing, datos, cabeceras };

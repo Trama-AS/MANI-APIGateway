@@ -13,10 +13,13 @@ function hostDe(env, clave) {
 }
 
 test.describe('Flutter Web en QA', () => {
-  test('FW-01 la aplicacion carga y arranca el motor de Flutter', async ({ page }) => {
+  test('FW-01 la aplicacion carga, arranca el motor de Flutter y llega a /login', async ({ page }) => {
+    test.setTimeout(120_000);
     const respuesta = await page.goto(url_flutter);
     expect(respuesta.status()).toBe(200);
-    await expect(page.locator('flutter-view, flt-glass-pane').first()).toBeAttached({ timeout: 30_000 });
+    await expect(page.locator('flutter-view, flt-glass-pane').first()).toBeAttached({ timeout: 60_000 });
+    await page.waitForURL(/\/login/, { timeout: 30_000 });
+    await expect(page).toHaveTitle(/MANI/);
   });
 
   test('FW-02 la imagen de QA apunta al Supabase de MANI-QA', async ({ request }) => {

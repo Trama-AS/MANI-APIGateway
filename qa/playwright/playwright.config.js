@@ -16,7 +16,8 @@ module.exports = defineConfig({
     trace: 'on',
     screenshot: 'on',
     video: 'retain-on-failure',
-    extraHTTPHeaders: { 'X-Correlation-ID': `qa1267-pw-${Date.now()}` },
+    // Sin extraHTTPHeaders globales: un encabezado personalizado en todas las peticiones del navegador
+    // provoca preflight CORS contra el CDN de Google (CanvasKit y fuentes) y Flutter Web no arranca.
   },
   outputDir: 'artefactos',
 });
