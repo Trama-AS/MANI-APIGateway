@@ -110,6 +110,44 @@ function testScript(exec) {
 }
 
 /**
+ * Asserts comunes de los registros de aliado (persona natural y empresa): 201,
+ * esquema RegisterAllyResponse, rol ALLY en estado PENDING y claim de tenant en el
+ * accessToken. `antesDelToken` y `despuesDelToken` agregan líneas propias de cada
+ * registro dentro del bloque `if (pm.response.code === 201)`.
+ */
+function registroAliadoTests({ nombreTestRol, antesDelToken = [], despuesDelToken = [] }) {
+  return testScript([
+    ...DECODE_JWT_HELPER,
+    '',
+    "pm.test('responde 201 Created', function () {",
+    '  pm.response.to.have.status(201);',
+    '});',
+    '',
+    "pm.test('el body cumple el esquema RegisterAllyResponse', function () {",
+    `  pm.response.to.have.jsonSchema(${JSON.stringify(AUTH_RESPONSE_SCHEMA)});`,
+    '});',
+    '',
+    'if (pm.response.code === 201) {',
+    '  const body = pm.response.json();',
+    '',
+    `  pm.test('${nombreTestRol}', function () {`,
+    "    pm.expect(body.profile.role).to.eql('ALLY');",
+    "    pm.expect(body.profile.status).to.eql('PENDING');",
+    '  });',
+    '',
+    ...antesDelToken,
+    "  pm.test('propagación del claim de tenant: tenant_id del accessToken coincide con expectedTenantId', function () {",
+    '    const claims = decodeJwtPayload(body.tokens.accessToken);',
+    "    pm.expect(claims, 'accessToken debe ser un JWT decodificable').to.not.equal(null);",
+    "    const expectedId = pm.environment.get('expectedTenantId') || pm.collectionVariables.get('expectedTenantId');",
+    "    pm.expect(tenantIdFromClaims(claims)).to.eql(expectedId);",
+    '  });',
+    ...despuesDelToken,
+    '}',
+  ]);
+}
+
+/**
  * La conversión automática desde OpenAPI solo produce paths/métodos/esquemas con
  * valores de ejemplo estáticos. Para que la colección "recorra en secuencia" el
  * flujo de identidad (registrar → login → refresh → logout) hace falta encadenar
@@ -163,41 +201,21 @@ function wireUpIdentityFlow(collection) {
         ],
       },
     },
-    testScript([
-      ...DECODE_JWT_HELPER,
-      '',
-      "pm.test('responde 201 Created', function () {",
-      '  pm.response.to.have.status(201);',
-      '});',
-      '',
-      "pm.test('el body cumple el esquema RegisterAllyResponse', function () {",
-      `  pm.response.to.have.jsonSchema(${JSON.stringify(AUTH_RESPONSE_SCHEMA)});`,
-      '});',
-      '',
-      'if (pm.response.code === 201) {',
-      '  const body = pm.response.json();',
-      '',
-      "  pm.test('el aliado queda en rol ALLY y estado PENDING', function () {",
-      "    pm.expect(body.profile.role).to.eql('ALLY');",
-      "    pm.expect(body.profile.status).to.eql('PENDING');",
-      '  });',
-      '',
-      "  pm.test('propagación del claim de tenant: profile.tenantId resuelto desde el slug coincide con expectedTenantId', function () {",
-      "    const expectedId = pm.environment.get('expectedTenantId') || pm.collectionVariables.get('expectedTenantId');",
-      "    pm.expect(body.profile.tenantId).to.eql(expectedId);",
-      '  });',
-      '',
-      "  pm.test('propagación del claim de tenant: tenant_id del accessToken coincide con expectedTenantId', function () {",
-      '    const claims = decodeJwtPayload(body.tokens.accessToken);',
-      "    pm.expect(claims, 'accessToken debe ser un JWT decodificable').to.not.equal(null);",
-      "    const expectedId = pm.environment.get('expectedTenantId') || pm.collectionVariables.get('expectedTenantId');",
-      "    pm.expect(tenantIdFromClaims(claims)).to.eql(expectedId);",
-      '  });',
-      '',
-      "  pm.collectionVariables.set('accessToken', body.tokens.accessToken);",
-      "  pm.collectionVariables.set('refreshToken', body.tokens.refreshToken);",
-      '}',
-    ])
+    registroAliadoTests({
+      nombreTestRol: 'el aliado queda en rol ALLY y estado PENDING',
+      antesDelToken: [
+        "  pm.test('propagación del claim de tenant: profile.tenantId resuelto desde el slug coincide con expectedTenantId', function () {",
+        "    const expectedId = pm.environment.get('expectedTenantId') || pm.collectionVariables.get('expectedTenantId');",
+        "    pm.expect(body.profile.tenantId).to.eql(expectedId);",
+        '  });',
+        '',
+      ],
+      despuesDelToken: [
+        '',
+        "  pm.collectionVariables.set('accessToken', body.tokens.accessToken);",
+        "  pm.collectionVariables.set('refreshToken', body.tokens.refreshToken);",
+      ],
+    })
   );
 
   // --- POST /auth/register/ally/company (multipart/form-data, SCRUM-1063) ---
@@ -231,33 +249,7 @@ function wireUpIdentityFlow(collection) {
         ],
       },
     },
-    testScript([
-      ...DECODE_JWT_HELPER,
-      '',
-      "pm.test('responde 201 Created', function () {",
-      '  pm.response.to.have.status(201);',
-      '});',
-      '',
-      "pm.test('el body cumple el esquema RegisterAllyResponse', function () {",
-      `  pm.response.to.have.jsonSchema(${JSON.stringify(AUTH_RESPONSE_SCHEMA)});`,
-      '});',
-      '',
-      'if (pm.response.code === 201) {',
-      '  const body = pm.response.json();',
-      '',
-      "  pm.test('la empresa queda como aliado en rol ALLY y estado PENDING', function () {",
-      "    pm.expect(body.profile.role).to.eql('ALLY');",
-      "    pm.expect(body.profile.status).to.eql('PENDING');",
-      '  });',
-      '',
-      "  pm.test('propagación del claim de tenant: tenant_id del accessToken coincide con expectedTenantId', function () {",
-      '    const claims = decodeJwtPayload(body.tokens.accessToken);',
-      "    pm.expect(claims, 'accessToken debe ser un JWT decodificable').to.not.equal(null);",
-      "    const expectedId = pm.environment.get('expectedTenantId') || pm.collectionVariables.get('expectedTenantId');",
-      "    pm.expect(tenantIdFromClaims(claims)).to.eql(expectedId);",
-      '  });',
-      '}',
-    ])
+    registroAliadoTests({ nombreTestRol: 'la empresa queda como aliado en rol ALLY y estado PENDING' })
   );
 
   // --- POST /auth/login ---
