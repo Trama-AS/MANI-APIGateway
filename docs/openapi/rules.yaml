@@ -1,0 +1,347 @@
+openapi: 3.0.3
+info:
+  title: MANI-APIGateway — Motor de Reglas (Rules Service)
+  description: >
+    Contrato entre MANI-APIGateway, MANI-Node (Core) y MANI-Java (Rules Service)
+    para la evaluación de reglas operativas de la categoría de servicio
+    (US-03.1.1-M6 / SCRUM-1070). Vive en este repositorio, igual que core.yaml,
+    porque el Gateway es el límite público del contrato.
+
+
+    ## Quién llama y cómo viaja el tenant
+
+    1. **Backoffice vía Gateway**: `POST /api/v1/rules/categories/evaluate` con
+       `Authorization: Bearer <jwt>`. El Gateway valida el JWT (auth_request a
+       Core), **descarta** cualquier `X-Tenant-Id` / `X-User-Role` del cliente y
+       los reemplaza por los claims verificados antes de reenviar a Rules.
+    2. **Core por la red interna** (`RULES_SERVICE_URL`, p. ej.
+       `http://rules-service:8080`): al crear o editar una categoría, Core
+       reenvía el tenant y el rol del JWT que ya verificó como `X-Tenant-Id` y
+       `X-User-Role`. Rules no es alcanzable desde fuera sin el Gateway.
+
+    El tenant **nunca** se toma del cuerpo. Si el cuerpo trae `tenantId` y no
+    coincide con el de la sesión, Rules responde `403 TENANT_MISMATCH`.
+
+
+    ## Reglas (migradas de crear_categoria_servicio(), migración 003, SCRUM-857)
+
+    | Operación | Regla | Código |
+    |---|---|---|
+    | CREATE | nombre normalizado (trim + espacios colapsados) de 3 a 60 caracteres con al menos una letra | MANI-CAT-422N |
+    | CREATE | flujo operativo (trim + mayúsculas) en COTIZACION_PREVIA / TARIFA_ESTANDAR | MANI-CAT-422F |
+    | UPDATE | las mismas, solo sobre los campos enviados | 422N / 422F |
+    | OPERATE | la categoría debe estar activa | MANI-CAT-422C |
+
+    Los parámetros (longitudes, flujos, versión) son configuración de Rules con
+    override por tenant: cambiarlos no requiere desplegar Core. Una regla
+    incumplida es `200` con `allowed=false`, no un error HTTP. El nombre único
+    por tenant (409) sigue en el índice `ux_categoria_tenant_nombre`.
+  version: 1.0.0
+servers:
+  - url: https://api.mani.app/api/v1/rules
+    description: Producción, a través del Gateway
+  - url: http://localhost/api/v1/rules
+    description: Gateway local (docker compose --profile full up -d)
+  - url: http://rules-service:8080/api/v1/rules
+    description: Red interna de Docker (solo Core)
+tags:
+  - name: Category Rules
+    description: Reglas operativas de la categoría de servicio.
+  - name: Health
+    description: Estado del servicio.
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      tags: [Health]
+      operationId: rulesHealth
+      summary: Estado del Rules Service
+      description: Ruta pública del Gateway (`location = /api/v1/rules/health`), sin JWT.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Servicio arriba.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /categories/evaluate:
+    post:
+      tags: [Category Rules]
+      operationId: evaluateCategoryRules
+      summary: Evalúa las reglas operativas de una categoría de servicio
+      description: >
+        CREATE y UPDATE exigen rol de administrador del tenant (`ADMIN` o
+        `ADMIN_TENANT`, sin distinguir mayúsculas); OPERATE acepta cualquier rol
+        autenticado. Función determinista: la misma entrada con la misma
+        `ruleSetVersion` produce siempre el mismo resultado, así que es seguro
+        reintentarla.
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/TenantIdInternal'
+        - $ref: '#/components/parameters/UserRoleInternal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryEvaluationRequest'
+            examples:
+              create:
+                summary: Crear categoría
+                value:
+                  categoryId: null
+                  context:
+                    operation: CREATE
+                    name: '  Plomería   Express '
+                    flujoOperativo: tarifa_estandar
+              update:
+                summary: Renombrar categoría (actualización parcial)
+                value:
+                  categoryId: 60000000-0000-4000-8000-000000000011
+                  context:
+                    operation: UPDATE
+                    name: Plomería Residencial
+              operate:
+                summary: Usar una categoría en la operación
+                value:
+                  categoryId: 60000000-0000-4000-8000-000000000011
+                  context:
+                    operation: OPERATE
+                    active: false
+      responses:
+        '200':
+          description: Evaluación realizada. `allowed=false` indica reglas incumplidas.
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryEvaluationResponse'
+              examples:
+                allowed:
+                  summary: Categoría válida
+                  value:
+                    allowed: true
+                    ruleSetVersion: category-rules-v1
+                    violations: []
+                    normalized:
+                      name: Plomería Express
+                      flujoOperativo: TARIFA_ESTANDAR
+                    tenantId: 10000000-0000-4000-8000-000000000011
+                    categoryId: null
+                    operation: CREATE
+                    correlationId: 7f9c2b1e-0d4a-4c1e-9b2f-3a5d6e7f8a90
+                denied:
+                  summary: Nombre y flujo inválidos
+                  value:
+                    allowed: false
+                    ruleSetVersion: category-rules-v1
+                    violations:
+                      - code: MANI-CAT-422N
+                        field: name
+                        message: el nombre debe tener entre 3 y 60 caracteres
+                      - code: MANI-CAT-422F
+                        field: flujoOperativo
+                        message: 'flujo operativo inválido (OTRO); permitidos: COTIZACION_PREVIA, TARIFA_ESTANDAR'
+                    normalized:
+                      name: AB
+                      flujoOperativo: OTRO
+                    tenantId: 10000000-0000-4000-8000-000000000011
+                    categoryId: null
+                    operation: CREATE
+                    correlationId: 7f9c2b1e-0d4a-4c1e-9b2f-3a5d6e7f8a90
+        '400':
+          description: >
+            Petición mal formada (`VALIDATION_ERROR`: JSON inválido, falta
+            `context`, `context.operation` desconocida, falta `context.active`
+            en OPERATE) o sin tenant (`TENANT_REQUIRED`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '401':
+          description: >
+            Sin JWT válido (lo responde el Gateway) o sin rol (`UNAUTHORIZED`,
+            si se llama internamente sin `X-User-Role`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: >
+            `FORBIDDEN`: CREATE/UPDATE sin rol de administrador.
+            `TENANT_MISMATCH`: el `tenantId` del cuerpo no es el de la sesión.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '415':
+          description: Content-Type distinto de application/json.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          description: Error interno del motor de reglas (`INTERNAL_ERROR`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT de Supabase Auth con `app_metadata.tenant_id` y `app_metadata.user_role`.
+  headers:
+    CorrelationId:
+      description: Mismo valor recibido (o generado por el Gateway).
+      schema:
+        type: string
+  parameters:
+    CorrelationId:
+      name: X-Correlation-ID
+      in: header
+      required: false
+      description: Identificador de trazabilidad. El Gateway lo genera si falta.
+      schema:
+        type: string
+    TenantIdInternal:
+      name: X-Tenant-Id
+      in: header
+      required: false
+      description: >
+        **Interno**: lo pone el Gateway desde el claim `tenant_id` verificado (y
+        reemplaza el que envíe el cliente), o Core en llamadas internas. Rules
+        responde `400 TENANT_REQUIRED` si falta.
+      schema:
+        type: string
+    UserRoleInternal:
+      name: X-User-Role
+      in: header
+      required: false
+      description: >
+        **Interno**: rol del JWT verificado (`admin_tenant`, `ADMIN`, `aliado`…),
+        puesto por el Gateway o por Core. Rules responde `401 UNAUTHORIZED` si falta.
+      schema:
+        type: string
+  schemas:
+    CategoryEvaluationRequest:
+      type: object
+      required: [context]
+      properties:
+        tenantId:
+          type: string
+          nullable: true
+          description: Opcional y solo de control; si llega y no es el de la sesión, 403 TENANT_MISMATCH.
+        categoryId:
+          type: string
+          nullable: true
+          description: null al crear.
+        context:
+          $ref: '#/components/schemas/CategoryContext'
+    CategoryContext:
+      type: object
+      required: [operation]
+      properties:
+        operation:
+          type: string
+          enum: [CREATE, UPDATE, OPERATE]
+        name:
+          type: string
+          nullable: true
+          description: Obligatorio en CREATE; en UPDATE solo si cambia.
+        flujoOperativo:
+          type: string
+          nullable: true
+          description: Obligatorio en CREATE; en UPDATE solo si cambia. Se normaliza a mayúsculas.
+        active:
+          type: boolean
+          nullable: true
+          description: Estado actual de la categoría; obligatorio en OPERATE.
+    CategoryEvaluationResponse:
+      type: object
+      required: [allowed, ruleSetVersion, violations, normalized, tenantId, operation, correlationId]
+      properties:
+        allowed:
+          type: boolean
+        ruleSetVersion:
+          type: string
+          description: Versión de las reglas aplicadas (por tenant si tiene override).
+        violations:
+          type: array
+          items:
+            $ref: '#/components/schemas/RuleViolation'
+        normalized:
+          $ref: '#/components/schemas/NormalizedCategory'
+        tenantId:
+          type: string
+        categoryId:
+          type: string
+          nullable: true
+        operation:
+          type: string
+          enum: [CREATE, UPDATE, OPERATE]
+        correlationId:
+          type: string
+    RuleViolation:
+      type: object
+      required: [code, field, message]
+      properties:
+        code:
+          type: string
+          enum: [MANI-CAT-422N, MANI-CAT-422F, MANI-CAT-422C]
+        field:
+          type: string
+          enum: [name, flujoOperativo, active]
+        message:
+          type: string
+    NormalizedCategory:
+      type: object
+      description: Valores tal como deben persistirse. null si no se enviaron.
+      properties:
+        name:
+          type: string
+          nullable: true
+        flujoOperativo:
+          type: string
+          nullable: true
+    ApiError:
+      type: object
+      required: [error, code, correlationId]
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+          enum:
+            - VALIDATION_ERROR
+            - TENANT_REQUIRED
+            - TENANT_MISMATCH
+            - UNAUTHORIZED
+            - FORBIDDEN
+            - NOT_FOUND
+            - METHOD_NOT_ALLOWED
+            - INTERNAL_ERROR
+        correlationId:
+          type: string
+    HealthResponse:
+      type: object
+      required: [status, service, correlationId]
+      properties:
+        status:
+          type: string
+          enum: [UP]
+        service:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        correlationId:
+          type: string

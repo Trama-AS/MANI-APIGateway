@@ -1,0 +1,1389 @@
+openapi: 3.0.3
+info:
+  title: MANI-APIGateway — Identidad y Registro de Aliado (Core)
+  description: >
+    Contrato OpenAPI entre MANI-APIGateway y MANI-Node (Core) para el dominio
+    de identidad: autenticación y registro de aliado persona natural. Vive en
+    este repositorio (CFG-16) porque el Gateway es el límite público del
+    contrato; MANI-Node lo implementa pero no lo posee.
+
+
+    ## Propagación del claim de tenant
+
+    MANI es multi-tenant: cada petición debe resolverse en el contexto de un
+    tenant (organización) específico, y el Core nunca puede confiar en un
+    valor de tenant que un cliente final pueda falsificar.
+
+    1. **Pre-autenticación** (`POST /auth/login`, `POST /auth/register/ally`):
+       el llamador todavía no tiene un JWT. Conforme a ADR-0018, el tenant se identifica
+       con el header `X-Tenant-Slug` (slug público del tenant, ej. `trama-demo`),
+       descartando el uso de IDs internos confiados por el backend para evitar spoofing.
+       El Core responde `400 TENANT_NOT_FOUND` si el tenant no existe o está
+       inactivo.
+    2. **Emisión del claim**: si el login o el registro son exitosos, Supabase
+       Auth emite un `accessToken` (JWT) cuyo payload incluye, bajo
+       `app_metadata`, el claim `tenant_id` con el id del tenant resuelto en
+       el paso anterior (ver `TokenClaims`; el Custom Access Token Hook de
+       Supabase, CFG-12, es quien lo puebla). Ese mismo id se refleja en
+       `ProfileSummary.tenantId` en la respuesta.
+    3. **Post-autenticación** (`POST /auth/refresh`, `POST /auth/logout`, y
+       en general cualquier endpoint protegido con `bearerAuth`): el tenant
+       se deriva **exclusivamente** del claim dentro del JWT ya verificado.
+       El Core ignora cualquier header `X-Tenant-Id` enviado en estas
+       llamadas — aceptarlo permitiría a un cliente autenticado en el tenant
+       A leer/escribir datos del tenant B con solo cambiar un header.
+
+    Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
+    autenticado) es la que deben implementar tanto el Gateway como el Core.
+  version: 0.7.0
+servers:
+  - url: https://api.mani.app/api/v1/core
+    description: Producción, vía MANI-APIGateway
+  - url: http://localhost/api/v1/core
+    description: Gateway local (docker compose up -d gateway core-service)
+
+tags:
+  - name: Auth
+    description: Autenticación e identidad de usuarios (Clientes, Aliados, Admins)
+  - name: Ally Registration
+    description: Registro de Aliados persona natural y empresa
+  - name: Service Requests
+    description: Creación de solicitudes de servicio por el cliente (US-04.1.1-M2 / SCRUM-1072)
+  - name: Ally Availability
+    description: Intervalos en los que el aliado está "No disponible" (US-02.1.6 / SCRUM-855)
+  - name: Service Categories
+    description: >
+      Catálogo de categorías de servicio (US-03.1.1-M2 / SCRUM-1069). La
+      gestión vive en Core, aislada por el tenant del JWT; la evaluación de
+      reglas de la categoría es del Rules Service (`rules.yaml`).
+
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      summary: '[PENDIENTE] Inicia sesión y obtiene tokens de acceso'
+      description: >
+        [PENDIENTE DE IMPLEMENTACIÓN EN CORE NODE]
+        Especificación del contrato para cuando Core implemente autenticación.
+        Autentica un usuario (CLIENT, ALLY o ADMIN) dentro del tenant
+        resuelto por `X-Tenant-Slug` (ADR-0018) y devuelve un `accessToken`/`refreshToken`
+        con el claim `tenant_id` embebido.
+      parameters:
+        - $ref: '#/components/parameters/XTenantSlug'
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Credenciales válidas, sesión iniciada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: >
+            Body inválido (`VALIDATION_ERROR`) o tenant inexistente/inactivo
+            (`TENANT_NOT_FOUND`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Credenciales incorrectas (`INVALID_CREDENTIALS`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      operationId: refreshToken
+      summary: '[PENDIENTE] Renueva el accessToken a partir de un refreshToken vigente'
+      description: >
+        [PENDIENTE DE IMPLEMENTACIÓN EN CORE NODE]
+        Especificación del contrato para cuando Core implemente renovación de sesión.
+        El tenant del nuevo accessToken se conserva del claim `tenant_id`
+        del refreshToken original; este endpoint no acepta `X-Tenant-Slug` ni `X-Tenant-Id`.
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Token renovado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshResponse'
+        '400':
+          description: Body inválido (`VALIDATION_ERROR`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: refreshToken inválido o expirado (`TOKEN_INVALID` / `TOKEN_EXPIRED`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logout
+      summary: '[PENDIENTE] Cierra la sesión actual e invalida el refreshToken asociado'
+      description: >
+        [PENDIENTE DE IMPLEMENTACIÓN EN CORE NODE]
+        Especificación del contrato para cuando Core implemente cierre de sesión.
+        El tenant se deriva del claim `tenant_id` del accessToken; no acepta `X-Tenant-Slug` ni `X-Tenant-Id`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '204':
+          description: Sesión cerrada correctamente
+        '401':
+          description: accessToken ausente, inválido o expirado (`UNAUTHORIZED` / `TOKEN_INVALID` / `TOKEN_EXPIRED`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/register/ally:
+    post:
+      tags: [Ally Registration]
+      operationId: registerAllyNaturalPerson
+      summary: Registra un nuevo Aliado persona natural
+      description: >
+        Crea el usuario y el perfil de Aliado (rol ALLY) en estado PENDING,
+        a la espera de verificación KYC, dentro del tenant resuelto por
+        `X-Tenant-Slug` (ADR-0018). Acepta `multipart/form-data` porque el registro
+        incluye la subida de documentos KYC (cédula obligatoria, otros
+        opcionales); el campo de cada archivo es su tipo de documento en
+        minúsculas (p. ej. `cedula_ciudadania`). Devuelve tokens de sesión
+        (con el claim `tenant_id` ya embebido) para que el Aliado pueda
+        continuar el flujo de onboarding inmediatamente.
+      parameters:
+        - $ref: '#/components/parameters/XTenantSlug'
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RegisterAllyNaturalPersonRequest'
+            encoding:
+              cedula_ciudadania:
+                contentType: application/pdf, image/png, image/jpeg
+      responses:
+        '201':
+          description: Aliado registrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterAllyResponse'
+        '400':
+          description: >
+            Body inválido (`VALIDATION_ERROR`), términos y condiciones no
+            aceptados (`TERMS_NOT_ACCEPTED`), tenant inexistente/inactivo
+            (`TENANT_NOT_FOUND`) o categoría inexistente/inactiva
+            (`CATEGORY_NOT_FOUND`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: >
+            Ya existe un usuario del tenant con ese email
+            (`EMAIL_ALREADY_REGISTERED`) o, si se envió `documentNumber`, ya
+            existe un aliado con ese número de documento
+            (`DOCUMENT_ALREADY_REGISTERED`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/register/ally/company:
+    post:
+      tags: [Ally Registration]
+      operationId: registerAllyCompany
+      summary: Registra un nuevo Aliado empresa (persona jurídica)
+      description: >
+        Crea el usuario y el perfil de Aliado empresa (rol ALLY) en estado PENDING,
+        con sus documentos KYC (Cámara de Comercio obligatoria) y datos del representante
+        legal, dentro del tenant resuelto por `X-Tenant-Slug` (ADR-0018 / US-02.1.2-M2).
+      parameters:
+        - $ref: '#/components/parameters/XTenantSlug'
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RegisterAllyCompanyRequest'
+            encoding:
+              camara_comercio:
+                contentType: application/pdf, image/png, image/jpeg
+      responses:
+        '201':
+          description: Aliado empresa registrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterAllyResponse'
+        '400':
+          description: >
+            Body inválido (`VALIDATION_ERROR`), tenant inexistente/inactivo
+            (`TENANT_NOT_FOUND`) o categoría inexistente/inactiva
+            (`CATEGORY_NOT_FOUND`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: >
+            Ya existe un usuario con ese email (`EMAIL_ALREADY_REGISTERED`)
+            o la empresa ya está registrada con ese NIT en este tenant
+            (`COMPANY_ALREADY_REGISTERED`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /solicitudes:
+    post:
+      tags: [Service Requests]
+      operationId: createServiceRequest
+      summary: El cliente crea una solicitud de servicio
+      description: >
+        Crea la solicitud en estado `PENDIENTE` en Core (ARQ-03: Core crea la solicitud, Dispatch la orquesta
+        después). Porta la función `crear_solicitud` al servicio (ADR-0022): el tenant y el cliente salen del
+        JWT (`bearerAuth`), nunca del cuerpo ni de `X-Tenant-Id`. La ubicación es un sitio propio del cliente
+        (`sitioId`) o una dirección nueva con `zonaId` activa. Las fotos (hasta 5 imágenes) viajan como
+        `multipart/form-data` en el campo `fotos`; Core las guarda en Storage bajo `{tenant}/{usuario}/`.
+        Con `claveIdempotencia` el reintento devuelve la solicitud existente con `200` en lugar de `201`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateServiceRequestRequest'
+          multipart/form-data:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/CreateServiceRequestRequest'
+                - type: object
+                  properties:
+                    fotos:
+                      type: array
+                      maxItems: 5
+                      description: Imágenes PNG, JPEG o WEBP de hasta 5 MB cada una.
+                      items:
+                        type: string
+                        format: binary
+            encoding:
+              fotos:
+                contentType: image/png, image/jpeg, image/webp
+      responses:
+        '201':
+          description: Solicitud creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateServiceRequestResponse'
+        '200':
+          description: Reintento con la misma `claveIdempotencia`; devuelve la solicitud ya creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateServiceRequestResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-SOL-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: La cuenta no es un cliente activo del tenant del JWT (`MANI-SOL-403C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: >
+            Datos rechazados: categoría no disponible (`MANI-SOL-422C`), descripción fuera de 20 a 1000 caracteres
+            (`MANI-SOL-422D`), sitio inexistente o dirección inválida (`MANI-SOL-422S`), zona no disponible
+            (`MANI-SOL-422Z`), fotos inválidas (`MANI-SOL-422F`) o clave de idempotencia inválida (`MANI-SOL-422K`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /profiles/me/unavailability:
+    get:
+      tags: [Ally Availability]
+      operationId: listAllyUnavailability
+      summary: Lista las ausencias vigentes y futuras del aliado autenticado
+      description: >
+        Devuelve las ausencias que aún no terminan, ordenadas por inicio, y si el
+        aliado está disponible en este momento (`availableNow`). Tenant y rol se
+        derivan exclusivamente del JWT; solo responde a un aliado del tenant.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Ausencias del aliado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllyAbsenceListResponse'
+        '401':
+          $ref: '#/components/responses/AbsenceUnauthorized'
+        '403':
+          $ref: '#/components/responses/AbsenceForbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Ally Availability]
+      operationId: createAllyUnavailability
+      summary: Marca al aliado como "No disponible" durante un intervalo
+      description: >
+        Mientras dure el intervalo [startsAt, endsAt) el aliado sale de la
+        elegibilidad del despacho (SCRUM-861). El intervalo es semiabierto: una
+        ausencia puede empezar justo cuando termina otra.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AllyAbsenceRequest'
+      responses:
+        '201':
+          description: Ausencia registrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllyAbsenceResponse'
+        '401':
+          $ref: '#/components/responses/AbsenceUnauthorized'
+        '403':
+          $ref: '#/components/responses/AbsenceForbidden'
+        '409':
+          $ref: '#/components/responses/AbsenceOverlap'
+        '422':
+          $ref: '#/components/responses/AbsenceInvalid'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /profiles/me/unavailability/{absenceId}:
+    parameters:
+      - name: absenceId
+        in: path
+        required: true
+        description: Id de la ausencia. Una ausencia de otro aliado o de otro tenant responde 404.
+        schema:
+          type: string
+          format: uuid
+    patch:
+      tags: [Ally Availability]
+      operationId: updateAllyUnavailability
+      summary: Edita una ausencia del aliado autenticado
+      description: >
+        Edición parcial: los campos que no se envían conservan su valor. Enviar
+        `note: null` la borra. El intervalo resultante se valida igual que al crear.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AllyAbsencePatch'
+      responses:
+        '200':
+          description: Ausencia actualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllyAbsenceResponse'
+        '401':
+          $ref: '#/components/responses/AbsenceUnauthorized'
+        '403':
+          $ref: '#/components/responses/AbsenceForbidden'
+        '404':
+          $ref: '#/components/responses/AbsenceNotFound'
+        '409':
+          $ref: '#/components/responses/AbsenceOverlap'
+        '422':
+          $ref: '#/components/responses/AbsenceInvalid'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [Ally Availability]
+      operationId: deleteAllyUnavailability
+      summary: Elimina una ausencia; el aliado vuelve a estar disponible
+      description: >
+        Si la ausencia cubría el instante actual, el aliado vuelve a ser elegible
+        para el despacho en cuanto se elimina.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '204':
+          description: Ausencia eliminada
+        '401':
+          $ref: '#/components/responses/AbsenceUnauthorized'
+        '403':
+          $ref: '#/components/responses/AbsenceForbidden'
+        '404':
+          $ref: '#/components/responses/AbsenceNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /catalog:
+    get:
+      tags: [Service Categories]
+      operationId: listCatalogShowcase
+      summary: Vitrina pública de categorías activas de un tenant (pre-autenticación)
+      description: >
+        Ruta pública del Gateway (sin JWT), usada por el registro antes de
+        iniciar sesión. Conforme a ADR-0018 el tenant se identifica solo con
+        `X-Tenant-Slug`; el Gateway descarta `Authorization` y cualquier
+        `X-Tenant-Id` del cliente. Devuelve únicamente categorías `ACTIVO` de
+        ese tenant, filtradas en la consulta. Sin `X-Tenant-Slug`, o con un
+        slug que no existe, responde `200` con lista vacía: nunca expone
+        categorías de otro tenant. Solo admite GET.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XTenantSlug'
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Categorías activas del tenant (vacío sin slug o con slug inexistente)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryListResponse'
+              examples:
+                conSlug:
+                  summary: Con X-Tenant-Slug de un tenant existente
+                  value:
+                    categories:
+                      - id: 60000000-0000-4000-8000-000000000011
+                        name: Plomería
+                        active: true
+                        description: ''
+                        tenantId: 10000000-0000-4000-8000-000000000011
+                        flujoOperativo: COTIZACION_PREVIA
+                sinSlug:
+                  summary: Sin X-Tenant-Slug
+                  value:
+                    categories: []
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /catalog/categories:
+    get:
+      tags: [Service Categories]
+      operationId: listCategoriesForTenant
+      summary: Lista las categorías del tenant autenticado (Backoffice)
+      description: >
+        El tenant se deriva exclusivamente del claim `app_metadata.tenant_id`
+        del JWT, nunca de un header ni del cuerpo. Todos los endpoints de
+        `/catalog/categories/*` exigen rol de administrador del tenant.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: onlyActive
+          in: query
+          required: false
+          description: true para excluir las categorías inactivas.
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Categorías del tenant (incluye inactivas salvo `onlyActive=true`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryListResponse'
+        '401':
+          $ref: '#/components/responses/CategoryUnauthorized'
+        '403':
+          $ref: '#/components/responses/CategoryForbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Service Categories]
+      operationId: createCategory
+      summary: Crea una categoría de servicio en el tenant autenticado
+      description: >
+        `name` se normaliza (espacios extremos y repetidos) y debe tener entre
+        3 y 60 caracteres con al menos una letra; es único por tenant sin
+        distinguir mayúsculas (`ux_categoria_tenant_nombre`). `flujoOperativo`
+        es obligatorio y sin valor por omisión. La categoría nace `ACTIVO`.
+        Las reglas de nombre y flujo pasan al Rules Service con US-03.1.1-M6
+        (SCRUM-1226), que actualiza este contrato.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCategoryRequest'
+      responses:
+        '201':
+          description: Categoría creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryResponse'
+        '400':
+          $ref: '#/components/responses/CategoryValidationError'
+        '401':
+          $ref: '#/components/responses/CategoryUnauthorized'
+        '403':
+          $ref: '#/components/responses/CategoryForbidden'
+        '409':
+          $ref: '#/components/responses/CategoryNameConflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /catalog/categories/{id}:
+    parameters:
+      - $ref: '#/components/parameters/CategoryId'
+    get:
+      tags: [Service Categories]
+      operationId: getCategory
+      summary: Obtiene una categoría del tenant autenticado
+      description: Una categoría de otro tenant responde 404, sin distinguir «no existe» de «no es tuya».
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Categoría encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryResponse'
+        '401':
+          $ref: '#/components/responses/CategoryUnauthorized'
+        '403':
+          $ref: '#/components/responses/CategoryForbidden'
+        '404':
+          $ref: '#/components/responses/CategoryNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      tags: [Service Categories]
+      operationId: updateCategory
+      summary: Actualiza nombre, descripción o flujo operativo de una categoría
+      description: >
+        Actualización parcial: requiere al menos uno de `name`, `description`
+        o `flujoOperativo`, y solo valida los campos enviados. Una categoría
+        histórica que no cumple las reglas actuales puede editarse sin
+        cambiar su nombre.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCategoryRequest'
+      responses:
+        '200':
+          description: Categoría actualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryResponse'
+        '400':
+          $ref: '#/components/responses/CategoryValidationError'
+        '401':
+          $ref: '#/components/responses/CategoryUnauthorized'
+        '403':
+          $ref: '#/components/responses/CategoryForbidden'
+        '404':
+          $ref: '#/components/responses/CategoryNotFound'
+        '409':
+          $ref: '#/components/responses/CategoryNameConflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /catalog/categories/{id}/activate:
+    parameters:
+      - $ref: '#/components/parameters/CategoryId'
+    patch:
+      tags: [Service Categories]
+      operationId: activateCategory
+      summary: Activa una categoría del tenant autenticado
+      description: Cambia el estado a `ACTIVO`; no borra ni altera las relaciones existentes.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      # Mismas respuestas que /deactivate (ancla YAML: OpenAPI 3.0 no permite
+      # $ref sobre el mapa completo de responses).
+      responses: &categoryStatusResponses
+        '200':
+          description: Categoría con su estado actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryResponse'
+        '401':
+          $ref: '#/components/responses/CategoryUnauthorized'
+        '403':
+          $ref: '#/components/responses/CategoryForbidden'
+        '404':
+          $ref: '#/components/responses/CategoryNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /catalog/categories/{id}/deactivate:
+    parameters:
+      - $ref: '#/components/parameters/CategoryId'
+    patch:
+      tags: [Service Categories]
+      operationId: deactivateCategory
+      summary: Desactiva una categoría del tenant autenticado
+      description: >
+        Cambia el estado a `INACTIVO` sin borrado físico: la categoría deja de
+        aparecer en `GET /catalog`, conserva sus relaciones en
+        `aliado_categoria` y no afecta servicios en curso (US-03.1.2).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses: *categoryStatusResponses
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        El Core verifica la firma y extrae userId (`sub`) y, de
+        `app_metadata`, `tenant_id` y `user_role`. Ver `TokenClaims`.
+
+  parameters:
+    XTenantSlug:
+      name: X-Tenant-Slug
+      in: header
+      required: true
+      description: >
+        Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación
+        para resolver la organización sin confiar en IDs internos.
+      schema:
+        type: string
+        example: plomeria-express
+    XCorrelationId:
+      name: X-Correlation-ID
+      in: header
+      required: false
+      description: >
+        Id de trazabilidad distribuida propagado desde el Gateway. Si no se
+        envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el
+        header de respuesta y en el body de error.
+      schema:
+        type: string
+
+    CategoryId:
+      name: id
+      in: path
+      required: true
+      description: Identificador de la categoría de servicio.
+      schema:
+        type: string
+
+  responses:
+    InternalError:
+      description: Error interno del servicio (`INTERNAL_ERROR`)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    AbsenceUnauthorized:
+      description: >
+        Falta el header Authorization (`UNAUTHORIZED`), el JWT es inválido o
+        expiró (`TOKEN_INVALID` / `TOKEN_EXPIRED`), o la sesión no trae usuario y
+        tenant (`MANI-AUS-401`)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AbsenceErrorResponse'
+    AbsenceForbidden:
+      description: El usuario no es un aliado del tenant del JWT (`MANI-AUS-403`)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AbsenceErrorResponse'
+    AbsenceNotFound:
+      description: La ausencia no existe para este aliado y tenant (`MANI-AUS-404`)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AbsenceErrorResponse'
+    AbsenceOverlap:
+      description: El intervalo se cruza con otra ausencia del aliado (`MANI-AUS-409`)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AbsenceErrorResponse'
+    AbsenceInvalid:
+      description: >
+        Horario inválido (`MANI-AUS-422H`: fin no posterior al inicio, más de 365
+        días o ausencia ya terminada) o datos inválidos (`MANI-AUS-422V`: fecha sin
+        zona horaria, motivo fuera del catálogo o nota de más de 280 caracteres)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AbsenceErrorResponse'
+    CategoryValidationError:
+      description: >
+        Petición inválida (`VALIDATION_ERROR`): falta `name` o no cumple 3-60
+        caracteres con una letra, `flujoOperativo` ausente o fuera de
+        `COTIZACION_PREVIA` | `TARIFA_ESTANDAR`, `description` no es texto, o un
+        PUT sin ningún campo.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    CategoryUnauthorized:
+      description: >
+        Sin JWT válido. Lo responde el Gateway (`UNAUTHORIZED`) antes de
+        llegar a Core; si la sesión no trae rol, Core responde 401.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    CategoryForbidden:
+      description: >
+        El rol de la sesión no es administrador del tenant (`FORBIDDEN`). Se
+        acepta `ADMIN` o `ADMIN_TENANT` (`admin_tenant` en el claim).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    CategoryNotFound:
+      description: La categoría no existe o es de otro tenant (`CATEGORY_NOT_FOUND`)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    CategoryNameConflict:
+      description: Ya existe una categoría con ese nombre en el tenant (`CATEGORY_NAME_ALREADY_EXISTS`)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    ErrorCode:
+      type: string
+      description: Catálogo cerrado de códigos de error del dominio de identidad.
+      enum:
+        - VALIDATION_ERROR
+        - INVALID_CREDENTIALS
+        - UNAUTHORIZED
+        - TOKEN_INVALID
+        - TOKEN_EXPIRED
+        - TENANT_NOT_FOUND
+        - CATEGORY_NOT_FOUND
+        - CATEGORY_NAME_ALREADY_EXISTS
+        - FORBIDDEN
+        - EMAIL_ALREADY_REGISTERED
+        - DOCUMENT_ALREADY_REGISTERED
+        - COMPANY_ALREADY_REGISTERED
+        - TERMS_NOT_ACCEPTED
+        - SERVICE_UNAVAILABLE
+        - MANI-SOL-401
+        - MANI-SOL-403C
+        - MANI-SOL-422C
+        - MANI-SOL-422D
+        - MANI-SOL-422S
+        - MANI-SOL-422Z
+        - MANI-SOL-422F
+        - MANI-SOL-422K
+        - INTERNAL_ERROR
+      x-code-meanings:
+        VALIDATION_ERROR: 'HTTP 400 — el body no cumple el esquema (campo faltante/formato inválido).'
+        INVALID_CREDENTIALS: 'HTTP 401 — email y/o password no coinciden con ningún usuario del tenant.'
+        UNAUTHORIZED: 'HTTP 401 — falta el header Authorization en un endpoint protegido.'
+        TOKEN_INVALID: 'HTTP 401 — el JWT no tiene un formato o firma válidos.'
+        TOKEN_EXPIRED: 'HTTP 401 — el JWT es válido pero ya expiró.'
+        TENANT_NOT_FOUND: 'HTTP 400 — X-Tenant-Id no corresponde a un tenant existente/activo.'
+        CATEGORY_NOT_FOUND: 'HTTP 400 en registro de aliado (categoriaId inexistente o inactiva); HTTP 404 en /catalog/categories/{id} (no existe o es de otro tenant).'
+        CATEGORY_NAME_ALREADY_EXISTS: 'HTTP 409 — ya existe una categoría con ese nombre en el tenant (sin distinguir mayúsculas ni espacios extremos).'
+        FORBIDDEN: 'HTTP 403 — el rol de la sesión no puede invocar el endpoint (p. ej. /catalog/categories exige administrador del tenant).'
+        EMAIL_ALREADY_REGISTERED: 'HTTP 409 — ya existe un usuario con ese email en el tenant.'
+        DOCUMENT_ALREADY_REGISTERED: 'HTTP 409 — se envió documentNumber y ya existe un Aliado con ese número en el tenant.'
+        COMPANY_ALREADY_REGISTERED: 'HTTP 409 — la empresa ya está registrada con ese NIT en el tenant (registro de aliado empresa).'
+        TERMS_NOT_ACCEPTED: 'HTTP 400 — el registro de aliado persona natural llegó sin acceptsTerms=true (SCRUM-856).'
+        SERVICE_UNAVAILABLE: 'HTTP 503 — una dependencia (p. ej. la base de datos) no está disponible; no hay respaldo local.'
+        MANI-SOL-401: 'HTTP 401 — sesión requerida para crear la solicitud.'
+        MANI-SOL-403C: 'HTTP 403 — solo un cliente activo del tenant puede publicar solicitudes.'
+        MANI-SOL-422C: 'HTTP 422 — la categoría no existe, no está activa o es de otro tenant.'
+        MANI-SOL-422D: 'HTTP 422 — la descripción debe tener entre 20 y 1000 caracteres.'
+        MANI-SOL-422S: 'HTTP 422 — el sitio no es del cliente o la dirección no tiene entre 5 y 200 caracteres.'
+        MANI-SOL-422Z: 'HTTP 422 — la zona no existe o no está activa.'
+        MANI-SOL-422F: 'HTTP 422 — más de 5 fotos o un archivo que no es imagen.'
+        MANI-SOL-422K: 'HTTP 422 — la clave de idempotencia no es un UUID.'
+        INTERNAL_ERROR: 'HTTP 500 — fallo no controlado del servicio.'
+
+    ErrorResponse:
+      type: object
+      description: Formato estándar de error de todo el Core (ver MANI-Node/src/middlewares/errorHandler.middleware.js).
+      properties:
+        error:
+          type: string
+          description: Mensaje legible, seguro para mostrar al usuario final.
+          example: Credenciales inválidas
+        code:
+          $ref: '#/components/schemas/ErrorCode'
+        correlationId:
+          type: string
+          example: node-1791318617328
+      required: [error, correlationId]
+
+    TokenClaims:
+      type: object
+      description: >
+        Forma del payload del JWT emitido por Supabase Auth al llamar
+        `/auth/login` y `/auth/register/ally`. No es un objeto que viaje
+        serializado en un response body — documenta el contenido de
+        `AuthTokens.accessToken` una vez decodificado. `tenant_id`/`user_role`
+        los puebla el Custom Access Token Hook (CFG-12) leyendo la fila de
+        `public.usuario`; por eso están anidados en `app_metadata`, no en la
+        raíz del token, y `user_role` llega en español minúscula
+        ('aliado' | 'cliente' | 'admin_tenant').
+      properties:
+        sub:
+          type: string
+          description: userId del usuario autenticado (= auth.users.id = usuario.id).
+        app_metadata:
+          type: object
+          properties:
+            tenant_id:
+              type: string
+              description: Id del tenant al que pertenece el usuario. Propagado en cada request subsecuente.
+            user_role:
+              type: string
+              enum: [aliado, cliente, admin_tenant]
+          required: [tenant_id, user_role]
+        iat:
+          type: integer
+          description: Unix timestamp de emisión.
+        exp:
+          type: integer
+          description: Unix timestamp de expiración.
+      required: [sub, app_metadata, iat, exp]
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+      required: [email, password]
+
+    RefreshRequest:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+      required: [refreshToken]
+
+    AuthTokens:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: JWT de corta duración emitido por Supabase Auth. Payload descrito en `TokenClaims`.
+        refreshToken:
+          type: string
+          description: Token opaco de larga duración, usado solo contra `/auth/refresh` y `/auth/logout`.
+        expiresIn:
+          type: integer
+          description: Segundos hasta la expiración del accessToken
+          example: 3600
+      required: [accessToken, refreshToken, expiresIn]
+
+    RefreshResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        expiresIn:
+          type: integer
+          example: 3600
+      required: [accessToken, expiresIn]
+
+    ProfileSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        tenantId:
+          type: string
+          description: Refleja el claim app_metadata.tenant_id del JWT emitido para este perfil.
+          example: trama-demo
+        role:
+          type: string
+          enum: [CLIENT, ALLY, ADMIN]
+        fullName:
+          type: string
+        status:
+          type: string
+          enum: [VERIFIED, PENDING, REJECTED]
+      required: [id, tenantId, role, fullName, status]
+
+    LoginResponse:
+      type: object
+      properties:
+        profile:
+          $ref: '#/components/schemas/ProfileSummary'
+        tokens:
+          $ref: '#/components/schemas/AuthTokens'
+      required: [profile, tokens]
+
+    RegisterAllyNaturalPersonRequest:
+      type: object
+      description: >
+        Datos de registro para un Aliado persona natural. El tenant se toma
+        del header `X-Tenant-Slug` (ADR-0018), no del body. documentType/documentNumber
+        son opcionales (el formulario actual de Flutter no los recolecta
+        todavía; cuando los envíe, se validan y se usan para la verificación
+        de duplicados).
+      properties:
+        fullName:
+          type: string
+          example: María Fernanda Rojas
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+        phone:
+          type: string
+          example: '+573001234567'
+        categoriaId:
+          type: string
+          description: Id de categoria_servicio (debe existir y estar ACTIVO en el tenant).
+        documentType:
+          type: string
+          enum: [CC, CE, PASSPORT]
+          description: Tipo de documento de identidad (persona natural). Opcional.
+        documentNumber:
+          type: string
+          example: '1020304050'
+          description: Opcional; si se envía, se valida unicidad por tenant.
+        cedula_ciudadania:
+          type: string
+          format: binary
+          description: Documento KYC obligatorio (cédula). Al menos un archivo es requerido.
+        rut_certificado:
+          type: string
+          format: binary
+          description: Documento KYC opcional (RUT/certificado).
+        acceptsTerms:
+          type: boolean
+          description: >
+            Aceptación expresa de los Términos y Condiciones y de la Política de
+            Datos Personales (SCRUM-856, Ley 1581). Debe llegar en `true`; si
+            falta o llega con otro valor, Core responde 400 `TERMS_NOT_ACCEPTED`
+            y no crea ningún registro. Al aceptar, Core guarda el consentimiento
+            con versión, usuario y fecha.
+          example: true
+      required:
+        - fullName
+        - email
+        - password
+        - categoriaId
+        - cedula_ciudadania
+        - acceptsTerms
+
+    RegisterAllyResponse:
+      type: object
+      properties:
+        profile:
+          $ref: '#/components/schemas/ProfileSummary'
+        tokens:
+          $ref: '#/components/schemas/AuthTokens'
+      required: [profile, tokens]
+
+    RegisterAllyCompanyRequest:
+      type: object
+      description: Datos de registro para un Aliado persona jurídica (empresa).
+      properties:
+        razonSocial:
+          type: string
+          example: Soluciones Industriales SAS
+        nit:
+          type: string
+          example: 900123456-1
+        nombreRepresentante:
+          type: string
+          example: Carlos Gomez
+        docRepresentante:
+          type: string
+          example: '1020304050'
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+        phone:
+          type: string
+          example: '+573001234567'
+        categoriaId:
+          type: string
+          description: Id de categoria_servicio opcional.
+        camara_comercio:
+          type: string
+          format: binary
+          description: Documento KYC obligatorio (Cámara de Comercio).
+        rut_empresa:
+          type: string
+          format: binary
+          description: Documento KYC opcional (RUT).
+        cedula_representante:
+          type: string
+          format: binary
+          description: Documento KYC opcional (Cédula representante legal).
+      required:
+        - razonSocial
+        - nit
+        - nombreRepresentante
+        - email
+        - password
+        - camara_comercio
+
+    CreateServiceRequestRequest:
+      type: object
+      description: Debe venir `sitioId` o la pareja `direccion` + `zonaId`.
+      required: [categoriaId, descripcion]
+      properties:
+        categoriaId:
+          type: string
+          format: uuid
+          description: Categoría ACTIVO del tenant del JWT.
+        descripcion:
+          type: string
+          minLength: 20
+          maxLength: 1000
+        sitioId:
+          type: string
+          format: uuid
+          description: Sitio existente del cliente. Si viene, se ignoran `direccion` y `zonaId`.
+        direccion:
+          type: string
+          minLength: 5
+          maxLength: 200
+          description: Dirección nueva (crea un sitio del cliente).
+        zonaId:
+          type: string
+          format: uuid
+          description: Zona activa de la dirección nueva.
+        claveIdempotencia:
+          type: string
+          format: uuid
+          description: Clave del cliente para reintentos seguros.
+
+    ServiceRequest:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        estado: { type: string, example: PENDIENTE }
+        categoriaId: { type: string, format: uuid }
+        categoria: { type: string, example: Plomería }
+        flujoOperativo: { type: string, nullable: true, example: COTIZACION_PREVIA }
+        descripcion: { type: string }
+        sitioId: { type: string, format: uuid }
+        direccion: { type: string }
+        zonaId: { type: string, format: uuid }
+        zona: { type: string, example: Chapinero }
+        zonaPadre: { type: string, nullable: true, example: Bogotá }
+        fotos: { type: integer, description: Cantidad de fotos registradas }
+        createdAt: { type: string, format: date-time }
+      required: [id, estado, categoriaId, descripcion, sitioId, zonaId, createdAt]
+
+    CreateServiceRequestResponse:
+      type: object
+      properties:
+        solicitud:
+          $ref: '#/components/schemas/ServiceRequest'
+        correlationId:
+          type: string
+      required: [solicitud, correlationId]
+
+    AbsenceErrorResponse:
+      type: object
+      description: >
+        Error de los endpoints de disponibilidad. Mismo formato que
+        `ErrorResponse`, con el catálogo de códigos propio del dominio.
+      properties:
+        error:
+          type: string
+          example: 'MANI-AUS-409: el intervalo se cruza con otra ausencia registrada'
+        code:
+          type: string
+          enum:
+            - UNAUTHORIZED
+            - TOKEN_INVALID
+            - TOKEN_EXPIRED
+            - MANI-AUS-401
+            - MANI-AUS-403
+            - MANI-AUS-404
+            - MANI-AUS-409
+            - MANI-AUS-422H
+            - MANI-AUS-422V
+            - INTERNAL_ERROR
+        correlationId:
+          type: string
+          example: node-1791318617328
+      required: [error, correlationId]
+
+    AllyAbsenceReason:
+      type: string
+      enum: [VACACIONES, ENFERMEDAD, OTRO]
+
+    AllyAbsenceRequest:
+      type: object
+      properties:
+        startsAt:
+          type: string
+          format: date-time
+          description: Inicio de la ausencia, ISO-8601 con zona horaria obligatoria.
+          example: '2026-10-20T08:00:00-05:00'
+        endsAt:
+          type: string
+          format: date-time
+          description: Fin (exclusivo). Posterior a startsAt, en el futuro y a máximo 365 días del inicio.
+          example: '2026-10-25T18:00:00-05:00'
+        reason:
+          $ref: '#/components/schemas/AllyAbsenceReason'
+        note:
+          type: string
+          nullable: true
+          maxLength: 280
+          example: Vacaciones familiares
+      required: [startsAt, endsAt, reason]
+
+    AllyAbsencePatch:
+      type: object
+      minProperties: 1
+      properties:
+        startsAt:
+          type: string
+          format: date-time
+          example: '2026-10-20T08:00:00-05:00'
+        endsAt:
+          type: string
+          format: date-time
+          example: '2026-10-26T18:00:00-05:00'
+        reason:
+          $ref: '#/components/schemas/AllyAbsenceReason'
+        note:
+          type: string
+          nullable: true
+          maxLength: 280
+
+    AllyAbsence:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        startsAt:
+          type: string
+          format: date-time
+          example: '2026-10-20T13:00:00.000Z'
+        endsAt:
+          type: string
+          format: date-time
+          example: '2026-10-25T23:00:00.000Z'
+        reason:
+          $ref: '#/components/schemas/AllyAbsenceReason'
+        note:
+          type: string
+          nullable: true
+        active:
+          type: boolean
+          description: true si la ausencia cubre el instante actual (el aliado está "No disponible" ahora).
+      required: [id, startsAt, endsAt, reason, note, active]
+
+    AllyAbsenceResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        correlationId:
+          type: string
+        data:
+          $ref: '#/components/schemas/AllyAbsence'
+      required: [data, correlationId]
+
+    AllyAbsenceListResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        correlationId:
+          type: string
+        availableNow:
+          type: boolean
+          description: false si alguna ausencia cubre el instante actual.
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AllyAbsence'
+      required: [availableNow, data, correlationId]
+
+    ServiceCategory:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          description: Nombre normalizado (sin espacios extremos ni repetidos).
+        active:
+          type: boolean
+        description:
+          type: string
+          description: Vacío si no se registró (la tabla actual no tiene la columna).
+        tenantId:
+          type: string
+          nullable: true
+          description: null solo en fixtures de desarrollo.
+        flujoOperativo:
+          type: string
+          nullable: true
+          enum: [COTIZACION_PREVIA, TARIFA_ESTANDAR, null]
+          description: null en filas históricas anteriores a US-03.1.1-M2 (seed QA).
+        createdAt:
+          type: string
+          format: date-time
+          description: >
+            Solo en las respuestas de administración (`/catalog/categories/*`).
+            No aparece en la vitrina pública `GET /catalog`.
+        alliesCount:
+          type: integer
+          minimum: 0
+          description: >
+            Aliados que declaran la categoría (US-03.1.2: el administrador ve a
+            quién afecta antes de desactivarla; desactivar no los desvincula ni
+            corta los servicios en curso). Solo en las respuestas de
+            administración; no aparece en la vitrina pública `GET /catalog`.
+      required: [id, name, active, description, tenantId, flujoOperativo]
+
+    CategoryResponse:
+      type: object
+      properties:
+        category:
+          $ref: '#/components/schemas/ServiceCategory'
+      required: [category]
+
+    CategoryListResponse:
+      type: object
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceCategory'
+      required: [categories]
+
+    CreateCategoryRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 60
+          example: Plomería Residencial
+        description:
+          type: string
+          maxLength: 500
+        flujoOperativo:
+          type: string
+          enum: [COTIZACION_PREVIA, TARIFA_ESTANDAR]
+      required: [name, flujoOperativo]
+
+    UpdateCategoryRequest:
+      type: object
+      description: Al menos uno de los tres campos.
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 60
+        description:
+          type: string
+          maxLength: 500
+        flujoOperativo:
+          type: string
+          enum: [COTIZACION_PREVIA, TARIFA_ESTANDAR]
