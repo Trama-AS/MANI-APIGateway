@@ -34,18 +34,23 @@ BASE_URL=http://10.43.100.141 ENV_QA=/ruta/a/archivo_con_SUPABASE_JWT_SECRET COL
 URL_GATEWAY=http://10.43.100.141 URL_FLUTTER=http://10.43.100.141:8080 URL_LANDING=http://10.43.100.141:3001 ENV_QA=/ruta/a/archivo_con_SUPABASE_JWT_SECRET SUITE_DIR=qa/playwright bash qa/ejecutar_playwright_qa.sh
 ```
 
-## Habilitación del gate de CI (DevOps)
+## Gate de CI
 
-Según `governance/GOBIERNO_DEL_EQUIPO.md` §2.3 de MANI-docs, CI/CD y secretos los decide DevOps; lo siguiente es la
-configuración que el workflow espera. Los jobs corren en el runner `nbig02-calidad` (etiqueta `calidad`) de la guía
-CFG4-03, y los ejecutores usan Docker: el usuario del runner debe poder ejecutar `docker`.
+Los jobs corren en el runner `nbig02-calidad` (etiqueta `calidad`) de la guía CFG4-03, que alcanza QA por la red
+privada; los ejecutores usan Docker en ese runner. Configuración vigente en MANI-APIGateway (habilitada por QA el
+20 de octubre de 2026):
 
-1. Crear el environment `qa-regresion` con revisor obligatorio y el secreto de environment `QA_JWT_SECRET`.
-2. Crear las variables `QA_GATEWAY_URL` (el mismo nombre de `/opt/quality/.env.quality`), `QA_FLUTTER_URL` y `QA_LANDING_URL`.
-3. Crear la variable de repositorio `QA_REGRESION_HABILITADA=true`.
+1. Environment `qa-regresion` con revisor obligatorio (Santiago Hernández) y el secreto de environment `QA_JWT_SECRET`
+   (JWT secret legado de MANI-QA).
+2. Variables de repositorio `QA_GATEWAY_URL=http://10.43.100.141`, `QA_FLUTTER_URL=http://10.43.100.141:8080` y
+   `QA_LANDING_URL=http://10.43.100.141:3001`.
+3. Variable de repositorio `QA_REGRESION_HABILITADA=true`. `QA_REGRESION_HABILITADA` debe ser de repositorio y no de
+   environment, porque el `if` del job se evalúa antes de entrar al environment.
 
-Mientras no exista la variable del paso 3, los jobs quedan omitidos y no afectan el estado del PR. Con ella, cada
-corrida espera la aprobación del revisor y cualquier aserción fallida deja el job en rojo. Se publican como artefacto
+Cada PR hacia `develop` o `release` que toque `qa/**` o el workflow dispara los dos jobs, y cada job espera la
+aprobación del revisor antes de usar el secreto. Una aserción fallida deja el job en rojo; el gate no es un check
+obligatorio de la rama (el obligatorio es Sonar Quality Gate). Para apagarlo, basta con quitar
+`QA_REGRESION_HABILITADA`: los jobs vuelven a quedar omitidos. Se publican como artefacto
 la evidencia redactada de Newman y el resumen y las capturas de Playwright; el reporte HTML y los traces no se
 publican porque contienen tokens de prueba (ya vencidos) y el repositorio es público.
 

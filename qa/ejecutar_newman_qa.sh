@@ -84,7 +84,7 @@ os.chmod(salida, 0o600)
 print(f'OK: {len(tokens)} tokens de prueba listos (expiran en 1 h)')
 PY
 
-  echo "== 2. Newman contra el Gateway de QA (localhost:80)"
+  echo "== 2. Newman contra el Gateway de QA (${BASE_URL:-http://localhost})"
   set +e
   docker run --rm --network host -v "$dir":/etc/newman postman/newman:6-alpine run coleccion.json \
     -e entorno.json --reporters cli,json --reporter-json-export resultado_crudo.json --color off --disable-unicode
