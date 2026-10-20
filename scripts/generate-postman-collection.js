@@ -141,6 +141,8 @@ function wireUpIdentityFlow(collection) {
   setFormDataValue(register.request.body, 'email', '{{allyEmail}}');
   setFormDataValue(register.request.body, 'password', '{{allyPassword}}');
   setFormDataValue(register.request.body, 'categoriaId', 'cat-1');
+  // SCRUM-856: Core exige la aceptación expresa de términos (acceptsTerms=true).
+  setFormDataValue(register.request.body, 'acceptsTerms', 'true');
   // src relativo al --working-dir con el que se invoca Newman (ver package.json: postman/).
   setFormDataFile(register.request.body, 'cedula_ciudadania', 'fixtures/cedula-fake.pdf');
   disableFormDataField(register.request.body, 'rut_certificado');
