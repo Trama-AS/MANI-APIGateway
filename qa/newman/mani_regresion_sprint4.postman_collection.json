@@ -12,6 +12,7 @@
         "exec": [
           "if (!pm.collectionVariables.get('corrida')) pm.collectionVariables.set('corrida', String(Date.now()).slice(-8));",
           "if (!pm.collectionVariables.get('clave_idempotencia')) pm.collectionVariables.set('clave_idempotencia', require('uuid').v4());",
+          "if (!pm.collectionVariables.get('contrasena_prueba')) pm.collectionVariables.set('contrasena_prueba', 'Qa-' + require('uuid').v4());",
           "const inicio = new Date(Date.now() + 30 * 864e5); const fin = new Date(Date.now() + 32 * 864e5);",
           "if (!pm.collectionVariables.get('inicio_ausencia')) { pm.collectionVariables.set('inicio_ausencia', inicio.toISOString()); pm.collectionVariables.set('fin_ausencia', fin.toISOString()); }"
         ]
@@ -1480,7 +1481,7 @@
             "url": "{{base_url}}/api/v1/core/auth/register/ally",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"sinterminos.{{corrida}}@qa.mani.test\",\n  \"password\": \"ContrasenaDePrueba-{{corrida}}\",\n  \"acceptsTerms\": false\n}"
+              "raw": "{\n  \"email\": \"sinterminos.{{corrida}}@qa.mani.test\",\n  \"password\": \"{{contrasena_prueba}}\",\n  \"acceptsTerms\": false\n}"
             }
           }
         }
@@ -1978,7 +1979,7 @@
             "url": "{{base_url}}/api/v1/core/auth/register/ally/company",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"razonSocial\": \"Empresa QA {{corrida}}\",\n  \"nit\": \"900{{corrida}}\",\n  \"nombreRepresentante\": \"Representante QA\",\n  \"email\": \"empresa.{{corrida}}@qa.mani.test\",\n  \"password\": \"ContrasenaDePrueba-{{corrida}}\",\n  \"telefono\": \"6011234567\",\n  \"acceptsTerms\": true\n}"
+              "raw": "{\n  \"razonSocial\": \"Empresa QA {{corrida}}\",\n  \"nit\": \"900{{corrida}}\",\n  \"nombreRepresentante\": \"Representante QA\",\n  \"email\": \"empresa.{{corrida}}@qa.mani.test\",\n  \"password\": \"{{contrasena_prueba}}\",\n  \"telefono\": \"6011234567\",\n  \"acceptsTerms\": true\n}"
             }
           }
         }

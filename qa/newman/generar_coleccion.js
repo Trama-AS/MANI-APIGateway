@@ -28,6 +28,10 @@ const D = {
   solicitud_poc: 'a0000000-0000-4000-8000-900000000001',
 };
 
+// Contraseña de los registros de prueba (856-04 y 1063-01): se genera al azar en cada corrida (preparación de la
+// colección), no se escribe en el código. Ambos casos se rechazan antes de crear el usuario.
+const CONTRASENA_PRUEBA = '{{contrasena_prueba}}';
+
 const CORE = '{{base_url}}/api/v1/core';
 const DISPATCH = '{{base_url}}/api/v1/dispatch';
 const RULES = '{{base_url}}/api/v1/rules';
@@ -149,7 +153,7 @@ const CASOS = [
     cuerpo: { documentoLegalIds: ['{{doc_legal_t2}}'] }, esperado: [400, 403, 404, 422],
     extra: "pm.test('856-03 rechazo por pertenencia al tenant', () => pm.expect(pm.response.json().code).to.eql('LEGAL_DOCUMENT_NOT_FOUND'));" },
   { id: '856-04', historia: 'SCRUM-856', nombre: 'Registro de aliado sin aceptar términos se rechaza', metodo: 'POST', url: `${CORE}/auth/register/ally`,
-    headers: { 'X-Tenant-Slug': 'acme-servicios' }, cuerpo: { email: 'sinterminos.{{corrida}}@qa.mani.test', password: 'ContrasenaDePrueba-{{corrida}}', acceptsTerms: false },
+    headers: { 'X-Tenant-Slug': 'acme-servicios' }, cuerpo: { email: 'sinterminos.{{corrida}}@qa.mani.test', password: CONTRASENA_PRUEBA, acceptsTerms: false },
     esperado: [400, 422] },
 
   // ---------- SCRUM-858 / SCRUM-1069 Categorías ----------
@@ -191,7 +195,7 @@ const CASOS = [
   { id: '1063-01', historia: 'SCRUM-1063', nombre: 'Registro de aliado empresa sin documentos se rechaza', metodo: 'POST', url: `${CORE}/auth/register/ally/company`,
     headers: { 'X-Tenant-Slug': 'acme-servicios' },
     cuerpo: { razonSocial: 'Empresa QA {{corrida}}', nit: '900{{corrida}}', nombreRepresentante: 'Representante QA', email: 'empresa.{{corrida}}@qa.mani.test',
-      password: 'ContrasenaDePrueba-{{corrida}}', telefono: '6011234567', acceptsTerms: true },
+      password: CONTRASENA_PRUEBA, telefono: '6011234567', acceptsTerms: true },
     esperado: [400, 422],
     extra: "pm.test('1063-01 rechazo por falta de camara de comercio', () => pm.expect(pm.response.json().error).to.match(/camara_comercio/i));" },
 
@@ -293,6 +297,7 @@ for (const caso of CASOS.filter((c) => !c.excluido)) {
 const preparacion = [
   "if (!pm.collectionVariables.get('corrida')) pm.collectionVariables.set('corrida', String(Date.now()).slice(-8));",
   "if (!pm.collectionVariables.get('clave_idempotencia')) pm.collectionVariables.set('clave_idempotencia', require('uuid').v4());",
+  "if (!pm.collectionVariables.get('contrasena_prueba')) pm.collectionVariables.set('contrasena_prueba', 'Qa-' + require('uuid').v4());",
   "const inicio = new Date(Date.now() + 30 * 864e5); const fin = new Date(Date.now() + 32 * 864e5);",
   "if (!pm.collectionVariables.get('inicio_ausencia')) { pm.collectionVariables.set('inicio_ausencia', inicio.toISOString()); pm.collectionVariables.set('fin_ausencia', fin.toISOString()); }",
 ];
