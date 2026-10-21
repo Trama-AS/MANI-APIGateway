@@ -27,6 +27,9 @@ services:
       # Reglas de categoría en MANI-Java (US-03.1.1-M6). Sin el perfil "full"
       # rules-service no existe y crear/editar categorías responde 503.
       RULES_SERVICE_URL: ${RULES_SERVICE_URL:-http://rules-service:8080}
+      # Asignaciones del aliado en MANI-.NET (SCRUM-853, C1): sin Dispatch el
+      # aliado recibe 503 al leer las reglas del sitio; dueño y admin no cambian.
+      DISPATCH_SERVICE_URL: ${DISPATCH_SERVICE_URL:-http://dispatch-service:5000}
     expose:
       - "3000"
     networks:

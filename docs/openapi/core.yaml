@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.7.0
+  version: 0.8.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -56,6 +56,10 @@ tags:
       Catálogo de categorías de servicio (US-03.1.1-M2 / SCRUM-1069). La
       gestión vive en Core, aislada por el tenant del JWT; la evaluación de
       reglas de la categoría es del Rules Service (`rules.yaml`).
+  - name: Legal
+    description: >
+      Documentos legales y consentimiento de Habeas Data (US-02.3.2 /
+      SCRUM-856, Ley 1581 de 2012).
 
 paths:
   /auth/login:
@@ -480,6 +484,40 @@ paths:
           $ref: '#/components/responses/AbsenceForbidden'
         '404':
           $ref: '#/components/responses/AbsenceNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /legal/documents/active:
+    get:
+      tags: [Legal]
+      operationId: listActiveLegalDocuments
+      summary: Documentos legales activos del tenant (pre-autenticación)
+      description: >
+        Ruta pública del Gateway (sin JWT): la app muestra los Términos y
+        Condiciones y la Política de Tratamiento de Datos antes del registro,
+        que es cuando el usuario debe aceptarlos. Conforme a ADR-0018 el
+        tenant se identifica solo con `X-Tenant-Slug`; el Gateway descarta
+        `Authorization` y cualquier `X-Tenant-Id` del cliente. Sin
+        `X-Tenant-Slug` devuelve los documentos globales de la plataforma; con
+        un slug que no existe responde `400 TENANT_NOT_FOUND`. Solo admite GET:
+        el registro del consentimiento (`POST /legal/consents`) exige sesión.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XTenantSlug'
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Documentos legales activos del tenant, o los globales si no hay del tenant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegalDocumentListResponse'
+        '400':
+          description: El slug no corresponde a un tenant (`TENANT_NOT_FOUND`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -1387,3 +1425,41 @@ components:
         flujoOperativo:
           type: string
           enum: [COTIZACION_PREVIA, TARIFA_ESTANDAR]
+
+    LegalDocument:
+      type: object
+      description: Documento legal vigente (SCRUM-856). `tenantId` es null en los documentos globales de la plataforma.
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+          nullable: true
+        tipo:
+          type: string
+          enum: [TERMS_AND_CONDITIONS, PRIVACY_POLICY, CUSTOM]
+        version:
+          type: string
+          example: '1.0'
+        contenido:
+          type: string
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, tipo, version, contenido, isActive]
+
+    LegalDocumentListResponse:
+      type: object
+      properties:
+        correlationId:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/LegalDocument'
+      required: [data]
