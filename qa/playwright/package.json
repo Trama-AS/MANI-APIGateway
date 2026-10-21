@@ -1,0 +1,11 @@
+{
+  "name": "mani-qa-playwright",
+  "private": true,
+  "description": "Pruebas E2E del Sprint 4 contra el ambiente de QA (SCRUM-1267 / SCRUM-1278)",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.48.2"
+  }
+}
