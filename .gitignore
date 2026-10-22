@@ -3,6 +3,8 @@ Thumbs.db
 *.log
 .idea/
 .vscode/
+node_modules/
+newman/
 
 # Variables locales (copiar desde .env.example)
 .env
