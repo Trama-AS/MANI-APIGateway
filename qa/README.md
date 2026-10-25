@@ -8,6 +8,8 @@ Suites de regresión funcional, API, E2E y multi-tenant que se ejecutan contra e
 | `newman/generar_coleccion.js` | Genera `newman/mani_regresion_sprint4.postman_collection.json` (77 casos en 18 carpetas: perímetro, cross-tenant B1-B6 y las historias del Sprint 4; 1074-05 y 1074-06 excluidos). No editar el JSON a mano. | SCRUM-1277 / SCRUM-1279 |
 | `ejecutar_newman_qa.sh` | Firma tokens HS256 de prueba con el secreto de QA, corre Newman en contenedor, decodifica y enmascara las respuestas y verifica que el reporte no tenga credenciales. | SCRUM-1277 |
 | `playwright/` | Landing (SCRUM-1335), configuración de Flutter Web y recorrido E2E por API 1072 → 861/862 → 1073 → 1074. | SCRUM-1278 |
+| `playwright/tests/cors_preflight.spec.js` | Preflight `OPTIONS` con `Origin` de Flutter Web y los encabezados propios que envía la app (incluido `Idempotency-Key`). Newman y los casos con `request` no hacen preflight. | SCRUM-1278 |
+| `playwright/tests/smoke_ambiente.spec.js` | Smoke con una cuenta real: health de los 4 servicios, login en el Supabase del `/assets/.env` publicado, claims `tenant_id`/`user_role` del token (hook activo) y petición autenticada a Core y Dispatch. Se omite sin `SMOKE_EMAIL`/`SMOKE_PASSWORD`. | SCRUM-1278 |
 | `ejecutar_playwright_qa.sh` | Corre la suite Playwright en la imagen oficial `mcr.microsoft.com/playwright:v1.48.2-jammy` con `npm ci`. | SCRUM-1278 |
 | `../.github/workflows/qa-regresion.yml` | Gate de CI: jobs `newman_qa` y `playwright_qa` en el runner `[self-hosted, calidad]` con el environment `qa-regresion`. | SCRUM-1277 / SCRUM-1278 |
 
@@ -33,6 +35,21 @@ Desde la VM de Calidad (alcanza QA por la red privada):
 BASE_URL=http://10.43.100.141 ENV_QA=/ruta/a/archivo_con_SUPABASE_JWT_SECRET COLECCION=qa/newman/mani_regresion_sprint4.postman_collection.json bash qa/ejecutar_newman_qa.sh
 URL_GATEWAY=http://10.43.100.141 URL_FLUTTER=http://10.43.100.141:8080 URL_LANDING=http://10.43.100.141:3001 ENV_QA=/ruta/a/archivo_con_SUPABASE_JWT_SECRET SUITE_DIR=qa/playwright bash qa/ejecutar_playwright_qa.sh
 ```
+
+### Smoke de producción (después de cada despliegue)
+
+Solo corre los casos sin tokens sintéticos (`SIN_TOKENS=1`), con una cuenta dedicada de smoke de PROD. La contraseña
+se pasa por el entorno y no se imprime:
+
+```bash
+SIN_TOKENS=1 ARCHIVOS="cors_preflight smoke_ambiente" URL_GATEWAY=<gateway PROD> URL_FLUTTER=<flutter PROD> \
+  SMOKE_EMAIL=<cuenta smoke> SMOKE_PASSWORD=<...> SMOKE_TENANT_ID=<uuid tenant demo> \
+  SALIR_CON_CODIGO=1 SUITE_DIR=qa/playwright bash qa/ejecutar_playwright_qa.sh
+```
+
+Un fallo en `CORS-*` es un encabezado que el navegador bloquea; en `SMK-03`, el hook de claims apagado; en `SMK-04` o
+`SMK-05`, Core o Dispatch rechazan el token real. El preflight también corre en `ci.yml` contra la imagen del Gateway
+(`tests/gateway/cors-preflight.sh`).
 
 ## Gate de CI
 
