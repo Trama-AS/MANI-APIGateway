@@ -104,6 +104,9 @@ jobs:
       - name: Verificar que los documentos legales se leen sin token (SCRUM-856)
         run: bash gateway/tests/gateway/ruta-publica-legal.sh http://localhost
 
+      - name: Verificar el preflight CORS de los encabezados que envía Flutter Web
+        run: bash gateway/tests/gateway/cors-preflight.sh http://localhost
+
       - name: Regenerar colección Postman desde el contrato OpenAPI
         working-directory: gateway
         run: npm run postman:generate
