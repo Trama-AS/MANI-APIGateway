@@ -903,7 +903,10 @@ components:
       name: id
       in: path
       required: true
-      description: Identificador del cliente empresa.
+      description: >
+        Identificador del cliente empresa, o `me` para el cliente empresa del
+        usuario de la sesión (Core lo resuelve con el usuario y el tenant del
+        JWT). Con `me`, un usuario sin cliente empresa en el tenant recibe 404.
       schema:
         type: string
     SiteId:
