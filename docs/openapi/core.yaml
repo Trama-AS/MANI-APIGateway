@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.8.0
+  version: 0.9.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -60,6 +60,12 @@ tags:
     description: >
       Documentos legales y consentimiento de Habeas Data (US-02.3.2 /
       SCRUM-856, Ley 1581 de 2012).
+  - name: Client Sites
+    description: >
+      Sedes del cliente empresa (US-02.2.2 / SCRUM-852, HU-M03-04 /
+      SCRUM-1387, RF-08). Toda sede tiene dirección y zona del catálogo
+      (RF-09). Solo las consultan y modifican el propio cliente empresa y el
+      administrador de su tenant; el tenant, el usuario y el rol salen del JWT.
 
 paths:
   /auth/login:
@@ -748,6 +754,112 @@ paths:
         - $ref: '#/components/parameters/XCorrelationId'
       responses: *categoryStatusResponses
 
+  /clients/{id}/sites:
+    parameters:
+      - $ref: '#/components/parameters/ClientId'
+    get:
+      tags: [Client Sites]
+      operationId: listClientSites
+      summary: Lista las sedes del cliente empresa
+      description: >
+        Devuelve todas las sedes del cliente, de la más antigua a la más
+        reciente. Un cliente de otro tenant responde 404 sin datos; otro
+        cliente del mismo tenant, 403.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Sedes del cliente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientSiteListResponse'
+        '401':
+          $ref: '#/components/responses/SiteUnauthorized'
+        '403':
+          $ref: '#/components/responses/SiteForbidden'
+        '404':
+          $ref: '#/components/responses/ClientNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Client Sites]
+      operationId: addClientSite
+      summary: Agrega una sede al cliente empresa
+      description: >
+        Crea la sede con dirección y zona obligatorias (RF-09). Las reglas de
+        acceso pueden enviarse aquí o configurarse después.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateClientSiteRequest'
+      responses:
+        '201':
+          description: Sede creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientSiteResponse'
+        '400':
+          $ref: '#/components/responses/SiteValidationError'
+        '401':
+          $ref: '#/components/responses/SiteUnauthorized'
+        '403':
+          $ref: '#/components/responses/SiteForbidden'
+        '404':
+          $ref: '#/components/responses/ClientNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /clients/{id}/sites/{siteId}:
+    parameters:
+      - $ref: '#/components/parameters/ClientId'
+      - $ref: '#/components/parameters/SiteId'
+    patch:
+      tags: [Client Sites]
+      operationId: updateClientSite
+      summary: Edita una sede del cliente empresa
+      description: >
+        Edición parcial: solo cambian los campos enviados. La sede debe seguir
+        con dirección y zona (RF-09); si el resultado no cumple, responde 400
+        y no se modifica nada. Las reglas de la sede no se editan aquí. La sede
+        debe ser de ese cliente y de ese tenant: si no, 404 sin datos.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateClientSiteRequest'
+      responses:
+        '200':
+          description: Sede con los datos actualizados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientSiteResponse'
+        '400':
+          $ref: '#/components/responses/SiteValidationError'
+        '401':
+          $ref: '#/components/responses/SiteUnauthorized'
+        '403':
+          $ref: '#/components/responses/SiteForbidden'
+        '404':
+          $ref: '#/components/responses/SiteNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -787,8 +899,61 @@ components:
       description: Identificador de la categoría de servicio.
       schema:
         type: string
+    ClientId:
+      name: id
+      in: path
+      required: true
+      description: Identificador del cliente empresa.
+      schema:
+        type: string
+    SiteId:
+      name: siteId
+      in: path
+      required: true
+      description: Identificador de la sede.
+      schema:
+        type: string
 
   responses:
+    SiteValidationError:
+      description: >
+        Petición inválida (`VALIDATION_ERROR`): dirección de menos de 5
+        caracteres, zona ausente o que no existe en el catálogo, nombre vacío,
+        un campo que no es texto, un campo no editable o un PATCH sin campos.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    SiteUnauthorized:
+      description: >
+        Sin JWT válido. Lo responde el Gateway (`UNAUTHORIZED`) antes de llegar
+        a Core; si el token no trae tenant, Core responde 401.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    SiteForbidden:
+      description: >
+        El rol no es cliente ni administrador del tenant, o es otro cliente
+        del mismo tenant (`FORBIDDEN`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ClientNotFound:
+      description: El cliente no existe o es de otro tenant (`CLIENT_NOT_FOUND`)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    SiteNotFound:
+      description: >
+        El cliente no existe o es de otro tenant (`CLIENT_NOT_FOUND`), o la
+        sede no existe o no es de ese cliente (`SITE_NOT_FOUND`)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
     InternalError:
       description: Error interno del servicio (`INTERNAL_ERROR`)
       content:
@@ -883,6 +1048,8 @@ components:
         - TENANT_NOT_FOUND
         - CATEGORY_NOT_FOUND
         - CATEGORY_NAME_ALREADY_EXISTS
+        - CLIENT_NOT_FOUND
+        - SITE_NOT_FOUND
         - FORBIDDEN
         - EMAIL_ALREADY_REGISTERED
         - DOCUMENT_ALREADY_REGISTERED
@@ -907,6 +1074,8 @@ components:
         TENANT_NOT_FOUND: 'HTTP 400 — X-Tenant-Id no corresponde a un tenant existente/activo.'
         CATEGORY_NOT_FOUND: 'HTTP 400 en registro de aliado (categoriaId inexistente o inactiva); HTTP 404 en /catalog/categories/{id} (no existe o es de otro tenant).'
         CATEGORY_NAME_ALREADY_EXISTS: 'HTTP 409 — ya existe una categoría con ese nombre en el tenant (sin distinguir mayúsculas ni espacios extremos).'
+        CLIENT_NOT_FOUND: 'HTTP 404 — el cliente empresa no existe o es de otro tenant.'
+        SITE_NOT_FOUND: 'HTTP 404 — la sede no existe o no es de ese cliente.'
         FORBIDDEN: 'HTTP 403 — el rol de la sesión no puede invocar el endpoint (p. ej. /catalog/categories exige administrador del tenant).'
         EMAIL_ALREADY_REGISTERED: 'HTTP 409 — ya existe un usuario con ese email en el tenant.'
         DOCUMENT_ALREADY_REGISTERED: 'HTTP 409 — se envió documentNumber y ya existe un Aliado con ese número en el tenant.'
@@ -1463,3 +1632,105 @@ components:
           items:
             $ref: '#/components/schemas/LegalDocument'
       required: [data]
+
+    ClientSite:
+      type: object
+      properties:
+        id:
+          type: string
+        clienteId:
+          type: string
+          description: Solo en las respuestas de alta y edición.
+        nombre:
+          type: string
+          description: Si no se envió al crearla, es la dirección.
+        direccion:
+          type: string
+        zonaId:
+          type: string
+        contactoNombre:
+          type: string
+          nullable: true
+        contactoTelefono:
+          type: string
+          nullable: true
+        reglas:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: Reglas de acceso de la sede; se configuran en `PATCH /sites/{id}/rules`.
+      required: [id, nombre, direccion, zonaId]
+
+    ClientSiteResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        correlationId:
+          type: string
+        sitio:
+          $ref: '#/components/schemas/ClientSite'
+      required: [correlationId, sitio]
+
+    ClientSiteListResponse:
+      type: object
+      properties:
+        correlationId:
+          type: string
+        clienteId:
+          type: string
+        razonSocial:
+          type: string
+        totalSitios:
+          type: integer
+          minimum: 0
+        sitios:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClientSite'
+      required: [clienteId, totalSitios, sitios]
+
+    CreateClientSiteRequest:
+      type: object
+      properties:
+        nombre:
+          type: string
+        direccion:
+          type: string
+          minLength: 5
+        zonaId:
+          type: string
+          minLength: 1
+          description: Zona del catálogo (RF-09).
+        contactoNombre:
+          type: string
+        contactoTelefono:
+          type: string
+        reglas:
+          type: object
+          additionalProperties: true
+      required: [direccion, zonaId]
+
+    UpdateClientSiteRequest:
+      type: object
+      description: Al menos uno de los campos. Cualquier otro campo, incluido `reglas`, responde 400.
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+        direccion:
+          type: string
+          minLength: 5
+        zonaId:
+          type: string
+          minLength: 1
+        contactoNombre:
+          type: string
+          nullable: true
+          description: null borra el contacto.
+        contactoTelefono:
+          type: string
+          nullable: true
+          description: null borra el contacto.
