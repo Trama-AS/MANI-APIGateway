@@ -179,6 +179,92 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /auth/password-recovery:
+    post:
+      tags: [Auth]
+      operationId: requestPasswordRecovery
+      summary: Solicita el enlace de recuperación de contraseña
+      description: >
+        Pide al proveedor de identidad que envíe al correo un enlace para restablecer la contraseña
+        (HU-M02-10 / RF-04). Es pre-autenticación: el tenant se resuelve por `X-Tenant-Slug` (ADR-0018).
+        **Responde `202` con el mismo mensaje exista o no la cuenta**, para no revelar qué correos están
+        registrados; el enlace solo se envía si la cuenta existe y está activa en ese tenant.
+      parameters:
+        - $ref: '#/components/parameters/XTenantSlug'
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordRecoveryRequest'
+      responses:
+        '202':
+          description: Solicitud aceptada (no confirma que la cuenta exista)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: Correo inválido (`VALIDATION_ERROR`) o tenant inexistente/inactivo (`TENANT_NOT_FOUND`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: El proveedor alcanzó su límite de correos de recuperación (`RATE_LIMITED`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/password-reset:
+    post:
+      tags: [Auth]
+      operationId: resetPassword
+      summary: Fija la contraseña nueva con el token del enlace de recuperación
+      description: >
+        Restablece la contraseña con el token que trae el enlace del correo (HU-M02-10 / RF-04). Es
+        pre-autenticación: el tenant se resuelve por `X-Tenant-Slug` y debe ser el de la cuenta dueña del token,
+        de modo que un enlace de un tenant no sirve en otro. Un token de sesión normal (inicio de sesión con
+        contraseña) no es válido. El enlace deja de servir una vez usado.
+      parameters:
+        - $ref: '#/components/parameters/XTenantSlug'
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+      responses:
+        '200':
+          description: Contraseña actualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: >
+            Datos inválidos (`VALIDATION_ERROR`: falta el token, o la contraseña tiene menos de 8 caracteres) o
+            contraseña que no cumple la política del proveedor (`WEAK_PASSWORD`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: >
+            Token inválido, vencido, ya usado, de una cuenta de otro tenant o de una cuenta inactiva
+            (`INVALID_RECOVERY_TOKEN`); no se distingue entre estos casos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /auth/register/ally:
     post:
       tags: [Ally Registration]
@@ -1421,6 +1507,34 @@ components:
           type: boolean
           description: Debe ser `true`; Core registra el consentimiento en la misma operación.
       required: [razonSocial, nit, nombreRepresentante, email, password, acceptsTerms]
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required: [message]
+
+    PasswordRecoveryRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          example: ana@correo.co
+      required: [email]
+
+    PasswordResetRequest:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: Token que trae el enlace del correo de recuperación.
+        newPassword:
+          type: string
+          format: password
+          minLength: 8
+      required: [accessToken, newPassword]
 
     RegisterClientCompanyResponse:
       type: object
