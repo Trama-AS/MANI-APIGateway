@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.9.0
+  version: 0.10.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -437,6 +437,108 @@ paths:
             Datos rechazados: categoría no disponible (`MANI-SOL-422C`), descripción fuera de 20 a 1000 caracteres
             (`MANI-SOL-422D`), sitio inexistente o dirección inválida (`MANI-SOL-422S`), zona no disponible
             (`MANI-SOL-422Z`), fotos inválidas (`MANI-SOL-422F`) o clave de idempotencia inválida (`MANI-SOL-422K`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /solicitudes/me:
+    get:
+      tags: [Service Requests]
+      operationId: listOwnServiceRequests
+      summary: El cliente consulta el estado y la zona declarada de sus solicitudes
+      description: >
+        HU-M07-04 (SCRUM-871, opción B): seguimiento simplificado, sin GPS en vivo ni ubicación del aliado
+        (SRS §1.2). Devuelve las solicitudes del cliente de la sesión, de la más reciente a la más antigua
+        (máximo 50), con su estado vigente, la zona que se declaró al publicarlas (`zonaDeclarada`, nunca la
+        posición del aliado) y la fecha de la última actualización (`actualizadaEn`). El cliente y el tenant
+        salen del JWT (`bearerAuth`); se ignora `X-Tenant-Id`. El estado se refresca al volver a consultar.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Solicitudes del cliente de la sesión (lista vacía si no tiene)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceRequestTrackingListResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-SOL-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: La sesión no es de un cliente (`MANI-SOL-403C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /solicitudes/me/{id}:
+    get:
+      tags: [Service Requests]
+      operationId: getOwnServiceRequest
+      summary: El cliente consulta el estado y la zona declarada de una solicitud propia
+      description: >
+        HU-M07-04 (SCRUM-871). Mismo contenido que un elemento de `/solicitudes/me`. Una solicitud de otro
+        cliente o de otro tenant responde `404`, igual que una inexistente, para no revelar que existe.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: id
+          in: path
+          required: true
+          description: Id de la solicitud
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Solicitud del cliente de la sesión
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceRequestTrackingResponse'
+        '400':
+          description: El id no es un UUID (`MANI-SOL-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-SOL-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: La sesión no es de un cliente (`MANI-SOL-403C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La solicitud no existe o no es del cliente de la sesión (`MANI-SOL-404`)
           content:
             application/json:
               schema:
@@ -1146,8 +1248,10 @@ components:
         - COMPANY_ALREADY_REGISTERED
         - TERMS_NOT_ACCEPTED
         - SERVICE_UNAVAILABLE
+        - MANI-SOL-400
         - MANI-SOL-401
         - MANI-SOL-403C
+        - MANI-SOL-404
         - MANI-SOL-422C
         - MANI-SOL-422D
         - MANI-SOL-422S
@@ -1172,8 +1276,10 @@ components:
         COMPANY_ALREADY_REGISTERED: 'HTTP 409 — la empresa ya está registrada con ese NIT en el tenant (registro de aliado empresa).'
         TERMS_NOT_ACCEPTED: 'HTTP 400 — el registro de aliado persona natural llegó sin acceptsTerms=true (SCRUM-856).'
         SERVICE_UNAVAILABLE: 'HTTP 503 — una dependencia (p. ej. la base de datos) no está disponible; no hay respaldo local.'
-        MANI-SOL-401: 'HTTP 401 — sesión requerida para crear la solicitud.'
-        MANI-SOL-403C: 'HTTP 403 — solo un cliente activo del tenant puede publicar solicitudes.'
+        MANI-SOL-400: 'HTTP 400 — el id de la solicitud no es un UUID (seguimiento del cliente).'
+        MANI-SOL-401: 'HTTP 401 — sesión requerida para crear o consultar solicitudes.'
+        MANI-SOL-403C: 'HTTP 403 — solo un cliente activo del tenant puede publicar o consultar sus solicitudes.'
+        MANI-SOL-404: 'HTTP 404 — la solicitud no existe o no es del cliente de la sesión.'
         MANI-SOL-422C: 'HTTP 422 — la categoría no existe, no está activa o es de otro tenant.'
         MANI-SOL-422D: 'HTTP 422 — la descripción debe tener entre 20 y 1000 caracteres.'
         MANI-SOL-422S: 'HTTP 422 — el sitio no es del cliente o la dirección no tiene entre 5 y 200 caracteres.'
@@ -1551,6 +1657,47 @@ components:
       properties:
         solicitud:
           $ref: '#/components/schemas/ServiceRequest'
+        correlationId:
+          type: string
+      required: [solicitud, correlationId]
+
+    ServiceRequestTracking:
+      type: object
+      description: >
+        Seguimiento de una solicitud para su cliente (SCRUM-871). `zonaDeclarada` es la zona que se declaró al
+        publicar la solicitud, no la ubicación del aliado; `actualizadaEn` dice de cuándo es el estado.
+      properties:
+        id: { type: string, format: uuid }
+        estado: { type: string, example: ASIGNADA }
+        categoria: { type: string, example: Plomería }
+        zonaDeclarada:
+          type: object
+          properties:
+            nombre: { type: string, example: Chapinero }
+            nivel: { type: string, example: LOCALIDAD }
+            zonaPadre: { type: string, nullable: true, example: Bogotá }
+          required: [nombre, nivel]
+        creadaEn: { type: string, format: date-time }
+        actualizadaEn: { type: string, format: date-time }
+      required: [id, estado, categoria, zonaDeclarada, creadaEn, actualizadaEn]
+
+    ServiceRequestTrackingListResponse:
+      type: object
+      properties:
+        solicitudes:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/ServiceRequestTracking'
+        correlationId:
+          type: string
+      required: [solicitudes, correlationId]
+
+    ServiceRequestTrackingResponse:
+      type: object
+      properties:
+        solicitud:
+          $ref: '#/components/schemas/ServiceRequestTracking'
         correlationId:
           type: string
       required: [solicitud, correlationId]
