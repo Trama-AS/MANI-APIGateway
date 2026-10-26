@@ -188,7 +188,9 @@ paths:
         Pide al proveedor de identidad que envíe al correo un enlace para restablecer la contraseña
         (HU-M02-10 / RF-04). Es pre-autenticación: el tenant se resuelve por `X-Tenant-Slug` (ADR-0018).
         **Responde `202` con el mismo mensaje exista o no la cuenta**, para no revelar qué correos están
-        registrados; el enlace solo se envía si la cuenta existe y está activa en ese tenant.
+        registrados; el enlace solo se envía si la cuenta existe y está activa en ese tenant. Tampoco se
+        devuelve `429` cuando el proveedor limita los envíos de una cuenta, porque ese límite solo ocurre
+        cuando la cuenta existe y delataría qué correos están registrados.
       parameters:
         - $ref: '#/components/parameters/XTenantSlug'
         - $ref: '#/components/parameters/XCorrelationId'
@@ -211,12 +213,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-        '429':
-          description: El proveedor alcanzó su límite de correos de recuperación (`RATE_LIMITED`)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -229,7 +225,8 @@ paths:
         Restablece la contraseña con el token que trae el enlace del correo (HU-M02-10 / RF-04). Es
         pre-autenticación: el tenant se resuelve por `X-Tenant-Slug` y debe ser el de la cuenta dueña del token,
         de modo que un enlace de un tenant no sirve en otro. Un token de sesión normal (inicio de sesión con
-        contraseña) no es válido. El enlace deja de servir una vez usado.
+        contraseña) no es válido. El enlace deja de servir una vez usado: al restablecer la contraseña se
+        revoca la sesión del enlace, sin cerrar las demás sesiones de la persona.
       parameters:
         - $ref: '#/components/parameters/XTenantSlug'
         - $ref: '#/components/parameters/XCorrelationId'
