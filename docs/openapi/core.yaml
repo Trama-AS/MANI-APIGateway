@@ -47,6 +47,8 @@ tags:
     description: Autenticación e identidad de usuarios (Clientes, Aliados, Admins)
   - name: Ally Registration
     description: Registro de Aliados persona natural y empresa
+  - name: Client Registration
+    description: Registro de Clientes persona natural y empresa
   - name: Service Requests
     description: Creación de solicitudes de servicio por el cliente (US-04.1.1-M2 / SCRUM-1072)
   - name: Ally Availability
@@ -275,6 +277,91 @@ paths:
             Ya existe un usuario con ese email (`EMAIL_ALREADY_REGISTERED`)
             o la empresa ya está registrada con ese NIT en este tenant
             (`COMPANY_ALREADY_REGISTERED`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/register/client:
+    post:
+      tags: [Client Registration]
+      operationId: registerClient
+      summary: Registra un nuevo Cliente persona natural
+      description: >
+        Crea el usuario y el perfil de Cliente (rol CLIENT), activo de inmediato porque no
+        pasa por KYC, dentro del tenant resuelto por `X-Tenant-Slug` (ADR-0018 / US-02.2.1-M2).
+        Si se envía `direccionHogar`, se crea el primer sitio del cliente.
+      parameters:
+        - $ref: '#/components/parameters/XTenantSlug'
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterClientRequest'
+      responses:
+        '201':
+          description: Cliente registrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterAllyResponse'
+        '400':
+          description: Body inválido (`VALIDATION_ERROR`) o tenant inexistente/inactivo (`TENANT_NOT_FOUND`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Ya existe un usuario con ese email en el tenant (`EMAIL_ALREADY_REGISTERED`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/register/client/company:
+    post:
+      tags: [Client Registration]
+      operationId: registerClientCompany
+      summary: Registra un nuevo Cliente empresa (persona jurídica)
+      description: >
+        Crea la identidad y el perfil de Cliente empresa (rol CLIENT) con NIT y representante legal,
+        activo de inmediato, y registra la aceptación de términos y condiciones, dentro del tenant
+        resuelto por `X-Tenant-Slug` (ADR-0018 / HU-M02-07). No crea sitios: las sedes se
+        administran después con `POST /clients/{id}/sites`.
+      parameters:
+        - $ref: '#/components/parameters/XTenantSlug'
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterClientCompanyRequest'
+      responses:
+        '201':
+          description: Cliente empresa registrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterClientCompanyResponse'
+        '400':
+          description: >
+            Body inválido (`VALIDATION_ERROR`), términos sin aceptar (`TERMS_NOT_ACCEPTED`)
+            o tenant inexistente/inactivo (`TENANT_NOT_FOUND`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: >
+            Ya existe un usuario con ese email (`EMAIL_ALREADY_REGISTERED`) o la empresa ya está
+            registrada con ese NIT en este tenant (`COMPANY_ALREADY_REGISTERED`)
           content:
             application/json:
               schema:
@@ -1281,6 +1368,85 @@ components:
         tokens:
           $ref: '#/components/schemas/AuthTokens'
       required: [profile, tokens]
+
+    RegisterClientRequest:
+      type: object
+      description: Datos de registro para un Cliente persona natural.
+      properties:
+        fullName:
+          type: string
+          example: Carlos Andres Gomez
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+        phone:
+          type: string
+          example: '+573001234567'
+        direccionHogar:
+          type: string
+          description: Dirección del primer sitio del cliente (opcional).
+      required: [fullName, email, password]
+
+    RegisterClientCompanyRequest:
+      type: object
+      description: Datos de registro para un Cliente persona jurídica (empresa), sin sitios.
+      properties:
+        razonSocial:
+          type: string
+          example: Constructora Andina SAS
+        nit:
+          type: string
+          description: >
+            9 o 10 dígitos con dígito de verificación opcional tras guion. Se aceptan puntos y
+            espacios; Core los quita antes de guardar.
+          example: 900.123.456-7
+        nombreRepresentante:
+          type: string
+          example: Laura Gomez
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+        phone:
+          type: string
+          example: '+576011234567'
+        acceptsTerms:
+          type: boolean
+          description: Debe ser `true`; Core registra el consentimiento en la misma operación.
+      required: [razonSocial, nit, nombreRepresentante, email, password, acceptsTerms]
+
+    RegisterClientCompanyResponse:
+      type: object
+      properties:
+        profile:
+          $ref: '#/components/schemas/ProfileSummary'
+        company:
+          type: object
+          properties:
+            clienteId:
+              type: string
+            tipo:
+              type: string
+              enum: [PERSONA_JURIDICA]
+            razonSocial:
+              type: string
+            nit:
+              type: string
+              description: NIT normalizado, sin puntos ni espacios.
+              example: 900123456-7
+            nombreRepresentante:
+              type: string
+          required: [clienteId, tipo, razonSocial, nit, nombreRepresentante]
+        tokens:
+          $ref: '#/components/schemas/AuthTokens'
+      required: [profile, company, tokens]
 
     RegisterAllyCompanyRequest:
       type: object
