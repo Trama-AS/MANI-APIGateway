@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.13.0
+  version: 0.14.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -986,6 +986,212 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /solicitudes/{id}/iniciar:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id de la solicitud
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Service Requests]
+      operationId: startExecution
+      summary: El aliado asignado marca el inicio del servicio
+      description: >
+        US-04.3.1 (SCRUM-868, RF-18). La solicitud pasa a `EN_EJECUCION` desde `ACEPTADA` (cotización aceptada) o, si la categoría es `TARIFA_ESTANDAR`, desde `ASIGNADA`. Solo el aliado asignado. La hora la pone el servidor (la app no envía
+        fechas); la transición, el evento en `evento_servicio` y el aviso al cliente (bandeja `/profiles/me/inbox`)
+        van en una sola transacción. Core es el dueño del estado tras la asignación (decisión 6A, SAD §7.4).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecutionMarkRequest'
+      responses:
+        '200':
+          description: Marca registrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionMarkResponse'
+        '400':
+          description: Id de solicitud que no es UUID, u observación que no es texto o tiene más de 500 caracteres (`MANI-EJE-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-EJE-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es aliado (`MANI-EJE-403`) o no es el aliado asignado (`MANI-EJE-403A`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La solicitud no existe en el tenant del JWT (`MANI-EJE-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Cotización sin aceptar u otro estado (`MANI-EJE-409E`), ya iniciada (`MANI-EJE-409I`) o ya finalizada (`MANI-EJE-409F`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /solicitudes/{id}/finalizar:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id de la solicitud
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Service Requests]
+      operationId: finishExecution
+      summary: El aliado asignado marca el fin del servicio
+      description: >
+        US-04.3.1 (SCRUM-868, RF-18). La solicitud pasa de `EN_EJECUCION` a `FINALIZADA`. Solo el aliado asignado. La hora la pone el servidor (la app no envía
+        fechas); la transición, el evento en `evento_servicio` y el aviso al cliente (bandeja `/profiles/me/inbox`)
+        van en una sola transacción. Core es el dueño del estado tras la asignación (decisión 6A, SAD §7.4).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecutionMarkRequest'
+      responses:
+        '200':
+          description: Marca registrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionMarkResponse'
+        '400':
+          description: Id de solicitud que no es UUID, u observación que no es texto o tiene más de 500 caracteres (`MANI-EJE-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-EJE-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es aliado (`MANI-EJE-403`) o no es el aliado asignado (`MANI-EJE-403A`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La solicitud no existe en el tenant del JWT (`MANI-EJE-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Servicio sin iniciar (`MANI-EJE-409N`) o ya finalizado (`MANI-EJE-409F`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /solicitudes/{id}/ejecucion:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id de la solicitud
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Service Requests]
+      operationId: getExecution
+      summary: El cliente dueño o el aliado asignado consultan el inicio y el fin del servicio
+      description: >
+        US-04.3.1 (SCRUM-868). Estado vigente y las marcas de inicio y fin con la hora del servidor (`null` si aún no
+        existen). Para cualquier otro usuario, del mismo tenant o de otro, la solicitud responde 404.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Marcas de ejecución
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionResponse'
+        '400':
+          description: Id de solicitud que no es UUID (`MANI-EJE-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-EJE-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es cliente ni aliado (`MANI-EJE-403`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La solicitud no existe, no es del cliente o no está asignada al aliado (`MANI-EJE-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /profiles/me/unavailability:
     get:
       tags: [Ally Availability]
@@ -1701,6 +1907,15 @@ components:
         - MANI-COT-409P
         - MANI-COT-403C
         - MANI-COT-409R
+        - MANI-EJE-400
+        - MANI-EJE-401
+        - MANI-EJE-403
+        - MANI-EJE-403A
+        - MANI-EJE-404
+        - MANI-EJE-409E
+        - MANI-EJE-409I
+        - MANI-EJE-409F
+        - MANI-EJE-409N
         - INTERNAL_ERROR
       x-code-meanings:
         VALIDATION_ERROR: 'HTTP 400 — el body no cumple el esquema (campo faltante/formato inválido).'
@@ -1738,6 +1953,15 @@ components:
         MANI-COT-409P: 'HTTP 409 — la solicitud ya tiene una cotización pendiente de respuesta del cliente.'
         MANI-COT-403C: 'HTTP 403 — solo un cliente activo del tenant responde cotizaciones.'
         MANI-COT-409R: 'HTTP 409 — la cotización ya fue respondida; una segunda respuesta no produce otra transición.'
+        MANI-EJE-400: 'HTTP 400 — id de solicitud u observación inválidos.'
+        MANI-EJE-401: 'HTTP 401 — sesión requerida para marcar o consultar la ejecución.'
+        MANI-EJE-403: 'HTTP 403 — el rol de la sesión no puede marcar o consultar la ejecución.'
+        MANI-EJE-403A: 'HTTP 403 — solo el aliado asignado marca el inicio y el fin del servicio.'
+        MANI-EJE-404: 'HTTP 404 — la solicitud no existe o no es visible para la sesión.'
+        MANI-EJE-409E: 'HTTP 409 — la solicitud no puede iniciarse en su estado (necesita la cotización aceptada).'
+        MANI-EJE-409I: 'HTTP 409 — la ejecución ya fue iniciada.'
+        MANI-EJE-409F: 'HTTP 409 — el servicio ya fue finalizado.'
+        MANI-EJE-409N: 'HTTP 409 — no se puede finalizar un servicio que no ha iniciado.'
         INTERNAL_ERROR: 'HTTP 500 — fallo no controlado del servicio.'
 
     ErrorResponse:
@@ -2659,3 +2883,71 @@ components:
         correlationId:
           type: string
       required: [cotizacion, solicitud, correlationId]
+
+    ExecutionMarkRequest:
+      type: object
+      properties:
+        observacion:
+          type: string
+          maxLength: 500
+          description: Opcional. La hora no se envía; la pone el servidor.
+
+    ExecutionMarkResponse:
+      type: object
+      properties:
+        solicitud:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            estado:
+              type: string
+              enum: [EN_EJECUCION, FINALIZADA]
+          required: [id, estado]
+        evento:
+          type: object
+          properties:
+            tipo:
+              type: string
+              enum: [INICIO_EJECUCION, FIN_EJECUCION]
+            registradoEn:
+              type: string
+              format: date-time
+              description: Hora del servidor.
+          required: [tipo, registradoEn]
+        correlationId:
+          type: string
+      required: [solicitud, evento, correlationId]
+
+    ExecutionMark:
+      type: object
+      nullable: true
+      properties:
+        registradoEn:
+          type: string
+          format: date-time
+        observacion:
+          type: string
+          nullable: true
+      required: [registradoEn, observacion]
+
+    ExecutionResponse:
+      type: object
+      properties:
+        ejecucion:
+          type: object
+          properties:
+            solicitudId:
+              type: string
+              format: uuid
+            estado:
+              type: string
+            inicio:
+              $ref: '#/components/schemas/ExecutionMark'
+            fin:
+              $ref: '#/components/schemas/ExecutionMark'
+          required: [solicitudId, estado, inicio, fin]
+        correlationId:
+          type: string
+      required: [ejecucion, correlationId]
