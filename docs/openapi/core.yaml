@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.10.0
+  version: 0.11.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -622,6 +622,133 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: La solicitud no existe o no es del cliente de la sesión (`MANI-SOL-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /solicitudes/{id}/cotizaciones:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id de la solicitud
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Service Requests]
+      operationId: createQuote
+      summary: El aliado asignado emite una cotización con mano de obra y materiales separados
+      description: >
+        US-04.2.1 (SCRUM-865, RF-15). Solo el aliado asignado a la solicitud cotiza, mientras la solicitud está
+        en `ASIGNADA` o `COTIZANDO` y no tiene una cotización `PENDIENTE`. Core calcula el total y la versión, deja
+        la cotización `PENDIENTE`, pasa la solicitud a `COTIZANDO` y registra el evento `COTIZACION_ENVIADA` en
+        una sola transacción. Core es el dueño del estado del servicio tras la asignación (decisión 6A, SAD §7.4).
+        El tenant y el aliado salen del JWT, nunca del cuerpo ni de `X-Tenant-Id`. La alerta contra el tarifario
+        es de SCRUM-866 y no bloquea el envío.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateQuoteRequest'
+      responses:
+        '201':
+          description: Cotización emitida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteResponse'
+        '400':
+          description: Id de solicitud que no es UUID, importe faltante, negativo o con más de dos decimales, total en cero o `total` que no coincide (`MANI-COT-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-COT-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es aliado (`MANI-COT-403`) o el aliado no es el asignado a la solicitud (`MANI-COT-403A`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La solicitud no existe en el tenant del JWT (`MANI-COT-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: El estado de la solicitud no admite cotización (`MANI-COT-409E`) o ya hay una cotización pendiente (`MANI-COT-409P`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      tags: [Service Requests]
+      operationId: listQuotes
+      summary: El cliente dueño o el aliado asignado consultan las cotizaciones de la solicitud
+      description: >
+        US-04.2.1 (SCRUM-865). Devuelve todas las versiones, de la más reciente a la más antigua. Para cualquier
+        otro usuario, del mismo tenant o de otro, la solicitud responde 404 igual que una inexistente, para no
+        revelar que existe.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Cotizaciones de la solicitud
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteListResponse'
+        '400':
+          description: Id de solicitud que no es UUID (`MANI-COT-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-COT-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es cliente ni aliado (`MANI-COT-403`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La solicitud no existe, no es del cliente o no está asignada al aliado (`MANI-COT-404`)
           content:
             application/json:
               schema:
@@ -1341,6 +1468,13 @@ components:
         - MANI-SOL-422Z
         - MANI-SOL-422F
         - MANI-SOL-422K
+        - MANI-COT-400
+        - MANI-COT-401
+        - MANI-COT-403
+        - MANI-COT-403A
+        - MANI-COT-404
+        - MANI-COT-409E
+        - MANI-COT-409P
         - INTERNAL_ERROR
       x-code-meanings:
         VALIDATION_ERROR: 'HTTP 400 — el body no cumple el esquema (campo faltante/formato inválido).'
@@ -1369,6 +1503,13 @@ components:
         MANI-SOL-422Z: 'HTTP 422 — la zona no existe o no está activa.'
         MANI-SOL-422F: 'HTTP 422 — más de 5 fotos o un archivo que no es imagen.'
         MANI-SOL-422K: 'HTTP 422 — la clave de idempotencia no es un UUID.'
+        MANI-COT-400: 'HTTP 400 — id de solicitud no válido o importes de la cotización inválidos.'
+        MANI-COT-401: 'HTTP 401 — sesión requerida para cotizar o consultar cotizaciones.'
+        MANI-COT-403: 'HTTP 403 — el rol de la sesión no puede emitir o consultar cotizaciones.'
+        MANI-COT-403A: 'HTTP 403 — solo el aliado asignado a la solicitud puede cotizarla.'
+        MANI-COT-404: 'HTTP 404 — la solicitud no existe o no es visible para la sesión.'
+        MANI-COT-409E: 'HTTP 409 — el estado de la solicitud no admite cotización.'
+        MANI-COT-409P: 'HTTP 409 — la solicitud ya tiene una cotización pendiente de respuesta del cliente.'
         INTERNAL_ERROR: 'HTTP 500 — fallo no controlado del servicio.'
 
     ErrorResponse:
@@ -2161,3 +2302,79 @@ components:
           type: string
           nullable: true
           description: null borra el contacto.
+
+    CreateQuoteRequest:
+      type: object
+      description: >
+        Importes no negativos con máximo dos decimales (DECIMAL(12,2)); se rechazan en lugar de redondearse. El total
+        de los dos renglones debe ser mayor que cero. Tenant, aliado y versión no se envían: los fija Core.
+      properties:
+        valorManoObra:
+          description: Valor de la mano de obra.
+          oneOf:
+            - type: number
+              minimum: 0
+              maximum: 9999999999.99
+            - type: string
+              pattern: '^\d{1,10}(\.\d{1,2})?$'
+        valorMateriales:
+          description: Valor de los materiales; puede ser 0.
+          oneOf:
+            - type: number
+              minimum: 0
+              maximum: 9999999999.99
+            - type: string
+              pattern: '^\d{1,10}(\.\d{1,2})?$'
+        total:
+          type: number
+          description: Opcional. Si se envía, debe coincidir con la suma; Core calcula el total de todos modos.
+      required: [valorManoObra, valorMateriales]
+
+    Quote:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        solicitudId:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          minimum: 1
+          description: Consecutivo por solicitud que asigna Core.
+        estado:
+          type: string
+          enum: [PENDIENTE, ACEPTADA, RECHAZADA, AJUSTE_SOLICITADO, EXPIRADA]
+          description: PENDIENTE al emitirse; las demás transiciones son de SCRUM-867.
+        valorManoObra:
+          type: number
+        valorMateriales:
+          type: number
+        total:
+          type: number
+          description: Suma de mano de obra y materiales calculada por Core.
+        creadaEn:
+          type: string
+          format: date-time
+      required: [id, solicitudId, version, estado, valorManoObra, valorMateriales, total, creadaEn]
+
+    QuoteResponse:
+      type: object
+      properties:
+        cotizacion:
+          $ref: '#/components/schemas/Quote'
+        correlationId:
+          type: string
+      required: [cotizacion, correlationId]
+
+    QuoteListResponse:
+      type: object
+      properties:
+        cotizaciones:
+          type: array
+          items:
+            $ref: '#/components/schemas/Quote'
+        correlationId:
+          type: string
+      required: [cotizaciones, correlationId]
