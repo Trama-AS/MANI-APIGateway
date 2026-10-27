@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.12.0
+  version: 0.19.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -51,8 +51,25 @@ tags:
     description: Registro de Clientes persona natural y empresa
   - name: Service Requests
     description: Creación de solicitudes de servicio por el cliente (US-04.1.1-M2 / SCRUM-1072)
+  - name: Payments
+    description: >
+      Pagos del cliente en el sandbox simulado (HU-M11-01 / SCRUM-1432, RF-24). El proveedor es un mock: no mueve
+      dinero ni recibe datos de tarjeta, y cada pago y comprobante se identifica como simulado. Tenant, cliente y rol
+      salen del JWT; el monto sale de la cotización.
+  - name: Messaging
+    description: >
+      Mensajería entre el cliente y el aliado de un servicio (HU-M09-02 / SCRUM-881, RF-20). Core guarda los mensajes
+      y el otro participante los recibe consultando el hilo cada pocos segundos con `despuesDe` (sin tiempo real).
+      Solo participan el cliente dueño de la solicitud y el aliado asignado; tenant, usuario y rol salen del JWT.
   - name: Ally Availability
     description: Intervalos en los que el aliado está "No disponible" (US-02.1.6 / SCRUM-855)
+  - name: Geographic Zones
+    description: >
+      Catálogo jerárquico de zonas geográficas (HU-M04-04 / REST-01). Solo
+      lectura: el catálogo lo administra la infraestructura de datos, no Core.
+      La tabla `zona` es global (sin `tenant_id`), así que la respuesta no
+      depende del tenant; la ruta exige JWT para no confiar en un tenant ni un
+      rol enviados por el cliente.
   - name: Service Categories
     description: >
       Catálogo de categorías de servicio (US-03.1.1-M2 / SCRUM-1069). La
@@ -158,20 +175,105 @@ paths:
     post:
       tags: [Auth]
       operationId: logout
-      summary: '[PENDIENTE] Cierra la sesión actual e invalida el refreshToken asociado'
+      summary: Registra el cierre de sesión para auditoría
       description: >
-        [PENDIENTE DE IMPLEMENTACIÓN EN CORE NODE]
-        Especificación del contrato para cuando Core implemente cierre de sesión.
-        El tenant se deriva del claim `tenant_id` del accessToken; no acepta `X-Tenant-Slug` ni `X-Tenant-Id`.
+        Deja constancia del cierre de sesión (HU-M02-03 / RF-03 / RNF-04): quién cerró sesión, en qué tenant y
+        cuándo, tomados del JWT verificado; el cuerpo se ignora. **No revoca la sesión**: la revoca el cliente con
+        `supabase.auth.signOut()`, porque el proveedor de identidad es el dueño de la sesión. Esta llamada es
+        best-effort: si falla, el cliente cierra la sesión igualmente. Aunque `/auth/` es público en el Gateway,
+        Core exige y verifica el `Authorization: Bearer`.
       security:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/XCorrelationId'
       responses:
         '204':
-          description: Sesión cerrada correctamente
+          description: Cierre de sesión registrado
         '401':
           description: accessToken ausente, inválido o expirado (`UNAUTHORIZED` / `TOKEN_INVALID` / `TOKEN_EXPIRED`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/password-recovery:
+    post:
+      tags: [Auth]
+      operationId: requestPasswordRecovery
+      summary: Solicita el enlace de recuperación de contraseña
+      description: >
+        Pide al proveedor de identidad que envíe al correo un enlace para restablecer la contraseña
+        (HU-M02-10 / RF-04). Es pre-autenticación: el tenant se resuelve por `X-Tenant-Slug` (ADR-0018).
+        **Responde `202` con el mismo mensaje exista o no la cuenta**, para no revelar qué correos están
+        registrados; el enlace solo se envía si la cuenta existe y está activa en ese tenant. Tampoco se
+        devuelve `429` cuando el proveedor limita los envíos de una cuenta, porque ese límite solo ocurre
+        cuando la cuenta existe y delataría qué correos están registrados.
+      parameters:
+        - $ref: '#/components/parameters/XTenantSlug'
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordRecoveryRequest'
+      responses:
+        '202':
+          description: Solicitud aceptada (no confirma que la cuenta exista)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: Correo inválido (`VALIDATION_ERROR`) o tenant inexistente/inactivo (`TENANT_NOT_FOUND`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/password-reset:
+    post:
+      tags: [Auth]
+      operationId: resetPassword
+      summary: Fija la contraseña nueva con el token del enlace de recuperación
+      description: >
+        Restablece la contraseña con el token que trae el enlace del correo (HU-M02-10 / RF-04). Es
+        pre-autenticación: el tenant se resuelve por `X-Tenant-Slug` y debe ser el de la cuenta dueña del token,
+        de modo que un enlace de un tenant no sirve en otro. Un token de sesión normal (inicio de sesión con
+        contraseña) no es válido. El enlace deja de servir una vez usado: al restablecer la contraseña se
+        revoca la sesión del enlace, sin cerrar las demás sesiones de la persona.
+      parameters:
+        - $ref: '#/components/parameters/XTenantSlug'
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+      responses:
+        '200':
+          description: Contraseña actualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          description: >
+            Datos inválidos (`VALIDATION_ERROR`: falta el token, o la contraseña tiene menos de 8 caracteres) o
+            contraseña que no cumple la política del proveedor (`WEAK_PASSWORD`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: >
+            Token inválido, vencido, ya usado, de una cuenta de otro tenant o de una cuenta inactiva
+            (`INVALID_RECOVERY_TOKEN`); no se distingue entre estos casos
           content:
             application/json:
               schema:
@@ -380,11 +482,25 @@ paths:
         JWT (`bearerAuth`), nunca del cuerpo ni de `X-Tenant-Id`. La ubicación es un sitio propio del cliente
         (`sitioId`) o una dirección nueva con `zonaId` activa. Las fotos (hasta 5 imágenes) viajan como
         `multipart/form-data` en el campo `fotos`; Core las guarda en Storage bajo `{tenant}/{usuario}/`.
-        Con `claveIdempotencia` el reintento devuelve la solicitud existente con `200` en lugar de `201`.
+        Con una clave de idempotencia (HU-M05-09 / SCRUM-1405), el reintento con los mismos datos devuelve la
+        solicitud existente con `200` en lugar de `201`. La clave llega en la cabecera `Idempotency-Key` o en el
+        campo `claveIdempotencia`; si llegan las dos deben ser la misma (`422 MANI-SOL-422K`). Core guarda una
+        huella de los datos y del contenido de las fotos: la misma clave con otros datos no es un reintento y
+        responde `409 MANI-SOL-409K`, sin revelar la solicitud que ya tiene esa clave. La clave es por cliente y
+        tenant.
       security:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/XCorrelationId'
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: >
+            Clave UUID del intento de creación. Es la que el GatewayClient de Flutter usa para decidir si puede
+            reintentar el POST. Equivale a `claveIdempotencia`.
+          schema:
+            type: string
+            format: uuid
       requestBody:
         required: true
         content:
@@ -415,7 +531,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CreateServiceRequestResponse'
         '200':
-          description: Reintento con la misma `claveIdempotencia`; devuelve la solicitud ya creada
+          description: Reintento con la misma clave y los mismos datos; devuelve la solicitud ya creada
           content:
             application/json:
               schema:
@@ -432,17 +548,1342 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La clave de idempotencia ya se usó con otros datos (`MANI-SOL-409K`); no se crea ni se devuelve nada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: >
             Datos rechazados: categoría no disponible (`MANI-SOL-422C`), descripción fuera de 20 a 1000 caracteres
             (`MANI-SOL-422D`), sitio inexistente o dirección inválida (`MANI-SOL-422S`), zona no disponible
-            (`MANI-SOL-422Z`), fotos inválidas (`MANI-SOL-422F`) o clave de idempotencia inválida (`MANI-SOL-422K`)
+            (`MANI-SOL-422Z`), fotos inválidas (`MANI-SOL-422F`) o clave de idempotencia inválida o distinta entre la
+            cabecera y el cuerpo (`MANI-SOL-422K`)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
           description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /solicitudes/me:
+    get:
+      tags: [Service Requests]
+      operationId: listOwnServiceRequests
+      summary: El cliente consulta el estado y la zona declarada de sus solicitudes
+      description: >
+        HU-M07-04 (SCRUM-871, opción B): seguimiento simplificado, sin GPS en vivo ni ubicación del aliado
+        (SRS §1.2). Devuelve las solicitudes del cliente de la sesión, de la más reciente a la más antigua
+        (máximo 50), con su estado vigente, la zona que se declaró al publicarlas (`zonaDeclarada`, nunca la
+        posición del aliado) y la fecha de la última actualización (`actualizadaEn`). El cliente y el tenant
+        salen del JWT (`bearerAuth`); se ignora `X-Tenant-Id`. El estado se refresca al volver a consultar.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Solicitudes del cliente de la sesión (lista vacía si no tiene)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceRequestTrackingListResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-SOL-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: La sesión no es de un cliente (`MANI-SOL-403C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /solicitudes/me/{id}:
+    get:
+      tags: [Service Requests]
+      operationId: getOwnServiceRequest
+      summary: El cliente consulta el estado y la zona declarada de una solicitud propia
+      description: >
+        HU-M07-04 (SCRUM-871). Mismo contenido que un elemento de `/solicitudes/me`. Una solicitud de otro
+        cliente o de otro tenant responde `404`, igual que una inexistente, para no revelar que existe.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: id
+          in: path
+          required: true
+          description: Id de la solicitud
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Solicitud del cliente de la sesión
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceRequestTrackingResponse'
+        '400':
+          description: El id no es un UUID (`MANI-SOL-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-SOL-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: La sesión no es de un cliente (`MANI-SOL-403C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La solicitud no existe o no es del cliente de la sesión (`MANI-SOL-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /solicitudes/me/{id}/cancelar:
+    patch:
+      tags: [Service Requests]
+      operationId: cancelOwnServiceRequest
+      summary: El cliente cancela una solicitud propia antes de la ejecución
+      description: >
+        US-04.5.1 (SCRUM-877). Se cancela desde `PENDIENTE`, `ASIGNADA`, `COTIZANDO`, `ACEPTADA` o `RECHAZADA`;
+        desde `EN_EJECUCION` o `FINALIZADA` responde `409`. El tenant y el cliente salen del JWT (`bearerAuth`),
+        nunca del cuerpo ni de `X-Tenant-Id`; una solicitud de otro cliente o de otro tenant responde `404`, igual
+        que una inexistente. La cancelación queda en la línea de tiempo (`SOLICITUD_CANCELADA`) y, si había aliado
+        asignado, le llega una notificación `SOLICITUD_CANCELADA` a su bandeja. Repetirla es idempotente: responde
+        `200` con `cancelada: false` y no repite el evento ni la notificación.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: id
+          in: path
+          required: true
+          description: Id de la solicitud
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelServiceRequestRequest'
+      responses:
+        '200':
+          description: Solicitud cancelada, o ya estaba cancelada (`cancelada` lo distingue)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancelServiceRequestResponse'
+        '400':
+          description: El id no es un UUID (`MANI-SOL-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-SOL-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: La sesión no es de un cliente (`MANI-SOL-403C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La solicitud no existe o no es del cliente de la sesión (`MANI-SOL-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La solicitud ya está en ejecución o finalizada y no se puede cancelar (`MANI-SOL-409C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: El motivo supera 200 caracteres (`MANI-SOL-422M`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /solicitudes/{id}/cotizaciones:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id de la solicitud
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Service Requests]
+      operationId: createQuote
+      summary: El aliado asignado emite una cotización con mano de obra y materiales separados
+      description: >
+        US-04.2.1 (SCRUM-865, RF-15). Solo el aliado asignado a la solicitud cotiza, mientras la solicitud está
+        en `ASIGNADA` o `COTIZANDO` y no tiene una cotización `PENDIENTE`. Core calcula el total y la versión, deja
+        la cotización `PENDIENTE`, pasa la solicitud a `COTIZANDO` y registra el evento `COTIZACION_ENVIADA` en
+        una sola transacción. Core es el dueño del estado del servicio tras la asignación (decisión 6A, SAD §7.4).
+        El tenant y el aliado salen del JWT, nunca del cuerpo ni de `X-Tenant-Id`. La alerta contra el tarifario
+        es de SCRUM-866 y no bloquea el envío.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateQuoteRequest'
+      responses:
+        '201':
+          description: Cotización emitida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteResponse'
+        '400':
+          description: Id de solicitud que no es UUID, importe faltante, negativo o con más de dos decimales, total en cero o `total` que no coincide (`MANI-COT-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-COT-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es aliado (`MANI-COT-403`) o el aliado no es el asignado a la solicitud (`MANI-COT-403A`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La solicitud no existe en el tenant del JWT (`MANI-COT-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: El estado de la solicitud no admite cotización (`MANI-COT-409E`) o ya hay una cotización pendiente (`MANI-COT-409P`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      tags: [Service Requests]
+      operationId: listQuotes
+      summary: El cliente dueño o el aliado asignado consultan las cotizaciones de la solicitud
+      description: >
+        US-04.2.1 (SCRUM-865). Devuelve todas las versiones, de la más reciente a la más antigua. Para cualquier
+        otro usuario, del mismo tenant o de otro, la solicitud responde 404 igual que una inexistente, para no
+        revelar que existe.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Cotizaciones de la solicitud
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteListResponse'
+        '400':
+          description: Id de solicitud que no es UUID (`MANI-COT-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-COT-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es cliente ni aliado (`MANI-COT-403`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La solicitud no existe, no es del cliente o no está asignada al aliado (`MANI-COT-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /cotizaciones/{id}/aceptar:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id de la cotización
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Service Requests]
+      operationId: acceptQuote
+      summary: El cliente acepta la cotización pendiente
+      description: >
+        US-04.2.3 (SCRUM-867, RF-17). La cotización pasa a `ACEPTADA` y la solicitud a `ACEPTADA`. El comentario es opcional. Solo responde el cliente dueño de la solicitud, sobre una cotización
+        `PENDIENTE` de una solicitud en `COTIZANDO`. La transición, el evento en `evento_servicio` y la notificación
+        `RESPUESTA_COTIZACION` al aliado (bandeja `/profiles/me/inbox`) van en una sola transacción; Core es el
+        dueño del estado tras la asignación (decisión 6A, SAD §7.4). Tenant y cliente salen del JWT.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuoteAcceptRequest'
+      responses:
+        '200':
+          description: Decisión registrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteDecisionResponse'
+        '400':
+          description: Id de cotización que no es UUID, o texto faltante, corto, de más de 500 caracteres o que no es cadena (`MANI-COT-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-COT-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es cliente (`MANI-COT-403`) o la cuenta no es un cliente activo del tenant (`MANI-COT-403C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La cotización no existe o no es de una solicitud del cliente (`MANI-COT-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La cotización ya fue respondida (`MANI-COT-409R`) o la solicitud no está en `COTIZANDO` (`MANI-COT-409E`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /cotizaciones/{id}/rechazar:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id de la cotización
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Service Requests]
+      operationId: rejectQuote
+      summary: El cliente rechaza la cotización pendiente
+      description: >
+        US-04.2.3 (SCRUM-867, RF-17). La cotización pasa a `RECHAZADA` y la solicitud a `RECHAZADA`. Exige `motivo` (o `comentario`) de 5 a 500 caracteres. Solo responde el cliente dueño de la solicitud, sobre una cotización
+        `PENDIENTE` de una solicitud en `COTIZANDO`. La transición, el evento en `evento_servicio` y la notificación
+        `RESPUESTA_COTIZACION` al aliado (bandeja `/profiles/me/inbox`) van en una sola transacción; Core es el
+        dueño del estado tras la asignación (decisión 6A, SAD §7.4). Tenant y cliente salen del JWT.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuoteRejectRequest'
+      responses:
+        '200':
+          description: Decisión registrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteDecisionResponse'
+        '400':
+          description: Id de cotización que no es UUID, o texto faltante, corto, de más de 500 caracteres o que no es cadena (`MANI-COT-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-COT-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es cliente (`MANI-COT-403`) o la cuenta no es un cliente activo del tenant (`MANI-COT-403C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La cotización no existe o no es de una solicitud del cliente (`MANI-COT-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La cotización ya fue respondida (`MANI-COT-409R`) o la solicitud no está en `COTIZANDO` (`MANI-COT-409E`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /cotizaciones/{id}/ajustar:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id de la cotización
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Service Requests]
+      operationId: adjustQuote
+      summary: El cliente pide ajustar la cotización pendiente
+      description: >
+        US-04.2.3 (SCRUM-867, RF-17). La cotización pasa a `AJUSTE_SOLICITADO` y la solicitud sigue en `COTIZANDO`, para que el aliado emita la siguiente versión. Exige `comentario` de 3 a 500 caracteres. Solo responde el cliente dueño de la solicitud, sobre una cotización
+        `PENDIENTE` de una solicitud en `COTIZANDO`. La transición, el evento en `evento_servicio` y la notificación
+        `RESPUESTA_COTIZACION` al aliado (bandeja `/profiles/me/inbox`) van en una sola transacción; Core es el
+        dueño del estado tras la asignación (decisión 6A, SAD §7.4). Tenant y cliente salen del JWT.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuoteAdjustRequest'
+      responses:
+        '200':
+          description: Decisión registrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteDecisionResponse'
+        '400':
+          description: Id de cotización que no es UUID, o texto faltante, corto, de más de 500 caracteres o que no es cadena (`MANI-COT-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-COT-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es cliente (`MANI-COT-403`) o la cuenta no es un cliente activo del tenant (`MANI-COT-403C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La cotización no existe o no es de una solicitud del cliente (`MANI-COT-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La cotización ya fue respondida (`MANI-COT-409R`) o la solicitud no está en `COTIZANDO` (`MANI-COT-409E`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /solicitudes/{id}/iniciar:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id de la solicitud
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Service Requests]
+      operationId: startExecution
+      summary: El aliado asignado marca el inicio del servicio
+      description: >
+        US-04.3.1 (SCRUM-868, RF-18). La solicitud pasa a `EN_EJECUCION` desde `ACEPTADA` (cotización aceptada) o, si la categoría es `TARIFA_ESTANDAR`, desde `ASIGNADA`. Solo el aliado asignado. La hora la pone el servidor (la app no envía
+        fechas); la transición, el evento en `evento_servicio` y el aviso al cliente (bandeja `/profiles/me/inbox`)
+        van en una sola transacción. Core es el dueño del estado tras la asignación (decisión 6A, SAD §7.4).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecutionMarkRequest'
+      responses:
+        '200':
+          description: Marca registrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionMarkResponse'
+        '400':
+          description: Id de solicitud que no es UUID, u observación que no es texto o tiene más de 500 caracteres (`MANI-EJE-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-EJE-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es aliado (`MANI-EJE-403`) o no es el aliado asignado (`MANI-EJE-403A`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La solicitud no existe en el tenant del JWT (`MANI-EJE-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Cotización sin aceptar u otro estado (`MANI-EJE-409E`), ya iniciada (`MANI-EJE-409I`) o ya finalizada (`MANI-EJE-409F`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /solicitudes/{id}/finalizar:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id de la solicitud
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Service Requests]
+      operationId: finishExecution
+      summary: El aliado asignado marca el fin del servicio
+      description: >
+        US-04.3.1 (SCRUM-868, RF-18). La solicitud pasa de `EN_EJECUCION` a `FINALIZADA`. Solo el aliado asignado. La hora la pone el servidor (la app no envía
+        fechas); la transición, el evento en `evento_servicio` y el aviso al cliente (bandeja `/profiles/me/inbox`)
+        van en una sola transacción. Core es el dueño del estado tras la asignación (decisión 6A, SAD §7.4).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecutionMarkRequest'
+      responses:
+        '200':
+          description: Marca registrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionMarkResponse'
+        '400':
+          description: Id de solicitud que no es UUID, u observación que no es texto o tiene más de 500 caracteres (`MANI-EJE-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-EJE-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es aliado (`MANI-EJE-403`) o no es el aliado asignado (`MANI-EJE-403A`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La solicitud no existe en el tenant del JWT (`MANI-EJE-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Servicio sin iniciar (`MANI-EJE-409N`) o ya finalizado (`MANI-EJE-409F`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /solicitudes/{id}/ejecucion:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id de la solicitud
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Service Requests]
+      operationId: getExecution
+      summary: El cliente dueño o el aliado asignado consultan el inicio y el fin del servicio
+      description: >
+        US-04.3.1 (SCRUM-868). Estado vigente y las marcas de inicio y fin con la hora del servidor (`null` si aún no
+        existen). Para cualquier otro usuario, del mismo tenant o de otro, la solicitud responde 404.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Marcas de ejecución
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionResponse'
+        '400':
+          description: Id de solicitud que no es UUID (`MANI-EJE-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-EJE-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es cliente ni aliado (`MANI-EJE-403`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La solicitud no existe, no es del cliente o no está asignada al aliado (`MANI-EJE-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /solicitudes/{id}/eventos:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id de la solicitud
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Service Requests]
+      operationId: registerServiceEvent
+      summary: El aliado asignado registra un evento durante la ejecución
+      description: >
+        US-04.3.2 (SCRUM-869, RF-18). Solo el aliado asignado y solo con la solicitud en `EN_EJECUCION`. El autor y
+        la hora los pone Core. La evidencia es opcional y entra solo como archivo (campo `foto`, PNG, JPEG o WEBP de
+        hasta 5 MB); una URL se rechaza. Con `claveIdempotencia` un reintento devuelve el evento ya registrado con
+        `200` en lugar de `201`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ServiceEventRequest'
+                - type: object
+                  properties:
+                    foto:
+                      type: string
+                      format: binary
+            encoding:
+              foto:
+                contentType: image/png, image/jpeg, image/webp
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceEventRequest'
+      responses:
+        '201':
+          description: Evento registrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceEventResponse'
+        '200':
+          description: Reintento con la misma `claveIdempotencia`; devuelve el evento ya registrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceEventResponse'
+        '400':
+          description: Tipo desconocido, observación fuera de 3 a 2000 caracteres, evidencia como URL o que no es imagen, clave que no es UUID o id inválido (`MANI-EVT-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-EVT-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es aliado (`MANI-EVT-403`) o no es el aliado asignado (`MANI-EVT-403A`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La solicitud no existe en el tenant del JWT (`MANI-EVT-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La solicitud no está en ejecución (`MANI-EVT-409E`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      tags: [Service Requests]
+      operationId: listServiceEvents
+      summary: El cliente dueño o el aliado asignado consultan la secuencia de eventos del servicio
+      description: >
+        US-04.3.2 (SCRUM-869). Todos los eventos de la solicitud (creación, cotización, inicio, eventos de la
+        ejecución y fin), del más antiguo al más reciente, con el autor y su rol. No expone la ruta de la evidencia,
+        solo si existe. Para cualquier otro usuario la solicitud responde 404.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Secuencia de eventos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceEventListResponse'
+        '400':
+          description: Id de solicitud que no es UUID (`MANI-EVT-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-EVT-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es cliente ni aliado (`MANI-EVT-403`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La solicitud no existe, no es del cliente o no está asignada al aliado (`MANI-EVT-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /solicitudes/{id}/eventos/{eventoId}/evidencia:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id de la solicitud
+        schema:
+          type: string
+          format: uuid
+      - name: eventoId
+        in: path
+        required: true
+        description: Id del evento
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Service Requests]
+      operationId: getServiceEventEvidence
+      summary: URL temporal de la foto de un evento del servicio
+      description: >
+        US-04.3.3 (SCRUM-870, RF-18). Para el cliente dueño o el aliado asignado, una URL firmada de 5 minutos de la
+        evidencia del evento (bucket `solicitudes`). La respuesta lleva `Cache-Control: no-store`: la app la pide
+        cada vez que el usuario abre la foto. Para cualquier otro usuario la solicitud responde 404.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: URL temporal de la evidencia
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceEventEvidenceResponse'
+        '400':
+          description: Id de solicitud o de evento que no es UUID (`MANI-EVT-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-EVT-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es cliente ni aliado (`MANI-EVT-403`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La solicitud no es visible para la sesión (`MANI-EVT-404`) o el evento no existe en ella o no tiene evidencia (`MANI-EVT-404E`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /pagos:
+    post:
+      tags: [Payments]
+      operationId: createPayment
+      summary: El cliente paga una cotización aceptada en el sandbox simulado
+      description: >
+        HU-M11-01 (SCRUM-1432, RF-24). El cliente dueño de una cotización `ACEPTADA` la paga con el proveedor
+        simulado. El monto es mano de obra + materiales de la cotización y nunca viene del cuerpo; tenant, cliente y
+        rol salen del JWT. `escenario` elige el desenlace del mock (por omisión `APROBADO`). Una cotización no se cobra
+        dos veces: con un pago aprobado, un nuevo intento responde `409`. Con `claveIdempotencia`, un reintento
+        devuelve el pago ya registrado con `200` en lugar de `201`. Si el proveedor no da un desenlace (timeout,
+        respuesta inválida) **no se registra ningún pago** y la respuesta es `504` o `502`. El cuerpo no admite datos
+        de tarjeta.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentRequest'
+      responses:
+        '201':
+          description: Pago registrado (puede estar `APROBADO`, `RECHAZADO` o `PENDIENTE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '200':
+          description: Reintento con la misma `claveIdempotencia`; se devuelve el pago ya registrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '400':
+          description: Id o clave que no son UUID, o un campo de tarjeta en el cuerpo (`MANI-PAG-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-PAG-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es cliente (`MANI-PAG-403`) o la cuenta no es un cliente activo del tenant (`MANI-PAG-403C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La cotización no existe o no es de una solicitud del cliente (`MANI-PAG-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La cotización no está aceptada (`MANI-PAG-409E`) o ya tiene un pago aprobado (`MANI-PAG-409A`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: El proveedor no dio una respuesta válida; no se realizó ningún cobro (`MANI-PAG-502`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '504':
+          description: El proveedor no respondió a tiempo; no se realizó ningún cobro (`MANI-PAG-504`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /pagos/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id del pago
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Payments]
+      operationId: getPayment
+      summary: El cliente consulta uno de sus pagos
+      description: >
+        HU-M11-01 (SCRUM-1432). Solo el cliente que pagó. El pago de otro cliente o de otro tenant responde `404`, igual
+        que uno inexistente.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: El pago
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '400':
+          description: El id no es un UUID (`MANI-PAG-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es cliente o la cuenta no es un cliente activo (`MANI-PAG-403`, `MANI-PAG-403C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: El pago no existe o no es del cliente (`MANI-PAG-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /pagos/{id}/comprobante:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id del pago
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Payments]
+      operationId: getPaymentReceipt
+      summary: Comprobante del pago aprobado, identificado como simulado
+      description: >
+        HU-M11-01 (SCRUM-1432). Solo existe para un pago `APROBADO`. En el sandbox el comprobante lleva `simulado: true`
+        y una leyenda que dice que no tiene valor contable ni fiscal. Solo lo ve el cliente que pagó.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: El comprobante
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentReceiptResponse'
+        '400':
+          description: El id no es un UUID (`MANI-PAG-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es cliente o la cuenta no es un cliente activo (`MANI-PAG-403`, `MANI-PAG-403C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: El pago no existe o no es del cliente (`MANI-PAG-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: El pago no está aprobado, así que no tiene comprobante (`MANI-PAG-409C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /solicitudes/{id}/mensajes:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id de la solicitud
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Messaging]
+      operationId: sendMessage
+      summary: El cliente o el aliado asignado envía un mensaje en el hilo del servicio
+      description: >
+        HU-M09-02 (SCRUM-881, RF-20). Solo el cliente dueño de la solicitud y el aliado asignado. El remitente, el
+        tenant y el rol salen del JWT, nunca del cuerpo. Se escribe mientras la solicitud está `ASIGNADA`,
+        `COTIZANDO`, `ACEPTADA` o `EN_EJECUCION`; en cualquier otro estado el hilo solo se lee. Con
+        `claveIdempotencia`, un reintento devuelve el mensaje ya guardado con `200` en lugar de `201`. El mensaje
+        solo se da por enviado cuando ya está guardado: ante un fallo no hay entrega y la respuesta lleva
+        `correlationId`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+      responses:
+        '201':
+          description: Mensaje guardado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse_'
+        '200':
+          description: Reintento con la misma `claveIdempotencia`; se devuelve el mensaje ya guardado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse_'
+        '400':
+          description: Contenido vacío, de más de 1000 caracteres o con caracteres no permitidos; id o clave que no son UUID (`MANI-MSG-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-MSG-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es cliente ni aliado (`MANI-MSG-403`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La solicitud no existe o la sesión no es su cliente ni su aliado asignado (`MANI-MSG-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La solicitud está en un estado que no admite mensajes nuevos (`MANI-MSG-409E`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      tags: [Messaging]
+      operationId: listMessages
+      summary: Mensajes del hilo, con consulta incremental
+      description: >
+        HU-M09-02 (SCRUM-881, RF-20). Solo el cliente dueño y el aliado asignado. Sin `despuesDe` devuelve los últimos
+        `limite` mensajes; con `despuesDe` (id del último mensaje que el cliente ya tiene) devuelve solo los
+        posteriores. Siempre del más antiguo al más reciente. La app lo consulta cada pocos segundos mientras el chat
+        está abierto; la respuesta no se cachea (`Cache-Control: no-store`). `mio` indica si el mensaje es de la sesión
+        y `remitente.rol` el rol de quien lo escribió, sin datos personales.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: despuesDe
+          in: query
+          required: false
+          description: Id del último mensaje que el cliente ya tiene; debe ser un mensaje de este hilo.
+          schema:
+            type: string
+            format: uuid
+        - name: limite
+          in: query
+          required: false
+          description: Máximo de mensajes a devolver.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: Los mensajes del hilo (lista vacía si no hay nuevos)
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageListResponse'
+        '400':
+          description: El parámetro `limite` está fuera de 1 a 100, o `despuesDe`/id que no son UUID o no son un mensaje de este hilo (`MANI-MSG-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es cliente ni aliado (`MANI-MSG-403`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La solicitud no existe o la sesión no es su cliente ni su aliado asignado (`MANI-MSG-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible (`SERVICE_UNAVAILABLE`)
           content:
             application/json:
               schema:
@@ -1029,6 +2470,188 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /catalog/zones:
+    get:
+      tags: [Geographic Zones]
+      operationId: listZoneCatalog
+      summary: Catálogo jerárquico de zonas geográficas (HU-M04-04)
+      description: >
+        Devuelve el catálogo geográfico como lista plana (`zones`) y como árbol
+        anidado por `parentId` (`tree`). La tabla `zona` es un catálogo global
+        compartido por todos los tenants (no tiene columna `tenant_id`), así
+        que la respuesta es la misma para cualquier tenant: no hay zona privada
+        de una organización. Aun así exige JWT, porque es la única forma de no
+        depender de un tenant o un rol enviados por el cliente; el Core toma
+        ambos del claim `app_metadata` y descarta `X-Tenant-Id` y
+        `X-Tenant-Slug` en esta ruta. Los niveles previstos, de mayor a menor
+        granularidad, son `CIUDAD`, `LOCALIDAD` y `BARRIO`. Las zonas
+        desactivadas se devuelven con `selectable: false` salvo que se pida
+        `onlyActive=true`: una zona inactiva sigue siendo consultable porque un
+        sitio histórico puede apuntar a ella, pero nunca se ofrece para
+        escoger. Una fila que no puede colocarse en el árbol (sin zona padre,
+        con padre inexistente o con relación de nivel invertida) no se cuelga
+        en un lugar inventado: queda fuera de `zones` y `tree`, y se reporta en
+        `inconsistencies`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: onlyActive
+          in: query
+          required: false
+          description: Con `true` deja fuera las zonas desactivadas.
+          schema:
+            type: boolean
+            default: false
+        - name: level
+          in: query
+          required: false
+          description: >
+            Recorta al nivel indicado. Un valor fuera de la lista es un error
+            de contrato (`400 MANI-ZON-400`), no un listado vacío.
+          schema:
+            type: string
+            enum: [CIUDAD, LOCALIDAD, BARRIO]
+        - name: parentId
+          in: query
+          required: false
+          description: >
+            Recorta a los descendientes de esa zona. Un id que no existe
+            responde `404 MANI-ZON-404`.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Catálogo geográfico del nivel y recorte pedidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ZoneCatalogResponse'
+              examples:
+                jerarquiaCompleta:
+                  summary: Árbol completo con solo las zonas activas
+                  value:
+                    zones:
+                      - id: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12
+                        name: Bogotá D.C.
+                        level: CIUDAD
+                        parentId: null
+                        active: true
+                        selectable: true
+                      - id: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13
+                        name: Chapinero
+                        level: LOCALIDAD
+                        parentId: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12
+                        active: true
+                        selectable: true
+                      - id: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a15
+                        name: Chicó Norte
+                        level: BARRIO
+                        parentId: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13
+                        active: true
+                        selectable: true
+                    tree:
+                      - id: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12
+                        name: Bogotá D.C.
+                        level: CIUDAD
+                        parentId: null
+                        active: true
+                        selectable: true
+                        children:
+                          - id: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13
+                            name: Chapinero
+                            level: LOCALIDAD
+                            parentId: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12
+                            active: true
+                            selectable: true
+                            children:
+                              - id: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a15
+                                name: Chicó Norte
+                                level: BARRIO
+                                parentId: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13
+                                active: true
+                                selectable: true
+                                children: []
+                    inconsistencies: []
+                conZonaInconsistente:
+                  summary: Una fila sin zona padre queda fuera del árbol y se reporta
+                  value:
+                    zones: []
+                    tree: []
+                    inconsistencies:
+                      - id: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a15
+                        level: BARRIO
+                        parentId: null
+                        reason: ZONA_SIN_PADRE
+        '400':
+          $ref: '#/components/responses/ZoneBadRequest'
+        '401':
+          $ref: '#/components/responses/ZoneUnauthorized'
+        '404':
+          $ref: '#/components/responses/ZoneNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /catalog/zones/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ZoneId'
+    get:
+      tags: [Geographic Zones]
+      operationId: getZone
+      summary: Una zona con su camino a la raíz y sus hijos directos
+      description: >
+        Devuelve la zona, sus `ancestors` ordenados de la raíz hacia ella y sus
+        `children` directos. Responde también para una zona desactivada, con
+        `selectable: false`: ocultarla rompería la consulta de un sitio
+        histórico que la referencia. Un `id` que no es UUID responde
+        `400 MANI-ZON-400` sin consultar la base; un UUID desconocido responde
+        `404 MANI-ZON-404`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Zona con su jerarquía inmediata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ZoneDetailResponse'
+              examples:
+                localidadConBarrio:
+                  summary: Localidad con su ciudad padre y un barrio hijo
+                  value:
+                    zone:
+                      id: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13
+                      name: Chapinero
+                      level: LOCALIDAD
+                      parentId: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12
+                      active: true
+                      selectable: true
+                    ancestors:
+                      - id: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12
+                        name: Bogotá D.C.
+                        level: CIUDAD
+                        parentId: null
+                        active: true
+                        selectable: true
+                    children:
+                      - id: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a15
+                        name: Chicó Norte
+                        level: BARRIO
+                        parentId: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13
+                        active: true
+                        selectable: true
+        '400':
+          $ref: '#/components/responses/ZoneBadRequest'
+        '401':
+          $ref: '#/components/responses/ZoneUnauthorized'
+        '404':
+          $ref: '#/components/responses/ZoneNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1085,6 +2708,15 @@ components:
       description: Identificador de la sede.
       schema:
         type: string
+
+    ZoneId:
+      name: id
+      in: path
+      required: true
+      description: Identificador estable de la zona geográfica.
+      schema:
+        type: string
+        format: uuid
 
   responses:
     SiteValidationError:
@@ -1207,6 +2839,40 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+    ZoneBadRequest:
+      description: >
+        Nivel fuera de la jerarquía prevista, o identificador que no es UUID
+        (`MANI-ZON-400`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: 'MANI-ZON-400: nivel debe ser uno de CIUDAD, LOCALIDAD, BARRIO'
+            code: MANI-ZON-400
+            correlationId: node-1793067016518
+
+    ZoneUnauthorized:
+      description: >
+        Falta el `Authorization: Bearer`, o el token está vencido o no verifica.
+        El catálogo es global, pero la ruta sigue cerrada: es lo que impide
+        depender de un tenant o un rol enviados por el cliente.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    ZoneNotFound:
+      description: La zona, o la zona padre indicada, no existe (`MANI-ZON-404`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: 'MANI-ZON-404: la zona no existe'
+            code: MANI-ZON-404
+            correlationId: node-1793067016518
+
   schemas:
     ErrorCode:
       type: string
@@ -1228,14 +2894,51 @@ components:
         - COMPANY_ALREADY_REGISTERED
         - TERMS_NOT_ACCEPTED
         - SERVICE_UNAVAILABLE
+        - MANI-SOL-400
         - MANI-SOL-401
         - MANI-SOL-403C
+        - MANI-SOL-404
+        - MANI-SOL-409C
+        - MANI-SOL-409K
         - MANI-SOL-422C
         - MANI-SOL-422D
         - MANI-SOL-422S
         - MANI-SOL-422Z
         - MANI-SOL-422F
         - MANI-SOL-422K
+        - MANI-SOL-422M
+        - MANI-COT-400
+        - MANI-COT-401
+        - MANI-COT-403
+        - MANI-COT-403A
+        - MANI-COT-404
+        - MANI-COT-409E
+        - MANI-COT-409P
+        - MANI-COT-403C
+        - MANI-COT-409R
+        - MANI-EJE-400
+        - MANI-EJE-401
+        - MANI-EJE-403
+        - MANI-EJE-403A
+        - MANI-EJE-404
+        - MANI-EJE-409E
+        - MANI-EJE-409I
+        - MANI-EJE-409F
+        - MANI-EJE-409N
+        - MANI-EVT-400
+        - MANI-EVT-401
+        - MANI-EVT-403
+        - MANI-EVT-403A
+        - MANI-EVT-404
+        - MANI-EVT-409E
+        - MANI-MSG-400
+        - MANI-MSG-401
+        - MANI-MSG-403
+        - MANI-MSG-404
+        - MANI-MSG-409E
+        - MANI-EVT-404E
+        - MANI-ZON-400
+        - MANI-ZON-404
         - INTERNAL_ERROR
       x-code-meanings:
         VALIDATION_ERROR: 'HTTP 400 — el body no cumple el esquema (campo faltante/formato inválido).'
@@ -1254,14 +2957,51 @@ components:
         COMPANY_ALREADY_REGISTERED: 'HTTP 409 — la empresa ya está registrada con ese NIT en el tenant (registro de aliado empresa).'
         TERMS_NOT_ACCEPTED: 'HTTP 400 — el registro de aliado persona natural llegó sin acceptsTerms=true (SCRUM-856).'
         SERVICE_UNAVAILABLE: 'HTTP 503 — una dependencia (p. ej. la base de datos) no está disponible; no hay respaldo local.'
-        MANI-SOL-401: 'HTTP 401 — sesión requerida para crear la solicitud.'
-        MANI-SOL-403C: 'HTTP 403 — solo un cliente activo del tenant puede publicar solicitudes.'
+        MANI-SOL-400: 'HTTP 400 — el id de la solicitud no es un UUID (seguimiento del cliente).'
+        MANI-SOL-401: 'HTTP 401 — sesión requerida para crear, consultar o cancelar solicitudes.'
+        MANI-SOL-403C: 'HTTP 403 — solo un cliente activo del tenant puede publicar, consultar o cancelar sus solicitudes.'
+        MANI-SOL-404: 'HTTP 404 — la solicitud no existe o no es del cliente de la sesión.'
         MANI-SOL-422C: 'HTTP 422 — la categoría no existe, no está activa o es de otro tenant.'
         MANI-SOL-422D: 'HTTP 422 — la descripción debe tener entre 20 y 1000 caracteres.'
         MANI-SOL-422S: 'HTTP 422 — el sitio no es del cliente o la dirección no tiene entre 5 y 200 caracteres.'
         MANI-SOL-422Z: 'HTTP 422 — la zona no existe o no está activa.'
         MANI-SOL-422F: 'HTTP 422 — más de 5 fotos o un archivo que no es imagen.'
-        MANI-SOL-422K: 'HTTP 422 — la clave de idempotencia no es un UUID.'
+        MANI-SOL-422K: 'HTTP 422 — la clave de idempotencia no es un UUID, o la cabecera Idempotency-Key y claveIdempotencia no coinciden.'
+        MANI-SOL-409C: 'HTTP 409 — la solicitud ya está en ejecución o finalizada y no se puede cancelar.'
+        MANI-SOL-409K: 'HTTP 409 — la clave de idempotencia ya se usó para crear una solicitud con otros datos.'
+        MANI-SOL-422M: 'HTTP 422 — el motivo de la cancelación supera 200 caracteres.'
+        MANI-COT-400: 'HTTP 400 — id de solicitud no válido o importes de la cotización inválidos.'
+        MANI-COT-401: 'HTTP 401 — sesión requerida para cotizar o consultar cotizaciones.'
+        MANI-COT-403: 'HTTP 403 — el rol de la sesión no puede emitir o consultar cotizaciones.'
+        MANI-COT-403A: 'HTTP 403 — solo el aliado asignado a la solicitud puede cotizarla.'
+        MANI-COT-404: 'HTTP 404 — la solicitud no existe o no es visible para la sesión.'
+        MANI-COT-409E: 'HTTP 409 — el estado de la solicitud no admite cotización.'
+        MANI-COT-409P: 'HTTP 409 — la solicitud ya tiene una cotización pendiente de respuesta del cliente.'
+        MANI-COT-403C: 'HTTP 403 — solo un cliente activo del tenant responde cotizaciones.'
+        MANI-COT-409R: 'HTTP 409 — la cotización ya fue respondida; una segunda respuesta no produce otra transición.'
+        MANI-EJE-400: 'HTTP 400 — id de solicitud u observación inválidos.'
+        MANI-EJE-401: 'HTTP 401 — sesión requerida para marcar o consultar la ejecución.'
+        MANI-EJE-403: 'HTTP 403 — el rol de la sesión no puede marcar o consultar la ejecución.'
+        MANI-EJE-403A: 'HTTP 403 — solo el aliado asignado marca el inicio y el fin del servicio.'
+        MANI-EJE-404: 'HTTP 404 — la solicitud no existe o no es visible para la sesión.'
+        MANI-EJE-409E: 'HTTP 409 — la solicitud no puede iniciarse en su estado (necesita la cotización aceptada).'
+        MANI-EJE-409I: 'HTTP 409 — la ejecución ya fue iniciada.'
+        MANI-EJE-409F: 'HTTP 409 — el servicio ya fue finalizado.'
+        MANI-EJE-409N: 'HTTP 409 — no se puede finalizar un servicio que no ha iniciado.'
+        MANI-EVT-400: 'HTTP 400 — tipo, observación, evidencia, clave de idempotencia o id inválidos.'
+        MANI-EVT-401: 'HTTP 401 — sesión requerida para registrar o consultar eventos.'
+        MANI-EVT-403: 'HTTP 403 — el rol de la sesión no puede registrar o consultar eventos.'
+        MANI-EVT-403A: 'HTTP 403 — solo el aliado asignado registra eventos del servicio.'
+        MANI-EVT-404: 'HTTP 404 — la solicitud no existe o no es visible para la sesión.'
+        MANI-EVT-409E: 'HTTP 409 — solo se registran eventos con la solicitud en ejecución.'
+        MANI-EVT-404E: 'HTTP 404 — el evento no existe en la solicitud o no tiene evidencia.'
+        MANI-ZON-400: 'HTTP 400 — nivel geográfico fuera de la jerarquía, o identificador de zona que no es UUID.'
+        MANI-ZON-404: 'HTTP 404 — la zona, o la zona padre indicada, no existe.'
+        MANI-MSG-400: 'HTTP 400 — contenido, clave de idempotencia, límite, cursor o id inválidos.'
+        MANI-MSG-401: 'HTTP 401 — sesión requerida para la mensajería.'
+        MANI-MSG-403: 'HTTP 403 — solo el cliente y el aliado del servicio participan en la mensajería.'
+        MANI-MSG-404: 'HTTP 404 — la solicitud no existe o la sesión no es su cliente ni su aliado asignado.'
+        MANI-MSG-409E: 'HTTP 409 — la solicitud en su estado actual no admite mensajes nuevos.'
         INTERNAL_ERROR: 'HTTP 500 — fallo no controlado del servicio.'
 
     ErrorResponse:
@@ -1504,6 +3244,34 @@ components:
           description: Debe ser `true`; Core registra el consentimiento en la misma operación.
       required: [razonSocial, nit, nombreRepresentante, email, password, acceptsTerms]
 
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required: [message]
+
+    PasswordRecoveryRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          example: ana@correo.co
+      required: [email]
+
+    PasswordResetRequest:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: Token que trae el enlace del correo de recuperación.
+        newPassword:
+          type: string
+          format: password
+          minLength: 8
+      required: [accessToken, newPassword]
+
     RegisterClientCompanyResponse:
       type: object
       properties:
@@ -1608,7 +3376,7 @@ components:
         claveIdempotencia:
           type: string
           format: uuid
-          description: Clave del cliente para reintentos seguros.
+          description: Clave del cliente para reintentos seguros. Equivale a la cabecera `Idempotency-Key`.
 
     ServiceRequest:
       type: object
@@ -1636,6 +3404,69 @@ components:
         correlationId:
           type: string
       required: [solicitud, correlationId]
+
+    ServiceRequestTracking:
+      type: object
+      description: >
+        Seguimiento de una solicitud para su cliente (SCRUM-871). `zonaDeclarada` es la zona que se declaró al
+        publicar la solicitud, no la ubicación del aliado; `actualizadaEn` dice de cuándo es el estado.
+      properties:
+        id: { type: string, format: uuid }
+        estado: { type: string, example: ASIGNADA }
+        categoria: { type: string, example: Plomería }
+        zonaDeclarada:
+          type: object
+          properties:
+            nombre: { type: string, example: Chapinero }
+            nivel: { type: string, example: LOCALIDAD }
+            zonaPadre: { type: string, nullable: true, example: Bogotá }
+          required: [nombre, nivel]
+        creadaEn: { type: string, format: date-time }
+        actualizadaEn: { type: string, format: date-time }
+      required: [id, estado, categoria, zonaDeclarada, creadaEn, actualizadaEn]
+
+    ServiceRequestTrackingListResponse:
+      type: object
+      properties:
+        solicitudes:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/ServiceRequestTracking'
+        correlationId:
+          type: string
+      required: [solicitudes, correlationId]
+
+    ServiceRequestTrackingResponse:
+      type: object
+      properties:
+        solicitud:
+          $ref: '#/components/schemas/ServiceRequestTracking'
+        correlationId:
+          type: string
+      required: [solicitud, correlationId]
+
+    CancelServiceRequestRequest:
+      type: object
+      description: Cuerpo opcional de la cancelación (SCRUM-877). Cualquier otro campo, como un tenant, se ignora.
+      properties:
+        motivo:
+          type: string
+          maxLength: 200
+          example: Ya resolví el problema por mi cuenta
+          description: Queda en la línea de tiempo del servicio. Sin motivo se registra uno por defecto.
+
+    CancelServiceRequestResponse:
+      type: object
+      properties:
+        solicitud:
+          $ref: '#/components/schemas/ServiceRequestTracking'
+        cancelada:
+          type: boolean
+          description: '`true` si esta petición la canceló; `false` si ya estaba cancelada.'
+        correlationId:
+          type: string
+      required: [solicitud, cancelada, correlationId]
 
     AbsenceErrorResponse:
       type: object
@@ -1985,6 +3816,570 @@ components:
           type: string
           nullable: true
           description: null borra el contacto.
+
+    CreateQuoteRequest:
+      type: object
+      description: >
+        Importes no negativos con máximo dos decimales (DECIMAL(12,2)); se rechazan en lugar de redondearse. El total
+        de los dos renglones debe ser mayor que cero. Tenant, aliado y versión no se envían: los fija Core.
+      properties:
+        valorManoObra:
+          description: Valor de la mano de obra.
+          oneOf:
+            - type: number
+              minimum: 0
+              maximum: 9999999999.99
+            - type: string
+              pattern: '^\d{1,10}(\.\d{1,2})?$'
+        valorMateriales:
+          description: Valor de los materiales; puede ser 0.
+          oneOf:
+            - type: number
+              minimum: 0
+              maximum: 9999999999.99
+            - type: string
+              pattern: '^\d{1,10}(\.\d{1,2})?$'
+        total:
+          type: number
+          description: Opcional. Si se envía, debe coincidir con la suma; Core calcula el total de todos modos.
+      required: [valorManoObra, valorMateriales]
+
+    Quote:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        solicitudId:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          minimum: 1
+          description: Consecutivo por solicitud que asigna Core.
+        estado:
+          type: string
+          enum: [PENDIENTE, ACEPTADA, RECHAZADA, AJUSTE_SOLICITADO, EXPIRADA]
+          description: PENDIENTE al emitirse; las demás transiciones son de SCRUM-867.
+        valorManoObra:
+          type: number
+        valorMateriales:
+          type: number
+        total:
+          type: number
+          description: Suma de mano de obra y materiales calculada por Core.
+        creadaEn:
+          type: string
+          format: date-time
+      required: [id, solicitudId, version, estado, valorManoObra, valorMateriales, total, creadaEn]
+
+    QuoteResponse:
+      type: object
+      properties:
+        cotizacion:
+          $ref: '#/components/schemas/Quote'
+        correlationId:
+          type: string
+      required: [cotizacion, correlationId]
+
+    QuoteListResponse:
+      type: object
+      properties:
+        cotizaciones:
+          type: array
+          items:
+            $ref: '#/components/schemas/Quote'
+        correlationId:
+          type: string
+      required: [cotizaciones, correlationId]
+
+    QuoteAcceptRequest:
+      type: object
+      properties:
+        comentario:
+          type: string
+          minLength: 0
+          maxLength: 500
+          description: Opcional.
+
+    QuoteRejectRequest:
+      type: object
+      description: Debe venir `motivo` o, en su defecto, `comentario`.
+      properties:
+        motivo:
+          type: string
+          minLength: 5
+          maxLength: 500
+          description: Motivo del rechazo.
+        comentario:
+          type: string
+          minLength: 5
+          maxLength: 500
+          description: Se usa como motivo si no viene `motivo`.
+
+    QuoteAdjustRequest:
+      type: object
+      properties:
+        comentario:
+          type: string
+          minLength: 3
+          maxLength: 500
+          description: Qué debe cambiar el aliado en la siguiente versión.
+      required: [comentario]
+
+    CreatePaymentRequest:
+      type: object
+      description: >
+        Solicitud de pago en el sandbox. No admite datos de tarjeta ni monto: el monto sale de la cotización.
+      properties:
+        cotizacionId:
+          type: string
+          format: uuid
+          description: Cotización `ACEPTADA` del cliente.
+        escenario:
+          type: string
+          enum: [APROBADO, RECHAZADO, PENDIENTE, TIMEOUT, RESPUESTA_INVALIDA]
+          default: APROBADO
+          description: Desenlace que simula el proveedor. `TIMEOUT` y `RESPUESTA_INVALIDA` no registran ningún pago.
+        claveIdempotencia:
+          type: string
+          format: uuid
+          description: Un reintento con la misma clave devuelve el pago ya registrado.
+      required: [cotizacionId]
+
+    Payment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        cotizacionId:
+          type: string
+          format: uuid
+        monto:
+          type: number
+          example: 150000.5
+        moneda:
+          type: string
+          example: COP
+        estado:
+          type: string
+          enum: [APROBADO, RECHAZADO, PENDIENTE]
+        proveedor:
+          type: string
+          example: mock
+        simulado:
+          type: boolean
+          description: "`true` si el proveedor no mueve dinero real (todos los pagos del Sprint 5)."
+        referenciaProveedor:
+          type: string
+        motivo:
+          type: string
+          nullable: true
+          description: Motivo del rechazo, si lo hubo.
+        correlationId:
+          type: string
+          nullable: true
+        creadoEn:
+          type: string
+          format: date-time
+      required: [id, cotizacionId, monto, moneda, estado, proveedor, simulado, referenciaProveedor, creadoEn]
+
+    PaymentResponse:
+      type: object
+      properties:
+        pago:
+          $ref: '#/components/schemas/Payment'
+        correlationId:
+          type: string
+      required: [pago]
+
+    PaymentReceipt:
+      type: object
+      properties:
+        numero:
+          type: string
+          example: SIM-55555555
+        simulado:
+          type: boolean
+        leyenda:
+          type: string
+          nullable: true
+          description: Aviso de que el comprobante es de prueba; viene cuando `simulado` es `true`.
+        pagoId:
+          type: string
+          format: uuid
+        cotizacionId:
+          type: string
+          format: uuid
+        monto:
+          type: number
+        moneda:
+          type: string
+        estado:
+          type: string
+          enum: [APROBADO]
+        proveedor:
+          type: string
+        referenciaProveedor:
+          type: string
+        fecha:
+          type: string
+          format: date-time
+      required: [numero, simulado, pagoId, cotizacionId, monto, moneda, estado, proveedor, referenciaProveedor, fecha]
+
+    PaymentReceiptResponse:
+      type: object
+      properties:
+        comprobante:
+          $ref: '#/components/schemas/PaymentReceipt'
+        correlationId:
+          type: string
+      required: [comprobante]
+
+    SendMessageRequest:
+      type: object
+      description: Mensaje del servicio. El remitente no viene en el cuerpo, sale del JWT.
+      properties:
+        contenido:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: Texto del mensaje; se recortan los espacios de los extremos y no puede quedar vacío.
+        claveIdempotencia:
+          type: string
+          format: uuid
+          description: Un reintento con la misma clave devuelve el mensaje ya guardado.
+      required: [contenido]
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        solicitudId:
+          type: string
+          format: uuid
+        contenido:
+          type: string
+        creadoEn:
+          type: string
+          format: date-time
+        remitente:
+          type: object
+          properties:
+            rol:
+              type: string
+              enum: [CLIENT, ALLY]
+          required: [rol]
+        mio:
+          type: boolean
+          description: Verdadero si el mensaje lo escribió la sesión que consulta.
+      required: [id, solicitudId, contenido, creadoEn, remitente, mio]
+
+    MessageResponse_:
+      type: object
+      properties:
+        mensaje:
+          $ref: '#/components/schemas/Message'
+        correlationId:
+          type: string
+      required: [mensaje]
+
+    MessageListResponse:
+      type: object
+      properties:
+        mensajes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Message'
+        correlationId:
+          type: string
+      required: [mensajes]
+
+    QuoteDecisionResponse:
+      type: object
+      properties:
+        cotizacion:
+          $ref: '#/components/schemas/Quote'
+        solicitud:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            estado:
+              type: string
+              enum: [ACEPTADA, RECHAZADA, COTIZANDO]
+          required: [id, estado]
+        correlationId:
+          type: string
+      required: [cotizacion, solicitud, correlationId]
+
+    ExecutionMarkRequest:
+      type: object
+      properties:
+        observacion:
+          type: string
+          maxLength: 500
+          description: Opcional. La hora no se envía; la pone el servidor.
+
+    ExecutionMarkResponse:
+      type: object
+      properties:
+        solicitud:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            estado:
+              type: string
+              enum: [EN_EJECUCION, FINALIZADA]
+          required: [id, estado]
+        evento:
+          type: object
+          properties:
+            tipo:
+              type: string
+              enum: [INICIO_EJECUCION, FIN_EJECUCION]
+            registradoEn:
+              type: string
+              format: date-time
+              description: Hora del servidor.
+          required: [tipo, registradoEn]
+        correlationId:
+          type: string
+      required: [solicitud, evento, correlationId]
+
+    ExecutionMark:
+      type: object
+      nullable: true
+      properties:
+        registradoEn:
+          type: string
+          format: date-time
+        observacion:
+          type: string
+          nullable: true
+      required: [registradoEn, observacion]
+
+    ExecutionResponse:
+      type: object
+      properties:
+        ejecucion:
+          type: object
+          properties:
+            solicitudId:
+              type: string
+              format: uuid
+            estado:
+              type: string
+            inicio:
+              $ref: '#/components/schemas/ExecutionMark'
+            fin:
+              $ref: '#/components/schemas/ExecutionMark'
+          required: [solicitudId, estado, inicio, fin]
+        correlationId:
+          type: string
+      required: [ejecucion, correlationId]
+
+    ServiceEventRequest:
+      type: object
+      properties:
+        tipo:
+          type: string
+          enum: [AVANCE, NOVEDAD, OBSERVACION]
+          default: OBSERVACION
+        observacion:
+          type: string
+          minLength: 3
+          maxLength: 2000
+        claveIdempotencia:
+          type: string
+          format: uuid
+      required: [observacion]
+
+    ServiceEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tipo:
+          type: string
+          description: >
+            Los que registra el aliado son EJECUCION_AVANCE, EJECUCION_NOVEDAD y EJECUCION_OBSERVACION; el resto
+            los registra Core (SOLICITUD_CREADA, COTIZACION_ENVIADA, COTIZACION_ACEPTADA, INICIO_EJECUCION...).
+        descripcion:
+          type: string
+          nullable: true
+        registradoEn:
+          type: string
+          format: date-time
+          description: Hora del servidor.
+        autor:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            rol:
+              type: string
+          required: [id, rol]
+        tieneEvidencia:
+          type: boolean
+      required: [id, tipo, descripcion, registradoEn, autor, tieneEvidencia]
+
+    ServiceEventResponse:
+      type: object
+      properties:
+        evento:
+          $ref: '#/components/schemas/ServiceEvent'
+        correlationId:
+          type: string
+      required: [evento, correlationId]
+
+    ServiceEventListResponse:
+      type: object
+      properties:
+        eventos:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceEvent'
+        correlationId:
+          type: string
+      required: [eventos, correlationId]
+
+    ServiceEventEvidenceResponse:
+      type: object
+      properties:
+        evidencia:
+          type: object
+          properties:
+            url:
+              type: string
+              format: uri
+              description: URL firmada; vence en `expiraEnSegundos`.
+            expiraEnSegundos:
+              type: integer
+              example: 300
+          required: [url, expiraEnSegundos]
+        correlationId:
+          type: string
+      required: [evidencia, correlationId]
+
+
+    Zone:
+      type: object
+      description: >
+        Nodo del catálogo geográfico. No lleva `tenantId`: la tabla `zona` es
+        un catálogo global y no tiene esa columna.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identificador estable, el mismo que referencian `sitio` y `cobertura_aliado`.
+        name:
+          type: string
+          example: Chapinero
+        level:
+          type: string
+          enum: [CIUDAD, LOCALIDAD, BARRIO]
+          description: >
+            Nivel en la jerarquía, de mayor a menor granularidad. Una fila
+            histórica puede traer otro valor: se devuelve tal cual y no se
+            usa para validar relaciones.
+        parentId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Zona padre. Solo `CIUDAD` puede tenerlo en `null`.
+        active:
+          type: boolean
+          description: Estado `ACTIVO`/`ACTIVA` en la base.
+        selectable:
+          type: boolean
+          description: >
+            Si la zona puede escogerse. Una zona inactiva se devuelve con
+            `false` para que la interfaz no la ofrezca (criterio C2).
+      required: [id, name, level, parentId, active, selectable]
+
+    ZoneTreeNode:
+      allOf:
+        - $ref: '#/components/schemas/Zone'
+        - type: object
+          properties:
+            children:
+              type: array
+              description: >
+                Hijos directos, anidados recursivamente. Vacío en el nivel más
+                fino, o cuando un recorte por `level` o `onlyActive` deja los
+                hijos fuera del resultado.
+              items:
+                $ref: '#/components/schemas/ZoneTreeNode'
+          required: [children]
+
+    ZoneInconsistency:
+      type: object
+      description: >
+        Fila del catálogo que no puede colocarse en el árbol. Se reporta en
+        lugar de colgarla en un lugar inventado o de descartarla en silencio.
+      properties:
+        id:
+          type: string
+          format: uuid
+        level:
+          type: string
+        parentId:
+          type: string
+          format: uuid
+          nullable: true
+        reason:
+          type: string
+          enum:
+            - ZONA_SIN_PADRE
+            - PADRE_INEXISTENTE
+            - PADRE_ES_LA_MISMA_ZONA
+            - RELACION_DE_NIVEL_INVERTIDA
+      required: [id, level, parentId, reason]
+
+    ZoneCatalogResponse:
+      type: object
+      properties:
+        zones:
+          type: array
+          description: Lista plana de las zonas del recorte pedido, sin las inconsistentes.
+          items:
+            $ref: '#/components/schemas/Zone'
+        tree:
+          type: array
+          description: Las mismas zonas anidadas por `parentId`.
+          items:
+            $ref: '#/components/schemas/ZoneTreeNode'
+        inconsistencies:
+          type: array
+          items:
+            $ref: '#/components/schemas/ZoneInconsistency'
+      required: [zones, tree, inconsistencies]
+
+    ZoneDetailResponse:
+      type: object
+      properties:
+        zone:
+          $ref: '#/components/schemas/Zone'
+        ancestors:
+          type: array
+          description: Camino desde la raíz hasta la zona, sin incluirla.
+          items:
+            $ref: '#/components/schemas/Zone'
+        children:
+          type: array
+          description: Hijos directos de la zona.
+          items:
+            $ref: '#/components/schemas/Zone'
+      required: [zone, ancestors, children]
 
     RequestCategory:
       type: object

@@ -30,6 +30,16 @@ for metodo in GET POST; do
   esperar "$metodo" /api/v1/core/api/v1/notifications 404
   esperar "$metodo" "/api/v1/core/notifications;x" 404
   esperar "$metodo" /api/v1/core/allies%2Feligible 404
+  # Decisión 6A (SCRUM-1403): comando de asignación y bandeja de ofertas del aliado.
+  esperar "$metodo" /api/v1/core/solicitudes/0a1b2c3d-0000-4000-8000-000000000001/asignacion 404
+  esperar "$metodo" /api/v1/core/solicitudes/0a1b2c3d-0000-4000-8000-000000000001/asignacion/ 404
+  esperar "$metodo" /api/v1/core/api/v1/solicitudes/abc/ASIGNACION 404
+  esperar "$metodo" "/api/v1/core/solicitudes/abc/asignacion;x" 404
+  esperar "$metodo" /api/v1/core/solicitudes/abc%2Fasignacion 404
+  esperar "$metodo" /api/v1/core/allies/me/offers 404
+  esperar "$metodo" /api/v1/core/Allies/Me/Offers/ 404
+  esperar "$metodo" /api/v1/core/api/v1/allies/me/offers 404
+  esperar "$metodo" "/api/v1/core/allies/me/offers;x" 404
 done
 
 # Siguen pasando: el resto de Core no se ve afectado.

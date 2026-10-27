@@ -5,7 +5,7 @@
   "description": "Herramientas de contrato (OpenAPI/Postman/Newman) para MANI-APIGateway. El Gateway en sí es NGINX puro; este package.json solo sirve a estas herramientas de desarrollo (CFG-16).",
   "scripts": {
     "validate:openapi": "node scripts/validate-openapi.js",
-    "lint:openapi": "spectral lint docs/openapi/core.yaml docs/openapi/rules.yaml",
+    "lint:openapi": "spectral lint docs/openapi/core.yaml docs/openapi/core-internal.yaml docs/openapi/dispatch.yaml docs/openapi/rules.yaml",
     "postman:generate": "node scripts/generate-postman-collection.js",
     "postman:run": "newman run postman/MANI-Core.postman_collection.json --working-dir postman -e",
     "postman:run:dev": "npm run postman:run -- postman/environments/dev.postman_environment.json",
