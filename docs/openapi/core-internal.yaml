@@ -1,0 +1,438 @@
+openapi: 3.0.3
+info:
+  title: MANI-Node (Core) — superficie interna para Dispatch
+  description: >
+    Contrato de las rutas de Core que solo consume MANI-Dispatch (ADR-0030, SCRUM-1073). No son públicas: el
+    Gateway responde `404` a cualquier variante de estas rutas que llegue desde fuera (`nginx.conf`, bloque
+    "Rutas internas de Core para Dispatch", y `tests/gateway/rutas-internas-core.sh`). Dispatch las llama por la
+    red interna en `core-service:3000`, sin pasar por el Gateway.
+
+
+    ## Identidad
+
+    Dispatch reenvía el JWT del usuario que originó la operación (`ForwardAuthorizationHandler`). Core lo verifica
+    igual que en las rutas públicas y saca de él el tenant, el usuario y el rol. Nunca se leen de cabeceras
+    (`X-Tenant-Id`) ni del cuerpo; un `tenantId` en el cuerpo que no coincide con el del JWT responde `403`.
+    Cada consulta corre con ese contexto (`app.set_context`) bajo el rol `mani_core_svc`, sujeto a RLS.
+
+
+    ## Errores
+
+    Mismo formato que el resto de Core: `{ error, code, correlationId }`. Los códigos de este contrato son
+    `MANI-DSP-*`, más `UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED` y `SERVICE_UNAVAILABLE`.
+  version: 0.1.0
+  x-internal: true
+servers:
+  - url: http://core-service:3000/api/v1
+    description: Red interna de docker compose; Dispatch configura la base como `CoreService:BaseUrl`
+
+tags:
+  - name: Dispatch Internal
+    description: Lecturas y escrituras de Core que Dispatch necesita para orquestar, aceptar y rechazar ofertas
+
+paths:
+  /allies/eligible:
+    get:
+      tags: [Dispatch Internal]
+      operationId: listEligibleAllies
+      summary: Aliados elegibles para una categoría y zona (HU-M05-03 / SCRUM-1398, HU-M05-05 / SCRUM-1400)
+      description: >
+        Devuelve los aliados del tenant del JWT que pueden recibir la oferta: estado de verificación `VERIFICADO`,
+        cuenta de usuario `ACTIVO`, categoría `ACTIVO` asignada, cobertura en la zona o en una zona ancestro
+        (zona `ACTIVO` o `ACTIVA`) y sin una ausencia vigente. Los aliados de `excludeAllyIds` quedan fuera
+        **antes** de paginar, así que `totalCount` ya los descuenta. Core no lee los rechazos (son del dominio de
+        Dispatch, T1): Dispatch los resuelve y los manda en `excludeAllyIds`. Solo lo usan un cliente o un admin
+        del tenant.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: categoriaId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: zonaId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: tipo
+          in: query
+          required: false
+          description: Filtro por tipo de aliado (sin distinguir mayúsculas). Vacío equivale a sin filtro.
+          schema:
+            $ref: '#/components/schemas/TipoAliado'
+        - name: excludeAllyIds
+          in: query
+          required: false
+          description: Ids de aliado separados por coma (máximo 100). Se ignoran los repetidos.
+          style: form
+          explode: false
+          schema:
+            type: array
+            maxItems: 100
+            items: { type: string, format: uuid }
+        - name: requestId
+          in: query
+          required: false
+          deprecated: true
+          description: >
+            Se valida como UUID pero ya no filtra. Se mantiene para no romper versiones anteriores de Dispatch;
+            usar `excludeAllyIds`.
+          schema: { type: string, format: uuid }
+        - name: page
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: Página de aliados elegibles, ordenados por nombre
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EligibleAlliesPage'
+        '400':
+          description: >
+            `categoriaId`, `zonaId`, `requestId` o un id de `excludeAllyIds` no son UUID; más de 100 excluidos;
+            `tipo` fuera del catálogo; `page` o `pageSize` inválidos (`MANI-DSP-400`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: La sesión no es de un cliente ni de un admin del tenant (`MANI-DSP-403`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /allies/me:
+    get:
+      tags: [Dispatch Internal]
+      operationId: getOwnAllyProfile
+      summary: Perfil mínimo del aliado de la sesión
+      description: >
+        Dispatch lo usa al aceptar o rechazar para saber qué aliado actúa y si está verificado, sin leer la tabla
+        `aliado`. `estadoVerificacion` usa el valor canónico del esquema.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Perfil del aliado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OwnAllyProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: La sesión no es de un aliado (`MANI-DSP-403`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: La cuenta no tiene perfil de aliado en el tenant (`MANI-DSP-404`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /solicitudes/{id}/context:
+    get:
+      tags: [Dispatch Internal]
+      operationId: getSolicitudContext
+      summary: Zona, categoría y estado de una solicitud (HU-M05-04 / SCRUM-1399)
+      description: >
+        Lo que Dispatch necesita para orquestar o rechazar. Pueden leerlo, dentro de su tenant: el admin del
+        tenant, el cliente dueño de la solicitud, el aliado asignado y el aliado que recibió una oferta
+        (`OFERTA_DESPACHO`) para esa solicitud. Para cualquier otra sesión la respuesta es `404`, igual que si no
+        existiera, para no revelar solicitudes ajenas. `esMia` es `true` solo para el aliado asignado.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Contexto de la solicitud
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SolicitudContext'
+        '400':
+          description: El id no es un UUID (`MANI-DSP-400`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: El rol no es cliente, admin ni aliado, o el token no identifica al usuario (`MANI-DSP-403`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: No existe, es de otro tenant o la sesión no tiene relación con ella (`MANI-DSP-404`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /notifications:
+    post:
+      tags: [Dispatch Internal]
+      operationId: publishDispatchOffer
+      summary: Publica la oferta de una solicitud en la bandeja de un aliado (HU-M05-07 / SCRUM-1402)
+      description: >
+        Guarda la notificación para el usuario del aliado (del mismo tenant) y la entrega por push. Si la entrega
+        falla, la notificación queda igual en la bandeja y `entrega.estado` es `FALLIDA`. Con el proveedor
+        simulado, `entrega.simulada` es `true`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishOfferRequest'
+      responses:
+        '201':
+          description: Oferta publicada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublishOfferResponse'
+        '400':
+          description: '`allyId` o `payload.requestId` no son UUID, o `tipo`, `canal` o `payload` inválidos (`MANI-DSP-400`)'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: >
+            La sesión no es de un cliente ni de un admin, o el `tenantId` del cuerpo no coincide con el del JWT
+            (`MANI-DSP-403`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: El aliado no existe en el tenant del JWT (`MANI-DSP-404`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    get:
+      tags: [Dispatch Internal]
+      operationId: listDispatchOffers
+      summary: Ofertas ya publicadas para una solicitud
+      description: >
+        Dispatch las consulta antes de publicar para no duplicar ofertas (RNF-03). Cada elemento es el `payload`
+        guardado más `timestamp` (el del payload o, si no trae, la fecha de envío).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: requestId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: tipo
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [OFERTA_DESPACHO]
+            default: OFERTA_DESPACHO
+      responses:
+        '200':
+          description: Ofertas de la solicitud en el tenant del JWT (lista vacía si no hay)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PublishedOffer'
+        '400':
+          description: '`requestId` no es UUID o `tipo` no es `OFERTA_DESPACHO` (`MANI-DSP-400`)'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: La sesión no es de un cliente ni de un admin del tenant (`MANI-DSP-403`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT del usuario que Dispatch reenvía tal cual lo recibió del Gateway.
+
+  parameters:
+    XCorrelationId:
+      name: X-Correlation-ID
+      in: header
+      required: false
+      description: Id de trazabilidad que Dispatch propaga. Si no llega, Core genera uno y lo devuelve.
+      schema:
+        type: string
+
+  responses:
+    Unauthorized:
+      description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    ServiceUnavailable:
+      description: La base de datos no está disponible; Core no tiene respaldo y falla cerrado (`SERVICE_UNAVAILABLE`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  schemas:
+    ErrorCode:
+      type: string
+      description: Códigos que puede devolver esta superficie.
+      enum:
+        - UNAUTHORIZED
+        - TOKEN_INVALID
+        - TOKEN_EXPIRED
+        - SERVICE_UNAVAILABLE
+        - MANI-DSP-400
+        - MANI-DSP-403
+        - MANI-DSP-404
+        - INTERNAL_ERROR
+      x-code-meanings:
+        UNAUTHORIZED: 'HTTP 401 — falta el header Authorization.'
+        TOKEN_INVALID: 'HTTP 401 — el JWT no tiene un formato o firma válidos.'
+        TOKEN_EXPIRED: 'HTTP 401 — el JWT ya expiró.'
+        SERVICE_UNAVAILABLE: 'HTTP 503 — la base de datos no está configurada o no responde.'
+        MANI-DSP-400: 'HTTP 400 — un parámetro no es un UUID o está fuera del catálogo o de rango.'
+        MANI-DSP-403: 'HTTP 403 — el rol de la sesión no puede usar la operación, o el tenant del cuerpo no es el del JWT.'
+        MANI-DSP-404: 'HTTP 404 — el recurso no existe en el tenant o no es visible para la sesión.'
+        INTERNAL_ERROR: 'HTTP 500 — fallo no controlado del servicio.'
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        code:
+          $ref: '#/components/schemas/ErrorCode'
+        correlationId:
+          type: string
+      required: [error, correlationId]
+
+    TipoAliado:
+      type: string
+      enum: [PERSONA_NATURAL, PERSONA_JURIDICA, EMPLEADO_DIRECTO]
+
+    EligibleAlly:
+      type: object
+      required: [id, nombreRazonSocial, tipo, estadoVerificacion]
+      properties:
+        id: { type: string, format: uuid }
+        nombreRazonSocial: { type: string, example: Ana Pérez }
+        tipo: { $ref: '#/components/schemas/TipoAliado' }
+        estadoVerificacion: { type: string, enum: [VERIFICADO] }
+
+    EligibleAlliesPage:
+      type: object
+      required: [allies, totalCount]
+      properties:
+        allies:
+          type: array
+          items: { $ref: '#/components/schemas/EligibleAlly' }
+        totalCount:
+          type: integer
+          minimum: 0
+          description: Total de elegibles con los filtros aplicados (incluida la exclusión), sin paginar.
+
+    OwnAllyProfile:
+      type: object
+      required: [id, tenantId, usuarioId, estadoVerificacion]
+      properties:
+        id: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        usuarioId: { type: string, format: uuid }
+        estadoVerificacion: { type: string, example: VERIFICADO }
+
+    SolicitudContext:
+      type: object
+      required: [id, tenantId, zonaId, categoriaId, estado, esMia]
+      properties:
+        id: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        zonaId: { type: string, format: uuid }
+        categoriaId: { type: string, format: uuid }
+        estado: { type: string, example: PENDIENTE }
+        esMia:
+          type: boolean
+          description: '`true` si la sesión es del aliado asignado a la solicitud.'
+
+    PublishOfferRequest:
+      type: object
+      required: [allyId, tipo, canal, payload]
+      properties:
+        tenantId:
+          type: string
+          format: uuid
+          description: Opcional. Si llega, debe ser el del JWT; si no, `403`.
+        allyId: { type: string, format: uuid }
+        tipo: { type: string, enum: [OFERTA_DESPACHO] }
+        canal: { type: string, enum: [PUSH] }
+        payload:
+          type: object
+          required: [requestId]
+          additionalProperties: true
+          properties:
+            requestId: { type: string, format: uuid }
+
+    PublishOfferResponse:
+      type: object
+      required: [id, entrega]
+      properties:
+        id: { type: string, format: uuid }
+        entrega:
+          type: object
+          required: [proveedor, estado, simulada]
+          properties:
+            proveedor: { type: string, example: mock }
+            estado:
+              type: string
+              description: '`SIMULADA` con el proveedor mock, `FALLIDA` si la entrega falló; un proveedor real informa su propio estado.'
+              example: SIMULADA
+            simulada: { type: boolean }
+            mensajeId: { type: string }
+
+    PublishedOffer:
+      type: object
+      required: [requestId, timestamp]
+      additionalProperties: true
+      properties:
+        requestId: { type: string, format: uuid }
+        allyId: { type: string, format: uuid }
+        timestamp: { type: string, format: date-time }
