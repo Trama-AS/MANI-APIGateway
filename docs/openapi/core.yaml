@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.11.0
+  version: 0.13.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -762,6 +762,228 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /cotizaciones/{id}/aceptar:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id de la cotización
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Service Requests]
+      operationId: acceptQuote
+      summary: El cliente acepta la cotización pendiente
+      description: >
+        US-04.2.3 (SCRUM-867, RF-17). La cotización pasa a `ACEPTADA` y la solicitud a `ACEPTADA`. El comentario es opcional. Solo responde el cliente dueño de la solicitud, sobre una cotización
+        `PENDIENTE` de una solicitud en `COTIZANDO`. La transición, el evento en `evento_servicio` y la notificación
+        `RESPUESTA_COTIZACION` al aliado (bandeja `/profiles/me/inbox`) van en una sola transacción; Core es el
+        dueño del estado tras la asignación (decisión 6A, SAD §7.4). Tenant y cliente salen del JWT.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuoteAcceptRequest'
+      responses:
+        '200':
+          description: Decisión registrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteDecisionResponse'
+        '400':
+          description: Id de cotización que no es UUID, o texto faltante, corto, de más de 500 caracteres o que no es cadena (`MANI-COT-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-COT-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es cliente (`MANI-COT-403`) o la cuenta no es un cliente activo del tenant (`MANI-COT-403C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La cotización no existe o no es de una solicitud del cliente (`MANI-COT-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La cotización ya fue respondida (`MANI-COT-409R`) o la solicitud no está en `COTIZANDO` (`MANI-COT-409E`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /cotizaciones/{id}/rechazar:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id de la cotización
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Service Requests]
+      operationId: rejectQuote
+      summary: El cliente rechaza la cotización pendiente
+      description: >
+        US-04.2.3 (SCRUM-867, RF-17). La cotización pasa a `RECHAZADA` y la solicitud a `RECHAZADA`. Exige `motivo` (o `comentario`) de 5 a 500 caracteres. Solo responde el cliente dueño de la solicitud, sobre una cotización
+        `PENDIENTE` de una solicitud en `COTIZANDO`. La transición, el evento en `evento_servicio` y la notificación
+        `RESPUESTA_COTIZACION` al aliado (bandeja `/profiles/me/inbox`) van en una sola transacción; Core es el
+        dueño del estado tras la asignación (decisión 6A, SAD §7.4). Tenant y cliente salen del JWT.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuoteRejectRequest'
+      responses:
+        '200':
+          description: Decisión registrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteDecisionResponse'
+        '400':
+          description: Id de cotización que no es UUID, o texto faltante, corto, de más de 500 caracteres o que no es cadena (`MANI-COT-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-COT-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es cliente (`MANI-COT-403`) o la cuenta no es un cliente activo del tenant (`MANI-COT-403C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La cotización no existe o no es de una solicitud del cliente (`MANI-COT-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La cotización ya fue respondida (`MANI-COT-409R`) o la solicitud no está en `COTIZANDO` (`MANI-COT-409E`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /cotizaciones/{id}/ajustar:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id de la cotización
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Service Requests]
+      operationId: adjustQuote
+      summary: El cliente pide ajustar la cotización pendiente
+      description: >
+        US-04.2.3 (SCRUM-867, RF-17). La cotización pasa a `AJUSTE_SOLICITADO` y la solicitud sigue en `COTIZANDO`, para que el aliado emita la siguiente versión. Exige `comentario` de 3 a 500 caracteres. Solo responde el cliente dueño de la solicitud, sobre una cotización
+        `PENDIENTE` de una solicitud en `COTIZANDO`. La transición, el evento en `evento_servicio` y la notificación
+        `RESPUESTA_COTIZACION` al aliado (bandeja `/profiles/me/inbox`) van en una sola transacción; Core es el
+        dueño del estado tras la asignación (decisión 6A, SAD §7.4). Tenant y cliente salen del JWT.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuoteAdjustRequest'
+      responses:
+        '200':
+          description: Decisión registrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteDecisionResponse'
+        '400':
+          description: Id de cotización que no es UUID, o texto faltante, corto, de más de 500 caracteres o que no es cadena (`MANI-COT-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-COT-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es cliente (`MANI-COT-403`) o la cuenta no es un cliente activo del tenant (`MANI-COT-403C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La cotización no existe o no es de una solicitud del cliente (`MANI-COT-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La cotización ya fue respondida (`MANI-COT-409R`) o la solicitud no está en `COTIZANDO` (`MANI-COT-409E`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /profiles/me/unavailability:
     get:
       tags: [Ally Availability]
@@ -1475,6 +1697,8 @@ components:
         - MANI-COT-404
         - MANI-COT-409E
         - MANI-COT-409P
+        - MANI-COT-403C
+        - MANI-COT-409R
         - INTERNAL_ERROR
       x-code-meanings:
         VALIDATION_ERROR: 'HTTP 400 — el body no cumple el esquema (campo faltante/formato inválido).'
@@ -1510,6 +1734,8 @@ components:
         MANI-COT-404: 'HTTP 404 — la solicitud no existe o no es visible para la sesión.'
         MANI-COT-409E: 'HTTP 409 — el estado de la solicitud no admite cotización.'
         MANI-COT-409P: 'HTTP 409 — la solicitud ya tiene una cotización pendiente de respuesta del cliente.'
+        MANI-COT-403C: 'HTTP 403 — solo un cliente activo del tenant responde cotizaciones.'
+        MANI-COT-409R: 'HTTP 409 — la cotización ya fue respondida; una segunda respuesta no produce otra transición.'
         INTERNAL_ERROR: 'HTTP 500 — fallo no controlado del servicio.'
 
     ErrorResponse:
@@ -2378,3 +2604,56 @@ components:
         correlationId:
           type: string
       required: [cotizaciones, correlationId]
+
+    QuoteAcceptRequest:
+      type: object
+      properties:
+        comentario:
+          type: string
+          minLength: 0
+          maxLength: 500
+          description: Opcional.
+
+    QuoteRejectRequest:
+      type: object
+      description: Debe venir `motivo` o, en su defecto, `comentario`.
+      properties:
+        motivo:
+          type: string
+          minLength: 5
+          maxLength: 500
+          description: Motivo del rechazo.
+        comentario:
+          type: string
+          minLength: 5
+          maxLength: 500
+          description: Se usa como motivo si no viene `motivo`.
+
+    QuoteAdjustRequest:
+      type: object
+      properties:
+        comentario:
+          type: string
+          minLength: 3
+          maxLength: 500
+          description: Qué debe cambiar el aliado en la siguiente versión.
+      required: [comentario]
+
+    QuoteDecisionResponse:
+      type: object
+      properties:
+        cotizacion:
+          $ref: '#/components/schemas/Quote'
+        solicitud:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            estado:
+              type: string
+              enum: [ACEPTADA, RECHAZADA, COTIZANDO]
+          required: [id, estado]
+        correlationId:
+          type: string
+      required: [cotizacion, solicitud, correlationId]
