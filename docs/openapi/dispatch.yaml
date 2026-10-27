@@ -534,6 +534,8 @@ components:
         esMia: { type: boolean }
         categoria: { type: string, nullable: true }
         flujoOperativo: { type: string, nullable: true }
+        descripcion: { type: string, nullable: true }
+        fotos: { type: integer, minimum: 0 }
         zona: { type: string, nullable: true }
         zonaPadre: { type: string, nullable: true }
         reglasSitio:

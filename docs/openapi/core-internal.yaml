@@ -610,6 +610,14 @@ components:
           description: '`true` si la solicitud ya está asignada al aliado de la sesión.'
         categoria: { type: string, example: Plomería }
         flujoOperativo: { type: string, nullable: true }
+        descripcion:
+          type: string
+          nullable: true
+          description: Problema que describió el cliente al publicar; visible antes de aceptar.
+        fotos:
+          type: integer
+          minimum: 0
+          description: Cantidad de fotos que adjuntó el cliente.
         zona: { type: string, example: Chapinero }
         zonaPadre: { type: string, nullable: true, example: Bogotá }
         reglasSitio:
