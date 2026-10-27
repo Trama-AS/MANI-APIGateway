@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.18.0
+  version: 0.19.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -1884,6 +1884,88 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
           description: La base de datos no está disponible (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /solicitudes/categorias:
+    get:
+      tags: [Service Requests]
+      operationId: listRequestCategories
+      summary: Categorías activas del tenant para crear una solicitud
+      description: >
+        TEC-18 (SCRUM-1465). Reemplaza la RPC `listar_categorias_cliente`: categorías `ACTIVO` del tenant del JWT,
+        ordenadas por nombre, con su flujo operativo. Sirve a cualquier cliente activo; el tenant nunca sale de
+        `X-Tenant-Id`. A diferencia de `/catalog/categories` (solo admin), no expone categorías inactivas.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Categorías activas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestCategoryListResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-SOL-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: La cuenta no es un cliente activo del tenant del JWT (`MANI-SOL-403C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /solicitudes/sitios:
+    get:
+      tags: [Service Requests]
+      operationId: listRequestSites
+      summary: Sitios del cliente de la sesión para crear una solicitud
+      description: >
+        TEC-18 (SCRUM-1465). Reemplaza la RPC `listar_mis_sitios`: sitios del cliente del JWT, persona natural o
+        empresa, del más reciente al más antiguo, con el nombre de la zona y de la zona padre. `/clients/me/sites`
+        sigue siendo la gestión de sedes del cliente empresa.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Sitios del cliente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestSiteListResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-SOL-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: La cuenta no es un cliente activo del tenant del JWT (`MANI-SOL-403C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
           content:
             application/json:
               schema:
@@ -4298,3 +4380,59 @@ components:
           items:
             $ref: '#/components/schemas/Zone'
       required: [zone, ancestors, children]
+
+    RequestCategory:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+        flujoOperativo:
+          type: string
+          enum: [COTIZACION_PREVIA, TARIFA_ESTANDAR]
+      required: [id, nombre, flujoOperativo]
+
+    RequestCategoryListResponse:
+      type: object
+      properties:
+        categorias:
+          type: array
+          items:
+            $ref: '#/components/schemas/RequestCategory'
+        correlationId:
+          type: string
+      required: [categorias, correlationId]
+
+    RequestSite:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+          description: Nombre de la sede; si no tiene, la dirección.
+        direccion:
+          type: string
+        zonaId:
+          type: string
+          format: uuid
+        zona:
+          type: string
+        zonaPadre:
+          type: string
+          nullable: true
+      required: [id, nombre, direccion, zonaId, zona, zonaPadre]
+
+    RequestSiteListResponse:
+      type: object
+      properties:
+        sitios:
+          type: array
+          items:
+            $ref: '#/components/schemas/RequestSite'
+        correlationId:
+          type: string
+      required: [sitios, correlationId]
