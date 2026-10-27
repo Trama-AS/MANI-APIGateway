@@ -29,7 +29,20 @@ info:
     `{ error, code, status, correlationId, timestamp }`. Los códigos propios son `MANI-DSP-*`; las respuestas
     que vienen de Core conservan su `MANI-SOL-*`. `CORE_SERVICE_UNAVAILABLE` y `DATABASE_UNAVAILABLE` son `503`:
     Dispatch falla cerrado y no da nada por asignado.
-  version: 0.1.0
+
+
+    ## Orden de los elegibles (borrador, SCRUM-1401 / SCRUM-1462)
+
+    El campo `ranking` de `MatchResponse` y los campos `posicion`, `puntaje` y `razones` de cada aliado son un
+    **borrador** para que MANI-Rules (SCRUM-1462) y Dispatch acuerden cómo entregar el orden. Mientras Dispatch
+    no los envíe, el cliente los trata como `ranking.estado = NO_DISPONIBLE`. Reglas del borrador:
+
+    - `matchedAllies` llega **ya ordenado**: el cliente no reordena ni recalcula nada.
+    - `APLICADO` solo si el orden salió de una evaluación real de Rules. Si Rules no responde, responde con su
+      mock o no está configurado, Dispatch envía `NO_DISPONIBLE` con un `motivo` y la lista en su orden estable
+      (sin `posicion`, `puntaje` ni `razones`). Nunca reenvía un puntaje simulado como si fuera real.
+    - El orden se aplica antes de paginar, así que `posicion` es global (la página 2 empieza en `pageSize + 1`).
+  version: 0.2.0
 servers:
   - url: http://localhost/api/v1/dispatch
     description: A través del Gateway (docker compose)
@@ -435,17 +448,57 @@ components:
         page: { type: integer }
         pageSize: { type: integer }
         totalCount: { type: integer }
+        ranking: { $ref: '#/components/schemas/RankingInfo' }
         matchedAllies:
           type: array
-          items:
-            type: object
-            required: [allyId, nombreRazonSocial, tipo, estadoVerificacion]
-            properties:
-              allyId: { type: string, format: uuid }
-              nombreRazonSocial: { type: string }
-              tipo: { $ref: '#/components/schemas/TipoAliado' }
-              estadoVerificacion: { type: string, enum: [VERIFICADO] }
+          description: En el orden en que se deben mostrar. Si `ranking.estado` es `APLICADO`, por `posicion`.
+          items: { $ref: '#/components/schemas/EligibleAlly' }
         timestamp: { type: string, format: date-time }
+
+    RankingInfo:
+      type: object
+      description: >
+        Borrador (SCRUM-1401 / SCRUM-1462). Si falta, el cliente lo trata como `NO_DISPONIBLE`.
+      required: [estado]
+      properties:
+        estado:
+          type: string
+          enum: [APLICADO, NO_DISPONIBLE]
+        criterio:
+          type: string
+          nullable: true
+          description: Identificador de la regla de Rules que ordenó la lista (solo con `APLICADO`).
+          example: CERCANIA_Y_CALIFICACION_V1
+        motivo:
+          type: string
+          nullable: true
+          description: Por qué no hay orden (solo con `NO_DISPONIBLE`).
+          enum: [RULES_NO_CONFIGURADO, RULES_NO_DISPONIBLE, RULES_SIN_EVALUACION, null]
+
+    EligibleAlly:
+      type: object
+      required: [allyId, nombreRazonSocial, tipo, estadoVerificacion]
+      properties:
+        allyId: { type: string, format: uuid }
+        nombreRazonSocial: { type: string }
+        tipo: { $ref: '#/components/schemas/TipoAliado' }
+        estadoVerificacion: { type: string, enum: [VERIFICADO] }
+        posicion:
+          type: integer
+          minimum: 1
+          nullable: true
+          description: Borrador. Posición global en el orden de Rules (solo con `APLICADO`).
+        puntaje:
+          type: number
+          minimum: 0
+          maximum: 1
+          nullable: true
+          description: Borrador. Puntaje normalizado de Rules (solo con `APLICADO`); informativo, no reordenar.
+        razones:
+          type: array
+          nullable: true
+          description: Borrador. Razones legibles del puesto (solo con `APLICADO`), por ejemplo "Atiende tu zona".
+          items: { type: string }
 
     OrchestrateRequest:
       type: object
