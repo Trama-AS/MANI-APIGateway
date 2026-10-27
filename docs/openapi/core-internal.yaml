@@ -19,8 +19,17 @@ info:
     ## Errores
 
     Mismo formato que el resto de Core: `{ error, code, correlationId }`. Los códigos de este contrato son
-    `MANI-DSP-*`, más `UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED` y `SERVICE_UNAVAILABLE`.
-  version: 0.1.0
+    `MANI-DSP-*` y, en el comando de asignación, `MANI-SOL-*`, más `UNAUTHORIZED`, `TOKEN_INVALID`,
+    `TOKEN_EXPIRED` y `SERVICE_UNAVAILABLE`.
+
+
+    ## Asignación (decisión 6A, SCRUM-1403)
+
+    Core es el único que escribe el estado de la solicitud. Dispatch decide quién acepta (verifica el perfil y que
+    el aliado no haya rechazado la oferta) y le pide a Core que registre la asignación con
+    `POST /solicitudes/{id}/asignacion`. La migración 0019 de Core le quita a `mani_dispatch_svc` el `UPDATE`
+    sobre `solicitud`.
+  version: 0.2.0
   x-internal: true
 servers:
   - url: http://core-service:3000/api/v1
@@ -190,6 +199,111 @@ paths:
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
 
+  /solicitudes/{id}/asignacion:
+    post:
+      tags: [Dispatch Internal]
+      operationId: assignSolicitud
+      summary: Registra la asignación que decidió Dispatch (HU-M05-07 / SCRUM-1403, decisión 6A)
+      description: >
+        Asigna la solicitud al aliado del JWT reenviado. El cuerpo va vacío: el aliado nunca sale del cuerpo ni de
+        cabeceras. Todo ocurre en una transacción con la fila bloqueada (`SELECT … FOR UPDATE`) y un `UPDATE`
+        condicional (`estado = 'PENDIENTE' AND aliado_id IS NULL`), que hacen de control de versión: con N aliados
+        a la vez, exactamente uno gana y los demás reciben `409`. En la misma transacción se escriben el evento
+        `SOLICITUD_ASIGNADA` y la notificación al cliente. Las comprobaciones van en este orden: aliado activo
+        (`403`), verificado (`403V`), la solicitud existe en el tenant (`404`), ya es del mismo aliado (`200` con
+        `asignada: false`, reintento idempotente), es de otro aliado (`409`, sin revelar cuál), no está `PENDIENTE`
+        (`409E`), el aliado no recibió oferta (`403O`) y el aliado no es elegible por categoría o zona (`403E`).
+        Cada intento deja un log JSON con `correlationId`, `idempotencyKey` y resultado.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: >
+            Clave del toque del aliado que Dispatch propaga para trazar reintentos. La idempotencia no depende de
+            ella: el reintento del mismo aliado siempre responde `200` con `asignada: false`.
+          schema: { type: string, maxLength: 200 }
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: 'Asignada (`asignada: true`) o ya era del aliado de la sesión (`asignada: false`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignmentResponse'
+        '400':
+          description: El id no es un UUID (`MANI-SOL-400`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Sin sesión o el usuario del token no es un UUID (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-SOL-401`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: >
+            El rol no es aliado o el aliado no está activo (`MANI-SOL-403`), no está verificado (`MANI-SOL-403V`),
+            no recibió oferta para la solicitud (`MANI-SOL-403O`) o no es elegible (`MANI-SOL-403E`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: No existe en el tenant del JWT (`MANI-SOL-404`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: Ya la tomó otro aliado (`MANI-SOL-409`) o ya no está `PENDIENTE` (`MANI-SOL-409E`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /allies/me/offers:
+    get:
+      tags: [Dispatch Internal]
+      operationId: listOwnAllyOffers
+      summary: Bandeja del aliado de la sesión (HU-M05-06 / SCRUM-1402, HU-M05-08 / SCRUM-1404)
+      description: >
+        Solicitudes asignadas al aliado (salvo las canceladas) y solicitudes `PENDIENTE` sin asignar para las que
+        recibió una oferta `OFERTA_DESPACHO`, ordenadas por fecha de creación (máximo 100). La dirección y la fecha
+        de asignación solo vienen cuando la solicitud es suya. Core no quita las ofertas rechazadas: los rechazos
+        son de Dispatch, que los filtra en `GET /api/v1/dispatch/offers/me`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Bandeja del aliado
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, correlationId]
+                properties:
+                  items:
+                    type: array
+                    maxItems: 100
+                    items: { $ref: '#/components/schemas/AllyOffer' }
+                  correlationId: { type: string }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: La sesión no es de un aliado, o el usuario o el tenant del token no son válidos (`MANI-DSP-403`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
   /notifications:
     post:
       tags: [Dispatch Internal]
@@ -198,7 +312,9 @@ paths:
       description: >
         Guarda la notificación para el usuario del aliado (del mismo tenant) y la entrega por push. Si la entrega
         falla, la notificación queda igual en la bandeja y `entrega.estado` es `FALLIDA`. Con el proveedor
-        simulado, `entrega.simulada` es `true`.
+        simulado, `entrega.simulada` es `true`. Hay una sola oferta por aliado y solicitud (índice único
+        `ux_notificacion_oferta_despacho`, migración 0019): si ya existía, responde `200` con la existente,
+        `nueva: false` y `entrega: null`, sin volver a enviar el push. Dos orquestaciones simultáneas no duplican.
       security:
         - bearerAuth: []
       parameters:
@@ -210,8 +326,14 @@ paths:
             schema:
               $ref: '#/components/schemas/PublishOfferRequest'
       responses:
+        '200':
+          description: 'La oferta ya existía; no se reenvía el push (`nueva: false`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublishOfferResponse'
         '201':
-          description: Oferta publicada
+          description: 'Oferta publicada (`nueva: true`)'
           content:
             application/json:
               schema:
@@ -324,6 +446,15 @@ components:
         - MANI-DSP-400
         - MANI-DSP-403
         - MANI-DSP-404
+        - MANI-SOL-400
+        - MANI-SOL-401
+        - MANI-SOL-403
+        - MANI-SOL-403V
+        - MANI-SOL-403O
+        - MANI-SOL-403E
+        - MANI-SOL-404
+        - MANI-SOL-409
+        - MANI-SOL-409E
         - INTERNAL_ERROR
       x-code-meanings:
         UNAUTHORIZED: 'HTTP 401 — falta el header Authorization.'
@@ -333,6 +464,15 @@ components:
         MANI-DSP-400: 'HTTP 400 — un parámetro no es un UUID o está fuera del catálogo o de rango.'
         MANI-DSP-403: 'HTTP 403 — el rol de la sesión no puede usar la operación, o el tenant del cuerpo no es el del JWT.'
         MANI-DSP-404: 'HTTP 404 — el recurso no existe en el tenant o no es visible para la sesión.'
+        MANI-SOL-400: 'HTTP 400 — el id de la solicitud no es un UUID.'
+        MANI-SOL-401: 'HTTP 401 — sin sesión, o el usuario del token no es un UUID.'
+        MANI-SOL-403: 'HTTP 403 — la sesión no es de un aliado activo.'
+        MANI-SOL-403V: 'HTTP 403 — el aliado no está verificado.'
+        MANI-SOL-403O: 'HTTP 403 — el aliado no recibió oferta para la solicitud.'
+        MANI-SOL-403E: 'HTTP 403 — el aliado no es elegible por categoría o zona.'
+        MANI-SOL-404: 'HTTP 404 — la solicitud no existe en el tenant.'
+        MANI-SOL-409: 'HTTP 409 — otro aliado ya tomó la solicitud (no se revela cuál).'
+        MANI-SOL-409E: 'HTTP 409 — la solicitud ya no está PENDIENTE.'
         INTERNAL_ERROR: 'HTTP 500 — fallo no controlado del servicio.'
 
     ErrorResponse:
@@ -413,11 +553,16 @@ components:
 
     PublishOfferResponse:
       type: object
-      required: [id, entrega]
+      required: [id, nueva, entrega]
       properties:
         id: { type: string, format: uuid }
+        nueva:
+          type: boolean
+          description: '`false` si la oferta ya existía para ese aliado y solicitud.'
         entrega:
           type: object
+          nullable: true
+          description: '`null` cuando `nueva` es `false`: no se reenvía el push.'
           required: [proveedor, estado, simulada]
           properties:
             proveedor: { type: string, example: mock }
@@ -436,3 +581,48 @@ components:
         requestId: { type: string, format: uuid }
         allyId: { type: string, format: uuid }
         timestamp: { type: string, format: date-time }
+
+    AssignmentResponse:
+      type: object
+      required: [solicitud, asignada, correlationId]
+      properties:
+        solicitud:
+          type: object
+          required: [id, estado, aliadoId, asignadaEn]
+          properties:
+            id: { type: string, format: uuid }
+            estado: { type: string, example: ASIGNADA }
+            aliadoId: { type: string, format: uuid }
+            asignadaEn: { type: string, format: date-time }
+        asignada:
+          type: boolean
+          description: '`true` si este intento la asignó; `false` si ya era del aliado de la sesión (reintento).'
+        correlationId: { type: string }
+
+    AllyOffer:
+      type: object
+      required: [id, estado, esMia, creadaEn]
+      properties:
+        id: { type: string, format: uuid }
+        estado: { type: string, example: PENDIENTE }
+        esMia:
+          type: boolean
+          description: '`true` si la solicitud ya está asignada al aliado de la sesión.'
+        categoria: { type: string, example: Plomería }
+        flujoOperativo: { type: string, nullable: true }
+        zona: { type: string, example: Chapinero }
+        zonaPadre: { type: string, nullable: true, example: Bogotá }
+        reglasSitio:
+          type: object
+          additionalProperties: true
+          description: Reglas del sitio; objeto vacío si no hay.
+        direccion:
+          type: string
+          nullable: true
+          description: Solo cuando `esMia` es `true`.
+        creadaEn: { type: string, format: date-time }
+        asignadaEn:
+          type: string
+          format: date-time
+          nullable: true
+          description: Solo cuando `esMia` es `true`.
