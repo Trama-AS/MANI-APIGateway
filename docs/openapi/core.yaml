@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.16.0
+  version: 0.17.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -624,6 +624,87 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: La solicitud no existe o no es del cliente de la sesión (`MANI-SOL-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /solicitudes/me/{id}/cancelar:
+    patch:
+      tags: [Service Requests]
+      operationId: cancelOwnServiceRequest
+      summary: El cliente cancela una solicitud propia antes de la ejecución
+      description: >
+        US-04.5.1 (SCRUM-877). Se cancela desde `PENDIENTE`, `ASIGNADA`, `COTIZANDO`, `ACEPTADA` o `RECHAZADA`;
+        desde `EN_EJECUCION` o `FINALIZADA` responde `409`. El tenant y el cliente salen del JWT (`bearerAuth`),
+        nunca del cuerpo ni de `X-Tenant-Id`; una solicitud de otro cliente o de otro tenant responde `404`, igual
+        que una inexistente. La cancelación queda en la línea de tiempo (`SOLICITUD_CANCELADA`) y, si había aliado
+        asignado, le llega una notificación `SOLICITUD_CANCELADA` a su bandeja. Repetirla es idempotente: responde
+        `200` con `cancelada: false` y no repite el evento ni la notificación.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: id
+          in: path
+          required: true
+          description: Id de la solicitud
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelServiceRequestRequest'
+      responses:
+        '200':
+          description: Solicitud cancelada, o ya estaba cancelada (`cancelada` lo distingue)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancelServiceRequestResponse'
+        '400':
+          description: El id no es un UUID (`MANI-SOL-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-SOL-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: La sesión no es de un cliente (`MANI-SOL-403C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La solicitud no existe o no es del cliente de la sesión (`MANI-SOL-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La solicitud ya está en ejecución o finalizada y no se puede cancelar (`MANI-SOL-409C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: El motivo supera 200 caracteres (`MANI-SOL-422M`)
           content:
             application/json:
               schema:
@@ -2103,12 +2184,14 @@ components:
         - MANI-SOL-401
         - MANI-SOL-403C
         - MANI-SOL-404
+        - MANI-SOL-409C
         - MANI-SOL-422C
         - MANI-SOL-422D
         - MANI-SOL-422S
         - MANI-SOL-422Z
         - MANI-SOL-422F
         - MANI-SOL-422K
+        - MANI-SOL-422M
         - MANI-COT-400
         - MANI-COT-401
         - MANI-COT-403
@@ -2153,8 +2236,8 @@ components:
         TERMS_NOT_ACCEPTED: 'HTTP 400 — el registro de aliado persona natural llegó sin acceptsTerms=true (SCRUM-856).'
         SERVICE_UNAVAILABLE: 'HTTP 503 — una dependencia (p. ej. la base de datos) no está disponible; no hay respaldo local.'
         MANI-SOL-400: 'HTTP 400 — el id de la solicitud no es un UUID (seguimiento del cliente).'
-        MANI-SOL-401: 'HTTP 401 — sesión requerida para crear o consultar solicitudes.'
-        MANI-SOL-403C: 'HTTP 403 — solo un cliente activo del tenant puede publicar o consultar sus solicitudes.'
+        MANI-SOL-401: 'HTTP 401 — sesión requerida para crear, consultar o cancelar solicitudes.'
+        MANI-SOL-403C: 'HTTP 403 — solo un cliente activo del tenant puede publicar, consultar o cancelar sus solicitudes.'
         MANI-SOL-404: 'HTTP 404 — la solicitud no existe o no es del cliente de la sesión.'
         MANI-SOL-422C: 'HTTP 422 — la categoría no existe, no está activa o es de otro tenant.'
         MANI-SOL-422D: 'HTTP 422 — la descripción debe tener entre 20 y 1000 caracteres.'
@@ -2162,6 +2245,8 @@ components:
         MANI-SOL-422Z: 'HTTP 422 — la zona no existe o no está activa.'
         MANI-SOL-422F: 'HTTP 422 — más de 5 fotos o un archivo que no es imagen.'
         MANI-SOL-422K: 'HTTP 422 — la clave de idempotencia no es un UUID.'
+        MANI-SOL-409C: 'HTTP 409 — la solicitud ya está en ejecución o finalizada y no se puede cancelar.'
+        MANI-SOL-422M: 'HTTP 422 — el motivo de la cancelación supera 200 caracteres.'
         MANI-COT-400: 'HTTP 400 — id de solicitud no válido o importes de la cotización inválidos.'
         MANI-COT-401: 'HTTP 401 — sesión requerida para cotizar o consultar cotizaciones.'
         MANI-COT-403: 'HTTP 403 — el rol de la sesión no puede emitir o consultar cotizaciones.'
@@ -2630,6 +2715,28 @@ components:
         correlationId:
           type: string
       required: [solicitud, correlationId]
+
+    CancelServiceRequestRequest:
+      type: object
+      description: Cuerpo opcional de la cancelación (SCRUM-877). Cualquier otro campo, como un tenant, se ignora.
+      properties:
+        motivo:
+          type: string
+          maxLength: 200
+          example: Ya resolví el problema por mi cuenta
+          description: Queda en la línea de tiempo del servicio. Sin motivo se registra uno por defecto.
+
+    CancelServiceRequestResponse:
+      type: object
+      properties:
+        solicitud:
+          $ref: '#/components/schemas/ServiceRequestTracking'
+        cancelada:
+          type: boolean
+          description: '`true` si esta petición la canceló; `false` si ya estaba cancelada.'
+        correlationId:
+          type: string
+      required: [solicitud, cancelada, correlationId]
 
     AbsenceErrorResponse:
       type: object
