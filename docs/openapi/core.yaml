@@ -56,6 +56,11 @@ tags:
       Pagos del cliente en el sandbox simulado (HU-M11-01 / SCRUM-1432, RF-24). El proveedor es un mock: no mueve
       dinero ni recibe datos de tarjeta, y cada pago y comprobante se identifica como simulado. Tenant, cliente y rol
       salen del JWT; el monto sale de la cotización.
+  - name: Messaging
+    description: >
+      Mensajería entre el cliente y el aliado de un servicio (HU-M09-02 / SCRUM-881, RF-20). Core guarda los mensajes
+      y el otro participante los recibe consultando el hilo cada pocos segundos con `despuesDe` (sin tiempo real).
+      Solo participan el cliente dueño de la solicitud y el aliado asignado; tenant, usuario y rol salen del JWT.
   - name: Ally Availability
     description: Intervalos en los que el aliado está "No disponible" (US-02.1.6 / SCRUM-855)
   - name: Service Categories
@@ -1702,6 +1707,162 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /solicitudes/{id}/mensajes:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id de la solicitud
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Messaging]
+      operationId: sendMessage
+      summary: El cliente o el aliado asignado envía un mensaje en el hilo del servicio
+      description: >
+        HU-M09-02 (SCRUM-881, RF-20). Solo el cliente dueño de la solicitud y el aliado asignado. El remitente, el
+        tenant y el rol salen del JWT, nunca del cuerpo. Se escribe mientras la solicitud está `ASIGNADA`,
+        `COTIZANDO`, `ACEPTADA` o `EN_EJECUCION`; en cualquier otro estado el hilo solo se lee. Con
+        `claveIdempotencia`, un reintento devuelve el mensaje ya guardado con `200` en lugar de `201`. El mensaje
+        solo se da por enviado cuando ya está guardado: ante un fallo no hay entrega y la respuesta lleva
+        `correlationId`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+      responses:
+        '201':
+          description: Mensaje guardado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse_'
+        '200':
+          description: Reintento con la misma `claveIdempotencia`; se devuelve el mensaje ya guardado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse_'
+        '400':
+          description: Contenido vacío, de más de 1000 caracteres o con caracteres no permitidos; id o clave que no son UUID (`MANI-MSG-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-MSG-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es cliente ni aliado (`MANI-MSG-403`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La solicitud no existe o la sesión no es su cliente ni su aliado asignado (`MANI-MSG-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La solicitud está en un estado que no admite mensajes nuevos (`MANI-MSG-409E`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      tags: [Messaging]
+      operationId: listMessages
+      summary: Mensajes del hilo, con consulta incremental
+      description: >
+        HU-M09-02 (SCRUM-881, RF-20). Solo el cliente dueño y el aliado asignado. Sin `despuesDe` devuelve los últimos
+        `limite` mensajes; con `despuesDe` (id del último mensaje que el cliente ya tiene) devuelve solo los
+        posteriores. Siempre del más antiguo al más reciente. La app lo consulta cada pocos segundos mientras el chat
+        está abierto; la respuesta no se cachea (`Cache-Control: no-store`). `mio` indica si el mensaje es de la sesión
+        y `remitente.rol` el rol de quien lo escribió, sin datos personales.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: despuesDe
+          in: query
+          required: false
+          description: Id del último mensaje que el cliente ya tiene; debe ser un mensaje de este hilo.
+          schema:
+            type: string
+            format: uuid
+        - name: limite
+          in: query
+          required: false
+          description: Máximo de mensajes a devolver.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: Los mensajes del hilo (lista vacía si no hay nuevos)
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageListResponse'
+        '400':
+          description: El parámetro `limite` está fuera de 1 a 100, o `despuesDe`/id que no son UUID o no son un mensaje de este hilo (`MANI-MSG-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es cliente ni aliado (`MANI-MSG-403`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La solicitud no existe o la sesión no es su cliente ni su aliado asignado (`MANI-MSG-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /profiles/me/unavailability:
     get:
       tags: [Ally Availability]
@@ -2434,6 +2595,11 @@ components:
         - MANI-EVT-403A
         - MANI-EVT-404
         - MANI-EVT-409E
+        - MANI-MSG-400
+        - MANI-MSG-401
+        - MANI-MSG-403
+        - MANI-MSG-404
+        - MANI-MSG-409E
         - MANI-EVT-404E
         - INTERNAL_ERROR
       x-code-meanings:
@@ -2490,6 +2656,11 @@ components:
         MANI-EVT-404: 'HTTP 404 — la solicitud no existe o no es visible para la sesión.'
         MANI-EVT-409E: 'HTTP 409 — solo se registran eventos con la solicitud en ejecución.'
         MANI-EVT-404E: 'HTTP 404 — el evento no existe en la solicitud o no tiene evidencia.'
+        MANI-MSG-400: 'HTTP 400 — contenido, clave de idempotencia, límite, cursor o id inválidos.'
+        MANI-MSG-401: 'HTTP 401 — sesión requerida para la mensajería.'
+        MANI-MSG-403: 'HTTP 403 — solo el cliente y el aliado del servicio participan en la mensajería.'
+        MANI-MSG-404: 'HTTP 404 — la solicitud no existe o la sesión no es su cliente ni su aliado asignado.'
+        MANI-MSG-409E: 'HTTP 409 — la solicitud en su estado actual no admite mensajes nuevos.'
         INTERNAL_ERROR: 'HTTP 500 — fallo no controlado del servicio.'
 
     ErrorResponse:
@@ -3524,6 +3695,67 @@ components:
         correlationId:
           type: string
       required: [comprobante]
+
+    SendMessageRequest:
+      type: object
+      description: Mensaje del servicio. El remitente no viene en el cuerpo, sale del JWT.
+      properties:
+        contenido:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: Texto del mensaje; se recortan los espacios de los extremos y no puede quedar vacío.
+        claveIdempotencia:
+          type: string
+          format: uuid
+          description: Un reintento con la misma clave devuelve el mensaje ya guardado.
+      required: [contenido]
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        solicitudId:
+          type: string
+          format: uuid
+        contenido:
+          type: string
+        creadoEn:
+          type: string
+          format: date-time
+        remitente:
+          type: object
+          properties:
+            rol:
+              type: string
+              enum: [CLIENT, ALLY]
+          required: [rol]
+        mio:
+          type: boolean
+          description: Verdadero si el mensaje lo escribió la sesión que consulta.
+      required: [id, solicitudId, contenido, creadoEn, remitente, mio]
+
+    MessageResponse_:
+      type: object
+      properties:
+        mensaje:
+          $ref: '#/components/schemas/Message'
+        correlationId:
+          type: string
+      required: [mensaje]
+
+    MessageListResponse:
+      type: object
+      properties:
+        mensajes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Message'
+        correlationId:
+          type: string
+      required: [mensajes]
 
     QuoteDecisionResponse:
       type: object
