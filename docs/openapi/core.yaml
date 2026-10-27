@@ -51,6 +51,11 @@ tags:
     description: Registro de Clientes persona natural y empresa
   - name: Service Requests
     description: Creación de solicitudes de servicio por el cliente (US-04.1.1-M2 / SCRUM-1072)
+  - name: Payments
+    description: >
+      Pagos del cliente en el sandbox simulado (HU-M11-01 / SCRUM-1432, RF-24). El proveedor es un mock: no mueve
+      dinero ni recibe datos de tarjeta, y cada pago y comprobante se identifica como simulado. Tenant, cliente y rol
+      salen del JWT; el monto sale de la cotización.
   - name: Ally Availability
     description: Intervalos en los que el aliado está "No disponible" (US-02.1.6 / SCRUM-855)
   - name: Service Categories
@@ -1477,6 +1482,219 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
           description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /pagos:
+    post:
+      tags: [Payments]
+      operationId: createPayment
+      summary: El cliente paga una cotización aceptada en el sandbox simulado
+      description: >
+        HU-M11-01 (SCRUM-1432, RF-24). El cliente dueño de una cotización `ACEPTADA` la paga con el proveedor
+        simulado. El monto es mano de obra + materiales de la cotización y nunca viene del cuerpo; tenant, cliente y
+        rol salen del JWT. `escenario` elige el desenlace del mock (por omisión `APROBADO`). Una cotización no se cobra
+        dos veces: con un pago aprobado, un nuevo intento responde `409`. Con `claveIdempotencia`, un reintento
+        devuelve el pago ya registrado con `200` en lugar de `201`. Si el proveedor no da un desenlace (timeout,
+        respuesta inválida) **no se registra ningún pago** y la respuesta es `504` o `502`. El cuerpo no admite datos
+        de tarjeta.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentRequest'
+      responses:
+        '201':
+          description: Pago registrado (puede estar `APROBADO`, `RECHAZADO` o `PENDIENTE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '200':
+          description: Reintento con la misma `claveIdempotencia`; se devuelve el pago ya registrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '400':
+          description: Id o clave que no son UUID, o un campo de tarjeta en el cuerpo (`MANI-PAG-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-PAG-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es cliente (`MANI-PAG-403`) o la cuenta no es un cliente activo del tenant (`MANI-PAG-403C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La cotización no existe o no es de una solicitud del cliente (`MANI-PAG-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La cotización no está aceptada (`MANI-PAG-409E`) o ya tiene un pago aprobado (`MANI-PAG-409A`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: El proveedor no dio una respuesta válida; no se realizó ningún cobro (`MANI-PAG-502`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '504':
+          description: El proveedor no respondió a tiempo; no se realizó ningún cobro (`MANI-PAG-504`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /pagos/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id del pago
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Payments]
+      operationId: getPayment
+      summary: El cliente consulta uno de sus pagos
+      description: >
+        HU-M11-01 (SCRUM-1432). Solo el cliente que pagó. El pago de otro cliente o de otro tenant responde `404`, igual
+        que uno inexistente.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: El pago
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '400':
+          description: El id no es un UUID (`MANI-PAG-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es cliente o la cuenta no es un cliente activo (`MANI-PAG-403`, `MANI-PAG-403C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: El pago no existe o no es del cliente (`MANI-PAG-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /pagos/{id}/comprobante:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id del pago
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Payments]
+      operationId: getPaymentReceipt
+      summary: Comprobante del pago aprobado, identificado como simulado
+      description: >
+        HU-M11-01 (SCRUM-1432). Solo existe para un pago `APROBADO`. En el sandbox el comprobante lleva `simulado: true`
+        y una leyenda que dice que no tiene valor contable ni fiscal. Solo lo ve el cliente que pagó.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: El comprobante
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentReceiptResponse'
+        '400':
+          description: El id no es un UUID (`MANI-PAG-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es cliente o la cuenta no es un cliente activo (`MANI-PAG-403`, `MANI-PAG-403C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: El pago no existe o no es del cliente (`MANI-PAG-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: El pago no está aprobado, así que no tiene comprobante (`MANI-PAG-409C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible (`SERVICE_UNAVAILABLE`)
           content:
             application/json:
               schema:
@@ -3196,6 +3414,116 @@ components:
           maxLength: 500
           description: Qué debe cambiar el aliado en la siguiente versión.
       required: [comentario]
+
+    CreatePaymentRequest:
+      type: object
+      description: >
+        Solicitud de pago en el sandbox. No admite datos de tarjeta ni monto: el monto sale de la cotización.
+      properties:
+        cotizacionId:
+          type: string
+          format: uuid
+          description: Cotización `ACEPTADA` del cliente.
+        escenario:
+          type: string
+          enum: [APROBADO, RECHAZADO, PENDIENTE, TIMEOUT, RESPUESTA_INVALIDA]
+          default: APROBADO
+          description: Desenlace que simula el proveedor. `TIMEOUT` y `RESPUESTA_INVALIDA` no registran ningún pago.
+        claveIdempotencia:
+          type: string
+          format: uuid
+          description: Un reintento con la misma clave devuelve el pago ya registrado.
+      required: [cotizacionId]
+
+    Payment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        cotizacionId:
+          type: string
+          format: uuid
+        monto:
+          type: number
+          example: 150000.5
+        moneda:
+          type: string
+          example: COP
+        estado:
+          type: string
+          enum: [APROBADO, RECHAZADO, PENDIENTE]
+        proveedor:
+          type: string
+          example: mock
+        simulado:
+          type: boolean
+          description: "`true` si el proveedor no mueve dinero real (todos los pagos del Sprint 5)."
+        referenciaProveedor:
+          type: string
+        motivo:
+          type: string
+          nullable: true
+          description: Motivo del rechazo, si lo hubo.
+        correlationId:
+          type: string
+          nullable: true
+        creadoEn:
+          type: string
+          format: date-time
+      required: [id, cotizacionId, monto, moneda, estado, proveedor, simulado, referenciaProveedor, creadoEn]
+
+    PaymentResponse:
+      type: object
+      properties:
+        pago:
+          $ref: '#/components/schemas/Payment'
+        correlationId:
+          type: string
+      required: [pago]
+
+    PaymentReceipt:
+      type: object
+      properties:
+        numero:
+          type: string
+          example: SIM-55555555
+        simulado:
+          type: boolean
+        leyenda:
+          type: string
+          nullable: true
+          description: Aviso de que el comprobante es de prueba; viene cuando `simulado` es `true`.
+        pagoId:
+          type: string
+          format: uuid
+        cotizacionId:
+          type: string
+          format: uuid
+        monto:
+          type: number
+        moneda:
+          type: string
+        estado:
+          type: string
+          enum: [APROBADO]
+        proveedor:
+          type: string
+        referenciaProveedor:
+          type: string
+        fecha:
+          type: string
+          format: date-time
+      required: [numero, simulado, pagoId, cotizacionId, monto, moneda, estado, proveedor, referenciaProveedor, fecha]
+
+    PaymentReceiptResponse:
+      type: object
+      properties:
+        comprobante:
+          $ref: '#/components/schemas/PaymentReceipt'
+        correlationId:
+          type: string
+      required: [comprobante]
 
     QuoteDecisionResponse:
       type: object
