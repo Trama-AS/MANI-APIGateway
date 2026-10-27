@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.14.0
+  version: 0.15.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -1192,6 +1192,149 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /solicitudes/{id}/eventos:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id de la solicitud
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Service Requests]
+      operationId: registerServiceEvent
+      summary: El aliado asignado registra un evento durante la ejecución
+      description: >
+        US-04.3.2 (SCRUM-869, RF-18). Solo el aliado asignado y solo con la solicitud en `EN_EJECUCION`. El autor y
+        la hora los pone Core. La evidencia es opcional y entra solo como archivo (campo `foto`, PNG, JPEG o WEBP de
+        hasta 5 MB); una URL se rechaza. Con `claveIdempotencia` un reintento devuelve el evento ya registrado con
+        `200` en lugar de `201`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ServiceEventRequest'
+                - type: object
+                  properties:
+                    foto:
+                      type: string
+                      format: binary
+            encoding:
+              foto:
+                contentType: image/png, image/jpeg, image/webp
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceEventRequest'
+      responses:
+        '201':
+          description: Evento registrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceEventResponse'
+        '200':
+          description: Reintento con la misma `claveIdempotencia`; devuelve el evento ya registrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceEventResponse'
+        '400':
+          description: Tipo desconocido, observación fuera de 3 a 2000 caracteres, evidencia como URL o que no es imagen, clave que no es UUID o id inválido (`MANI-EVT-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-EVT-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es aliado (`MANI-EVT-403`) o no es el aliado asignado (`MANI-EVT-403A`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La solicitud no existe en el tenant del JWT (`MANI-EVT-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La solicitud no está en ejecución (`MANI-EVT-409E`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      tags: [Service Requests]
+      operationId: listServiceEvents
+      summary: El cliente dueño o el aliado asignado consultan la secuencia de eventos del servicio
+      description: >
+        US-04.3.2 (SCRUM-869). Todos los eventos de la solicitud (creación, cotización, inicio, eventos de la
+        ejecución y fin), del más antiguo al más reciente, con el autor y su rol. No expone la ruta de la evidencia,
+        solo si existe. Para cualquier otro usuario la solicitud responde 404.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Secuencia de eventos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceEventListResponse'
+        '400':
+          description: Id de solicitud que no es UUID (`MANI-EVT-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-EVT-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es cliente ni aliado (`MANI-EVT-403`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La solicitud no existe, no es del cliente o no está asignada al aliado (`MANI-EVT-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /profiles/me/unavailability:
     get:
       tags: [Ally Availability]
@@ -1916,6 +2059,12 @@ components:
         - MANI-EJE-409I
         - MANI-EJE-409F
         - MANI-EJE-409N
+        - MANI-EVT-400
+        - MANI-EVT-401
+        - MANI-EVT-403
+        - MANI-EVT-403A
+        - MANI-EVT-404
+        - MANI-EVT-409E
         - INTERNAL_ERROR
       x-code-meanings:
         VALIDATION_ERROR: 'HTTP 400 — el body no cumple el esquema (campo faltante/formato inválido).'
@@ -1962,6 +2111,12 @@ components:
         MANI-EJE-409I: 'HTTP 409 — la ejecución ya fue iniciada.'
         MANI-EJE-409F: 'HTTP 409 — el servicio ya fue finalizado.'
         MANI-EJE-409N: 'HTTP 409 — no se puede finalizar un servicio que no ha iniciado.'
+        MANI-EVT-400: 'HTTP 400 — tipo, observación, evidencia, clave de idempotencia o id inválidos.'
+        MANI-EVT-401: 'HTTP 401 — sesión requerida para registrar o consultar eventos.'
+        MANI-EVT-403: 'HTTP 403 — el rol de la sesión no puede registrar o consultar eventos.'
+        MANI-EVT-403A: 'HTTP 403 — solo el aliado asignado registra eventos del servicio.'
+        MANI-EVT-404: 'HTTP 404 — la solicitud no existe o no es visible para la sesión.'
+        MANI-EVT-409E: 'HTTP 409 — solo se registran eventos con la solicitud en ejecución.'
         INTERNAL_ERROR: 'HTTP 500 — fallo no controlado del servicio.'
 
     ErrorResponse:
@@ -2951,3 +3106,70 @@ components:
         correlationId:
           type: string
       required: [ejecucion, correlationId]
+
+    ServiceEventRequest:
+      type: object
+      properties:
+        tipo:
+          type: string
+          enum: [AVANCE, NOVEDAD, OBSERVACION]
+          default: OBSERVACION
+        observacion:
+          type: string
+          minLength: 3
+          maxLength: 2000
+        claveIdempotencia:
+          type: string
+          format: uuid
+      required: [observacion]
+
+    ServiceEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tipo:
+          type: string
+          description: >
+            Los que registra el aliado son EJECUCION_AVANCE, EJECUCION_NOVEDAD y EJECUCION_OBSERVACION; el resto
+            los registra Core (SOLICITUD_CREADA, COTIZACION_ENVIADA, COTIZACION_ACEPTADA, INICIO_EJECUCION...).
+        descripcion:
+          type: string
+          nullable: true
+        registradoEn:
+          type: string
+          format: date-time
+          description: Hora del servidor.
+        autor:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            rol:
+              type: string
+          required: [id, rol]
+        tieneEvidencia:
+          type: boolean
+      required: [id, tipo, descripcion, registradoEn, autor, tieneEvidencia]
+
+    ServiceEventResponse:
+      type: object
+      properties:
+        evento:
+          $ref: '#/components/schemas/ServiceEvent'
+        correlationId:
+          type: string
+      required: [evento, correlationId]
+
+    ServiceEventListResponse:
+      type: object
+      properties:
+        eventos:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceEvent'
+        correlationId:
+          type: string
+      required: [eventos, correlationId]
