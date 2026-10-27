@@ -53,6 +53,13 @@ tags:
     description: Creación de solicitudes de servicio por el cliente (US-04.1.1-M2 / SCRUM-1072)
   - name: Ally Availability
     description: Intervalos en los que el aliado está "No disponible" (US-02.1.6 / SCRUM-855)
+  - name: Geographic Zones
+    description: >
+      Catálogo jerárquico de zonas geográficas (HU-M04-04 / REST-01). Solo
+      lectura: el catálogo lo administra la infraestructura de datos, no Core.
+      La tabla `zona` es global (sin `tenant_id`), así que la respuesta no
+      depende del tenant; la ruta exige JWT para no confiar en un tenant ni un
+      rol enviados por el cliente.
   - name: Service Categories
     description: >
       Catálogo de categorías de servicio (US-03.1.1-M2 / SCRUM-1069). La
@@ -1030,6 +1037,188 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /catalog/zones:
+    get:
+      tags: [Geographic Zones]
+      operationId: listZoneCatalog
+      summary: Catálogo jerárquico de zonas geográficas (HU-M04-04)
+      description: >
+        Devuelve el catálogo geográfico como lista plana (`zones`) y como árbol
+        anidado por `parentId` (`tree`). La tabla `zona` es un catálogo global
+        compartido por todos los tenants (no tiene columna `tenant_id`), así
+        que la respuesta es la misma para cualquier tenant: no hay zona privada
+        de una organización. Aun así exige JWT, porque es la única forma de no
+        depender de un tenant o un rol enviados por el cliente; el Core toma
+        ambos del claim `app_metadata` y descarta `X-Tenant-Id` y
+        `X-Tenant-Slug` en esta ruta. Los niveles previstos, de mayor a menor
+        granularidad, son `CIUDAD`, `LOCALIDAD` y `BARRIO`. Las zonas
+        desactivadas se devuelven con `selectable: false` salvo que se pida
+        `onlyActive=true`: una zona inactiva sigue siendo consultable porque un
+        sitio histórico puede apuntar a ella, pero nunca se ofrece para
+        escoger. Una fila que no puede colocarse en el árbol (sin zona padre,
+        con padre inexistente o con relación de nivel invertida) no se cuelga
+        en un lugar inventado: queda fuera de `zones` y `tree`, y se reporta en
+        `inconsistencies`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: onlyActive
+          in: query
+          required: false
+          description: Con `true` deja fuera las zonas desactivadas.
+          schema:
+            type: boolean
+            default: false
+        - name: level
+          in: query
+          required: false
+          description: >
+            Recorta al nivel indicado. Un valor fuera de la lista es un error
+            de contrato (`400 MANI-ZON-400`), no un listado vacío.
+          schema:
+            type: string
+            enum: [CIUDAD, LOCALIDAD, BARRIO]
+        - name: parentId
+          in: query
+          required: false
+          description: >
+            Recorta a los descendientes de esa zona. Un id que no existe
+            responde `404 MANI-ZON-404`.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Catálogo geográfico del nivel y recorte pedidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ZoneCatalogResponse'
+              examples:
+                jerarquiaCompleta:
+                  summary: Árbol completo con solo las zonas activas
+                  value:
+                    zones:
+                      - id: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12
+                        name: Bogotá D.C.
+                        level: CIUDAD
+                        parentId: null
+                        active: true
+                        selectable: true
+                      - id: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13
+                        name: Chapinero
+                        level: LOCALIDAD
+                        parentId: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12
+                        active: true
+                        selectable: true
+                      - id: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a15
+                        name: Chicó Norte
+                        level: BARRIO
+                        parentId: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13
+                        active: true
+                        selectable: true
+                    tree:
+                      - id: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12
+                        name: Bogotá D.C.
+                        level: CIUDAD
+                        parentId: null
+                        active: true
+                        selectable: true
+                        children:
+                          - id: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13
+                            name: Chapinero
+                            level: LOCALIDAD
+                            parentId: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12
+                            active: true
+                            selectable: true
+                            children:
+                              - id: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a15
+                                name: Chicó Norte
+                                level: BARRIO
+                                parentId: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13
+                                active: true
+                                selectable: true
+                                children: []
+                    inconsistencies: []
+                conZonaInconsistente:
+                  summary: Una fila sin zona padre queda fuera del árbol y se reporta
+                  value:
+                    zones: []
+                    tree: []
+                    inconsistencies:
+                      - id: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a15
+                        level: BARRIO
+                        parentId: null
+                        reason: ZONA_SIN_PADRE
+        '400':
+          $ref: '#/components/responses/ZoneBadRequest'
+        '401':
+          $ref: '#/components/responses/ZoneUnauthorized'
+        '404':
+          $ref: '#/components/responses/ZoneNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /catalog/zones/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ZoneId'
+    get:
+      tags: [Geographic Zones]
+      operationId: getZone
+      summary: Una zona con su camino a la raíz y sus hijos directos
+      description: >
+        Devuelve la zona, sus `ancestors` ordenados de la raíz hacia ella y sus
+        `children` directos. Responde también para una zona desactivada, con
+        `selectable: false`: ocultarla rompería la consulta de un sitio
+        histórico que la referencia. Un `id` que no es UUID responde
+        `400 MANI-ZON-400` sin consultar la base; un UUID desconocido responde
+        `404 MANI-ZON-404`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Zona con su jerarquía inmediata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ZoneDetailResponse'
+              examples:
+                localidadConBarrio:
+                  summary: Localidad con su ciudad padre y un barrio hijo
+                  value:
+                    zone:
+                      id: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13
+                      name: Chapinero
+                      level: LOCALIDAD
+                      parentId: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12
+                      active: true
+                      selectable: true
+                    ancestors:
+                      - id: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12
+                        name: Bogotá D.C.
+                        level: CIUDAD
+                        parentId: null
+                        active: true
+                        selectable: true
+                    children:
+                      - id: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a15
+                        name: Chicó Norte
+                        level: BARRIO
+                        parentId: b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13
+                        active: true
+                        selectable: true
+        '400':
+          $ref: '#/components/responses/ZoneBadRequest'
+        '401':
+          $ref: '#/components/responses/ZoneUnauthorized'
+        '404':
+          $ref: '#/components/responses/ZoneNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1086,6 +1275,15 @@ components:
       description: Identificador de la sede.
       schema:
         type: string
+
+    ZoneId:
+      name: id
+      in: path
+      required: true
+      description: Identificador estable de la zona geográfica.
+      schema:
+        type: string
+        format: uuid
 
   responses:
     SiteValidationError:
@@ -1208,6 +1406,40 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+    ZoneBadRequest:
+      description: >
+        Nivel fuera de la jerarquía prevista, o identificador que no es UUID
+        (`MANI-ZON-400`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: 'MANI-ZON-400: nivel debe ser uno de CIUDAD, LOCALIDAD, BARRIO'
+            code: MANI-ZON-400
+            correlationId: node-1793067016518
+
+    ZoneUnauthorized:
+      description: >
+        Falta el `Authorization: Bearer`, o el token está vencido o no verifica.
+        El catálogo es global, pero la ruta sigue cerrada: es lo que impide
+        depender de un tenant o un rol enviados por el cliente.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    ZoneNotFound:
+      description: La zona, o la zona padre indicada, no existe (`MANI-ZON-404`).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: 'MANI-ZON-404: la zona no existe'
+            code: MANI-ZON-404
+            correlationId: node-1793067016518
+
   schemas:
     ErrorCode:
       type: string
@@ -1237,6 +1469,8 @@ components:
         - MANI-SOL-422Z
         - MANI-SOL-422F
         - MANI-SOL-422K
+        - MANI-ZON-400
+        - MANI-ZON-404
         - INTERNAL_ERROR
       x-code-meanings:
         VALIDATION_ERROR: 'HTTP 400 — el body no cumple el esquema (campo faltante/formato inválido).'
@@ -1263,6 +1497,8 @@ components:
         MANI-SOL-422Z: 'HTTP 422 — la zona no existe o no está activa.'
         MANI-SOL-422F: 'HTTP 422 — más de 5 fotos o un archivo que no es imagen.'
         MANI-SOL-422K: 'HTTP 422 — la clave de idempotencia no es un UUID.'
+        MANI-ZON-400: 'HTTP 400 — nivel geográfico fuera de la jerarquía, o identificador de zona que no es UUID.'
+        MANI-ZON-404: 'HTTP 404 — la zona, o la zona padre indicada, no existe.'
         INTERNAL_ERROR: 'HTTP 500 — fallo no controlado del servicio.'
 
     ErrorResponse:
@@ -2014,3 +2250,114 @@ components:
           type: string
           nullable: true
           description: null borra el contacto.
+
+
+    Zone:
+      type: object
+      description: >
+        Nodo del catálogo geográfico. No lleva `tenantId`: la tabla `zona` es
+        un catálogo global y no tiene esa columna.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identificador estable, el mismo que referencian `sitio` y `cobertura_aliado`.
+        name:
+          type: string
+          example: Chapinero
+        level:
+          type: string
+          enum: [CIUDAD, LOCALIDAD, BARRIO]
+          description: >
+            Nivel en la jerarquía, de mayor a menor granularidad. Una fila
+            histórica puede traer otro valor: se devuelve tal cual y no se
+            usa para validar relaciones.
+        parentId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Zona padre. Solo `CIUDAD` puede tenerlo en `null`.
+        active:
+          type: boolean
+          description: Estado `ACTIVO`/`ACTIVA` en la base.
+        selectable:
+          type: boolean
+          description: >
+            Si la zona puede escogerse. Una zona inactiva se devuelve con
+            `false` para que la interfaz no la ofrezca (criterio C2).
+      required: [id, name, level, parentId, active, selectable]
+
+    ZoneTreeNode:
+      allOf:
+        - $ref: '#/components/schemas/Zone'
+        - type: object
+          properties:
+            children:
+              type: array
+              description: >
+                Hijos directos, anidados recursivamente. Vacío en el nivel más
+                fino, o cuando un recorte por `level` o `onlyActive` deja los
+                hijos fuera del resultado.
+              items:
+                $ref: '#/components/schemas/ZoneTreeNode'
+          required: [children]
+
+    ZoneInconsistency:
+      type: object
+      description: >
+        Fila del catálogo que no puede colocarse en el árbol. Se reporta en
+        lugar de colgarla en un lugar inventado o de descartarla en silencio.
+      properties:
+        id:
+          type: string
+          format: uuid
+        level:
+          type: string
+        parentId:
+          type: string
+          format: uuid
+          nullable: true
+        reason:
+          type: string
+          enum:
+            - ZONA_SIN_PADRE
+            - PADRE_INEXISTENTE
+            - PADRE_ES_LA_MISMA_ZONA
+            - RELACION_DE_NIVEL_INVERTIDA
+      required: [id, level, parentId, reason]
+
+    ZoneCatalogResponse:
+      type: object
+      properties:
+        zones:
+          type: array
+          description: Lista plana de las zonas del recorte pedido, sin las inconsistentes.
+          items:
+            $ref: '#/components/schemas/Zone'
+        tree:
+          type: array
+          description: Las mismas zonas anidadas por `parentId`.
+          items:
+            $ref: '#/components/schemas/ZoneTreeNode'
+        inconsistencies:
+          type: array
+          items:
+            $ref: '#/components/schemas/ZoneInconsistency'
+      required: [zones, tree, inconsistencies]
+
+    ZoneDetailResponse:
+      type: object
+      properties:
+        zone:
+          $ref: '#/components/schemas/Zone'
+        ancestors:
+          type: array
+          description: Camino desde la raíz hasta la zona, sin incluirla.
+          items:
+            $ref: '#/components/schemas/Zone'
+        children:
+          type: array
+          description: Hijos directos de la zona.
+          items:
+            $ref: '#/components/schemas/Zone'
+      required: [zone, ancestors, children]
