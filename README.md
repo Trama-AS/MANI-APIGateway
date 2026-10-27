@@ -140,6 +140,7 @@ curl -i http://localhost/health
 | :--- | :--- | :--- |
 | `docs/openapi/core.yaml` | MANI-Node (identidad y registro) | `postman/MANI-Core.postman_collection.json` |
 | `docs/openapi/core-internal.yaml` | MANI-Node, rutas internas que solo consume Dispatch (`x-internal`; el Gateway las bloquea) | — |
+| `docs/openapi/dispatch.yaml` | MANI-.NET (elegibles, broadcast, aceptación y rechazo de ofertas, bandeja del aliado; M-05) | — |
 | `docs/openapi/rules.yaml` | MANI-Java (reglas de categoría, US-03.1.1-M6) | `postman/MANI-Rules.postman_collection.json` |
 
 ```bash
