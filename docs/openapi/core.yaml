@@ -158,18 +158,20 @@ paths:
     post:
       tags: [Auth]
       operationId: logout
-      summary: '[PENDIENTE] Cierra la sesión actual e invalida el refreshToken asociado'
+      summary: Registra el cierre de sesión para auditoría
       description: >
-        [PENDIENTE DE IMPLEMENTACIÓN EN CORE NODE]
-        Especificación del contrato para cuando Core implemente cierre de sesión.
-        El tenant se deriva del claim `tenant_id` del accessToken; no acepta `X-Tenant-Slug` ni `X-Tenant-Id`.
+        Deja constancia del cierre de sesión (HU-M02-03 / RF-03 / RNF-04): quién cerró sesión, en qué tenant y
+        cuándo, tomados del JWT verificado; el cuerpo se ignora. **No revoca la sesión**: la revoca el cliente con
+        `supabase.auth.signOut()`, porque el proveedor de identidad es el dueño de la sesión. Esta llamada es
+        best-effort: si falla, el cliente cierra la sesión igualmente. Aunque `/auth/` es público en el Gateway,
+        Core exige y verifica el `Authorization: Bearer`.
       security:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/XCorrelationId'
       responses:
         '204':
-          description: Sesión cerrada correctamente
+          description: Cierre de sesión registrado
         '401':
           description: accessToken ausente, inválido o expirado (`UNAUTHORIZED` / `TOKEN_INVALID` / `TOKEN_EXPIRED`)
           content:
