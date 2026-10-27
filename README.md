@@ -139,11 +139,12 @@ curl -i http://localhost/health
 | Contrato | Servicio | Suite Newman |
 | :--- | :--- | :--- |
 | `docs/openapi/core.yaml` | MANI-Node (identidad y registro) | `postman/MANI-Core.postman_collection.json` |
+| `docs/openapi/core-internal.yaml` | MANI-Node, rutas internas que solo consume Dispatch (`x-internal`; el Gateway las bloquea) | — |
 | `docs/openapi/rules.yaml` | MANI-Java (reglas de categoría, US-03.1.1-M6) | `postman/MANI-Rules.postman_collection.json` |
 
 ```bash
-npm run validate:openapi        # valida ambos contratos
-npm run lint:openapi            # Spectral sobre ambos
+npm run validate:openapi        # valida los contratos
+npm run lint:openapi            # Spectral sobre todos
 npm run postman:generate:rules  # regenera la colección Rules (no editarla a mano)
 
 # Suite Rules contra el Gateway real (requiere core-service con validate-token y rules-service):

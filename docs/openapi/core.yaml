@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.17.0
+  version: 0.18.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -475,11 +475,25 @@ paths:
         JWT (`bearerAuth`), nunca del cuerpo ni de `X-Tenant-Id`. La ubicación es un sitio propio del cliente
         (`sitioId`) o una dirección nueva con `zonaId` activa. Las fotos (hasta 5 imágenes) viajan como
         `multipart/form-data` en el campo `fotos`; Core las guarda en Storage bajo `{tenant}/{usuario}/`.
-        Con `claveIdempotencia` el reintento devuelve la solicitud existente con `200` en lugar de `201`.
+        Con una clave de idempotencia (HU-M05-09 / SCRUM-1405), el reintento con los mismos datos devuelve la
+        solicitud existente con `200` en lugar de `201`. La clave llega en la cabecera `Idempotency-Key` o en el
+        campo `claveIdempotencia`; si llegan las dos deben ser la misma (`422 MANI-SOL-422K`). Core guarda una
+        huella de los datos y del contenido de las fotos: la misma clave con otros datos no es un reintento y
+        responde `409 MANI-SOL-409K`, sin revelar la solicitud que ya tiene esa clave. La clave es por cliente y
+        tenant.
       security:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/XCorrelationId'
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: >
+            Clave UUID del intento de creación. Es la que el GatewayClient de Flutter usa para decidir si puede
+            reintentar el POST. Equivale a `claveIdempotencia`.
+          schema:
+            type: string
+            format: uuid
       requestBody:
         required: true
         content:
@@ -510,7 +524,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CreateServiceRequestResponse'
         '200':
-          description: Reintento con la misma `claveIdempotencia`; devuelve la solicitud ya creada
+          description: Reintento con la misma clave y los mismos datos; devuelve la solicitud ya creada
           content:
             application/json:
               schema:
@@ -527,11 +541,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La clave de idempotencia ya se usó con otros datos (`MANI-SOL-409K`); no se crea ni se devuelve nada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: >
             Datos rechazados: categoría no disponible (`MANI-SOL-422C`), descripción fuera de 20 a 1000 caracteres
             (`MANI-SOL-422D`), sitio inexistente o dirección inválida (`MANI-SOL-422S`), zona no disponible
-            (`MANI-SOL-422Z`), fotos inválidas (`MANI-SOL-422F`) o clave de idempotencia inválida (`MANI-SOL-422K`)
+            (`MANI-SOL-422Z`), fotos inválidas (`MANI-SOL-422F`) o clave de idempotencia inválida o distinta entre la
+            cabecera y el cuerpo (`MANI-SOL-422K`)
           content:
             application/json:
               schema:
@@ -2564,6 +2585,7 @@ components:
         - MANI-SOL-403C
         - MANI-SOL-404
         - MANI-SOL-409C
+        - MANI-SOL-409K
         - MANI-SOL-422C
         - MANI-SOL-422D
         - MANI-SOL-422S
@@ -2628,8 +2650,9 @@ components:
         MANI-SOL-422S: 'HTTP 422 — el sitio no es del cliente o la dirección no tiene entre 5 y 200 caracteres.'
         MANI-SOL-422Z: 'HTTP 422 — la zona no existe o no está activa.'
         MANI-SOL-422F: 'HTTP 422 — más de 5 fotos o un archivo que no es imagen.'
-        MANI-SOL-422K: 'HTTP 422 — la clave de idempotencia no es un UUID.'
+        MANI-SOL-422K: 'HTTP 422 — la clave de idempotencia no es un UUID, o la cabecera Idempotency-Key y claveIdempotencia no coinciden.'
         MANI-SOL-409C: 'HTTP 409 — la solicitud ya está en ejecución o finalizada y no se puede cancelar.'
+        MANI-SOL-409K: 'HTTP 409 — la clave de idempotencia ya se usó para crear una solicitud con otros datos.'
         MANI-SOL-422M: 'HTTP 422 — el motivo de la cancelación supera 200 caracteres.'
         MANI-COT-400: 'HTTP 400 — id de solicitud no válido o importes de la cotización inválidos.'
         MANI-COT-401: 'HTTP 401 — sesión requerida para cotizar o consultar cotizaciones.'
@@ -3035,7 +3058,7 @@ components:
         claveIdempotencia:
           type: string
           format: uuid
-          description: Clave del cliente para reintentos seguros.
+          description: Clave del cliente para reintentos seguros. Equivale a la cabecera `Idempotency-Key`.
 
     ServiceRequest:
       type: object
