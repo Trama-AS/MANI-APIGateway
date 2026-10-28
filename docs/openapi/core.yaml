@@ -44,7 +44,19 @@ servers:
 
 tags:
   - name: Auth
-    description: Autenticación e identidad de usuarios (Clientes, Aliados, Admins)
+    description: >
+      Autenticación e identidad de usuarios (Clientes, Aliados, Admins).
+
+      El inicio de sesión y la renovación del token NO están en este contrato
+      y no son de Core: conforme a ADR-0031, el emisor del JWT es Supabase
+      Auth (GoTrue), y el cliente Flutter habla con él directamente. La única
+      excepción aprobada para que Core firme un token es
+      `/api/v1/auth/dev-token`, limitada a desarrollo, pruebas y CI.
+
+      Lo que sí expone Core en este dominio: registro (que delega la emisión
+      del token en Supabase Auth), cierre de sesión, recuperación y cambio de
+      contraseña, y `validate-token`, que es la consulta interna que hace el
+      Gateway con `auth_request` y no se llama desde el cliente.
   - name: Ally Registration
     description: Registro de Aliados persona natural y empresa
   - name: Client Registration
@@ -87,90 +99,6 @@ tags:
       administrador de su tenant; el tenant, el usuario y el rol salen del JWT.
 
 paths:
-  /auth/login:
-    post:
-      tags: [Auth]
-      operationId: login
-      summary: '[PENDIENTE] Inicia sesión y obtiene tokens de acceso'
-      description: >
-        [PENDIENTE DE IMPLEMENTACIÓN EN CORE NODE]
-        Especificación del contrato para cuando Core implemente autenticación.
-        Autentica un usuario (CLIENT, ALLY o ADMIN) dentro del tenant
-        resuelto por `X-Tenant-Slug` (ADR-0018) y devuelve un `accessToken`/`refreshToken`
-        con el claim `tenant_id` embebido.
-      parameters:
-        - $ref: '#/components/parameters/XTenantSlug'
-        - $ref: '#/components/parameters/XCorrelationId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/LoginRequest'
-      responses:
-        '200':
-          description: Credenciales válidas, sesión iniciada
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LoginResponse'
-        '400':
-          description: >
-            Body inválido (`VALIDATION_ERROR`) o tenant inexistente/inactivo
-            (`TENANT_NOT_FOUND`)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          description: Credenciales incorrectas (`INVALID_CREDENTIALS`)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
-  /auth/refresh:
-    post:
-      tags: [Auth]
-      operationId: refreshToken
-      summary: '[PENDIENTE] Renueva el accessToken a partir de un refreshToken vigente'
-      description: >
-        [PENDIENTE DE IMPLEMENTACIÓN EN CORE NODE]
-        Especificación del contrato para cuando Core implemente renovación de sesión.
-        El tenant del nuevo accessToken se conserva del claim `tenant_id`
-        del refreshToken original; este endpoint no acepta `X-Tenant-Slug` ni `X-Tenant-Id`.
-      parameters:
-        - $ref: '#/components/parameters/XCorrelationId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RefreshRequest'
-      responses:
-        '200':
-          description: Token renovado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RefreshResponse'
-        '400':
-          description: Body inválido (`VALIDATION_ERROR`)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          description: refreshToken inválido o expirado (`TOKEN_INVALID` / `TOKEN_EXPIRED`)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
   /auth/logout:
     post:
       tags: [Auth]
@@ -3052,25 +2980,6 @@ components:
           description: Unix timestamp de expiración.
       required: [sub, app_metadata, iat, exp]
 
-    LoginRequest:
-      type: object
-      properties:
-        email:
-          type: string
-          format: email
-        password:
-          type: string
-          format: password
-          minLength: 8
-      required: [email, password]
-
-    RefreshRequest:
-      type: object
-      properties:
-        refreshToken:
-          type: string
-      required: [refreshToken]
-
     AuthTokens:
       type: object
       properties:
@@ -3079,22 +2988,15 @@ components:
           description: JWT de corta duración emitido por Supabase Auth. Payload descrito en `TokenClaims`.
         refreshToken:
           type: string
-          description: Token opaco de larga duración, usado solo contra `/auth/refresh` y `/auth/logout`.
+          description: >
+            Token opaco de larga duración. Lo renueva el cliente contra
+            Supabase Auth, que es el emisor (ADR-0031); Core solo lo recibe
+            en `/auth/logout`.
         expiresIn:
           type: integer
           description: Segundos hasta la expiración del accessToken
           example: 3600
       required: [accessToken, refreshToken, expiresIn]
-
-    RefreshResponse:
-      type: object
-      properties:
-        accessToken:
-          type: string
-        expiresIn:
-          type: integer
-          example: 3600
-      required: [accessToken, expiresIn]
 
     ProfileSummary:
       type: object
@@ -3114,15 +3016,6 @@ components:
           type: string
           enum: [VERIFIED, PENDING, REJECTED]
       required: [id, tenantId, role, fullName, status]
-
-    LoginResponse:
-      type: object
-      properties:
-        profile:
-          $ref: '#/components/schemas/ProfileSummary'
-        tokens:
-          $ref: '#/components/schemas/AuthTokens'
-      required: [profile, tokens]
 
     RegisterAllyNaturalPersonRequest:
       type: object
