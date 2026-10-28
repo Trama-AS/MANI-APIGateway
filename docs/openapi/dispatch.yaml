@@ -42,7 +42,7 @@ info:
       mock o no está configurado, Dispatch envía `NO_DISPONIBLE` con un `motivo` y la lista en su orden estable
       (sin `posicion`, `puntaje` ni `razones`). Nunca reenvía un puntaje simulado como si fuera real.
     - El orden se aplica antes de paginar, así que `posicion` es global (la página 2 empieza en `pageSize + 1`).
-  version: 0.2.0
+  version: 0.3.0
 servers:
   - url: http://localhost/api/v1/dispatch
     description: A través del Gateway (docker compose)
@@ -225,16 +225,27 @@ paths:
         orquestación no se la vuelve a ofrecer; otros aliados la siguen viendo. Repetirlo responde `200` con
         `isRetry: true` y conserva el primer motivo. El aliado solo puede rechazar solicitudes `PENDIENTE` cuya
         oferta recibió.
+
+        El motivo es obligatorio (decisión del PO, SCRUM-1617) y el servidor nunca inventa uno: sin motivo, o con
+        uno fuera del catálogo, responde `422` sin registrar nada, aunque la base o Core no estén disponibles.
+        `OTRO` exige `detalle` (texto libre de 3 a 280 caracteres); los demás motivos no lo llevan.
       security:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/XCorrelationId'
         - $ref: '#/components/parameters/RequestId'
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema: { $ref: '#/components/schemas/RejectRequest' }
+            examples:
+              catalogo:
+                summary: Motivo del catálogo
+                value: { motivo: FUERA_DE_ZONA }
+              otro:
+                summary: Otro, con su detalle
+                value: { motivo: OTRO, detalle: Mi herramienta está en reparación }
       responses:
         '200':
           description: Rechazo registrado
@@ -264,7 +275,10 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
         '422':
-          description: El motivo no está en el catálogo (`MANI-SOL-422M`)
+          description: >
+            Falta el motivo o no está en el catálogo (`MANI-SOL-422M`), o el detalle no cumple: `OTRO` sin detalle
+            o con menos de 3 o más de 280 caracteres, o detalle con otro motivo (`MANI-SOL-422D`). No se registra
+            nada.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -398,6 +412,7 @@ components:
         - MANI-SOL-409
         - MANI-SOL-409E
         - MANI-SOL-422M
+        - MANI-SOL-422D
         - CORE_SERVICE_UNAVAILABLE
         - DATABASE_UNAVAILABLE
       x-code-meanings:
@@ -416,7 +431,8 @@ components:
         MANI-SOL-404: 'HTTP 404 — la solicitud no existe en el tenant.'
         MANI-SOL-409: 'HTTP 409 — otro aliado ya tomó la solicitud.'
         MANI-SOL-409E: 'HTTP 409 — la solicitud ya no está PENDIENTE.'
-        MANI-SOL-422M: 'HTTP 422 — el motivo de rechazo no está en el catálogo.'
+        MANI-SOL-422M: 'HTTP 422 — falta el motivo de rechazo o no está en el catálogo.'
+        MANI-SOL-422D: 'HTTP 422 — el detalle del rechazo no cumple: OTRO lo exige (3 a 280 caracteres) y los demás motivos no lo llevan.'
         CORE_SERVICE_UNAVAILABLE: 'HTTP 503 — Core no respondió o respondió algo inesperado.'
         DATABASE_UNAVAILABLE: 'HTTP 503 — la base de Dispatch no está configurada o falló.'
 
@@ -554,12 +570,17 @@ components:
 
     RejectRequest:
       type: object
+      required: [motivo]
       properties:
         motivo:
-          allOf:
-            - $ref: '#/components/schemas/MotivoRechazo'
-          nullable: true
-          description: Opcional; sin motivo se guarda null.
+          $ref: '#/components/schemas/MotivoRechazo'
+        detalle:
+          type: string
+          minLength: 3
+          maxLength: 280
+          description: >
+            Texto libre, obligatorio solo con `OTRO` y prohibido con los demás motivos. Se guarda sin espacios
+            extremos.
 
     RejectResponse:
       type: object
@@ -570,7 +591,11 @@ components:
         motivo:
           allOf:
             - $ref: '#/components/schemas/MotivoRechazo'
+          description: Motivo de esta petición. En un reintento (`isRetry`) se conserva el primero que se registró.
+        detalle:
+          type: string
           nullable: true
+          description: Detalle de `OTRO`; `null` con los demás motivos.
         status: { type: string, enum: [REJECTED] }
         isRetry:
           type: boolean
