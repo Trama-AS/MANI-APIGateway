@@ -2120,6 +2120,155 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /solicitudes/{id}/conversacion/consultas:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id de la solicitud (el servicio)
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Messaging]
+      operationId: reviewConversation
+      summary: El administrador abre la conversación de un servicio para atender una queja
+      description: >
+        HU-M09-04 (SCRUM-883, RF-21). Solo el administrador del tenant. Debe indicar el `motivo` y puede dar la
+        referencia de la queja. Devuelve los mensajes del hilo (los últimos `limite`, o los posteriores a
+        `despuesDe`) y la `consulta` registrada. Cada consulta queda auditada de forma inmutable en la misma
+        transacción que la lectura: si no se puede registrar, no se devuelve la conversación. Un servicio sin
+        mensajes responde con la lista vacía. Es un POST porque cada llamada crea un registro de auditoría; la
+        respuesta no se cachea. Una solicitud de otro tenant o inexistente responde `404`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConversationReviewRequest'
+      responses:
+        '201':
+          description: Consulta registrada y mensajes del hilo (lista vacía si no hay)
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationReviewResponse'
+        '400':
+          description: Motivo ausente o fuera de 5 a 500 caracteres, `quejaRef` inválida, `limite` fuera de 1 a 100, o ids que no son UUID (`MANI-MSG-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-MSG-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es administrador del tenant (`MANI-MSG-403`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La solicitud no existe o es de otro tenant (`MANI-MSG-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auditoria/consultas-conversacion:
+    get:
+      tags: [Messaging]
+      operationId: listConversationReviews
+      summary: Consultas de conversaciones del tenant (administrador)
+      description: >
+        HU-M09-04 (SCRUM-883). Solo el administrador del tenant. Quién abrió qué conversación y por qué, del más
+        antiguo al más reciente, con consulta incremental por `despuesDe`. Solo lectura. No se cachea.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: despuesDe
+          in: query
+          required: false
+          description: Id de la última consulta que ya se tiene; debe ser una consulta del tenant.
+          schema:
+            type: string
+            format: uuid
+        - name: solicitudId
+          in: query
+          required: false
+          description: Limita el listado a las consultas de un servicio.
+          schema:
+            type: string
+            format: uuid
+        - name: limite
+          in: query
+          required: false
+          description: Máximo de consultas a devolver.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: Las consultas (lista vacía si no hay)
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationReviewListResponse'
+        '400':
+          description: El parámetro `limite` está fuera de 1 a 100, o `despuesDe`/`solicitudId` son inválidos (`MANI-MSG-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es administrador del tenant (`MANI-MSG-403`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /profiles/me/unavailability:
     get:
       tags: [Ally Availability]
@@ -4307,6 +4456,90 @@ components:
         correlationId:
           type: string
       required: [eventos]
+
+    ConversationReviewRequest:
+      type: object
+      description: Consulta de la conversación de un servicio para atender una queja. El actor sale del JWT.
+      properties:
+        motivo:
+          type: string
+          minLength: 5
+          maxLength: 500
+          description: Por qué se consulta la conversación; queda en el registro de auditoría.
+        quejaRef:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: '^[A-Za-z0-9._:-]+$'
+          description: Referencia de la queja, si el módulo de quejas la da.
+        limite:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 50
+        despuesDe:
+          type: string
+          format: uuid
+          description: Id del último mensaje que ya se tiene; devuelve solo los posteriores.
+      required: [motivo]
+
+    ConversationReview:
+      type: object
+      description: Registro inmutable de una consulta de conversación.
+      properties:
+        id:
+          type: string
+          format: uuid
+        solicitudId:
+          type: string
+          format: uuid
+        actor:
+          type: object
+          description: Quién consultó, tomado del JWT. Solo aparece en el listado de auditoría.
+          properties:
+            id:
+              type: string
+              format: uuid
+            rol:
+              type: string
+              example: ADMIN
+          required: [id, rol]
+        motivo:
+          type: string
+        quejaRef:
+          type: string
+          nullable: true
+        mensajesVistos:
+          type: integer
+          description: Cuántos mensajes se devolvieron en esa consulta.
+        creadoEn:
+          type: string
+          format: date-time
+      required: [id, solicitudId, motivo, mensajesVistos, creadoEn]
+
+    ConversationReviewResponse:
+      type: object
+      properties:
+        consulta:
+          $ref: '#/components/schemas/ConversationReview'
+        mensajes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Message'
+        correlationId:
+          type: string
+      required: [consulta, mensajes]
+
+    ConversationReviewListResponse:
+      type: object
+      properties:
+        consultas:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConversationReview'
+        correlationId:
+          type: string
+      required: [consultas]
 
     QuoteDecisionResponse:
       type: object
