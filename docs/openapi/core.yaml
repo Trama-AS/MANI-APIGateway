@@ -61,6 +61,12 @@ tags:
       Mensajería entre el cliente y el aliado de un servicio (HU-M09-02 / SCRUM-881, RF-20). Core guarda los mensajes
       y el otro participante los recibe consultando el hilo cada pocos segundos con `despuesDe` (sin tiempo real).
       Solo participan el cliente dueño de la solicitud y el aliado asignado; tenant, usuario y rol salen del JWT.
+  - name: Audit
+    description: >
+      Registro inmutable de transacciones (HU-M11-03 / SCRUM-889, RF-24, RNF-04). Cada pago deja un evento con actor,
+      rol, hora de la base y correlación, escrito en la misma transacción que el pago. El registro es de solo lectura:
+      no hay operaciones para modificarlo ni borrarlo. Lo consultan el cliente dueño del pago y el administrador del
+      tenant; tenant, usuario y rol salen del JWT.
   - name: Ally Availability
     description: Intervalos en los que el aliado está "No disponible" (US-02.1.6 / SCRUM-855)
   - name: Geographic Zones
@@ -1735,6 +1741,147 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /pagos/{id}/eventos:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id del pago
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Audit]
+      operationId: listPaymentEvents
+      summary: Eventos inmutables de un pago
+      description: >
+        HU-M11-03 (SCRUM-889). El cliente dueño del pago o el administrador de su tenant. Devuelve los eventos del
+        pago del más antiguo al más reciente. El pago de otro cliente, de otro tenant o inexistente responde `404`
+        sin distinguir; el aliado y la plataforma reciben `403`. La respuesta no se cachea.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Los eventos del pago
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionEventListResponse'
+        '400':
+          description: El id del pago no es un UUID (`MANI-AUD-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `MANI-AUD-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no puede consultar el registro de transacciones (`MANI-AUD-403`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: El pago no existe o no es del cliente ni del tenant de la sesión (`MANI-AUD-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auditoria/transacciones:
+    get:
+      tags: [Audit]
+      operationId: listTransactionEvents
+      summary: Registro de transacciones del tenant (administrador)
+      description: >
+        HU-M11-03 (SCRUM-889). Solo el administrador del tenant. Eventos del tenant de la sesión, del más antiguo al
+        más reciente, con consulta incremental por `despuesDe` (id del último evento que ya se tiene). El registro es
+        de solo lectura. La respuesta no se cachea.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: despuesDe
+          in: query
+          required: false
+          description: Id del último evento que ya se tiene; debe ser un evento del tenant de la sesión.
+          schema:
+            type: string
+            format: uuid
+        - name: pagoId
+          in: query
+          required: false
+          description: Limita el listado a los eventos de un pago.
+          schema:
+            type: string
+            format: uuid
+        - name: limite
+          in: query
+          required: false
+          description: Máximo de eventos a devolver.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: Los eventos (lista vacía si no hay)
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionEventListResponse'
+        '400':
+          description: El parámetro `limite` está fuera de 1 a 100, o `despuesDe`/`pagoId` no son UUID o `despuesDe` no es un evento del tenant (`MANI-AUD-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es administrador del tenant (`MANI-AUD-403`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /solicitudes/{id}/mensajes:
     parameters:
       - name: id
@@ -2936,6 +3083,10 @@ components:
         - MANI-MSG-403
         - MANI-MSG-404
         - MANI-MSG-409E
+        - MANI-AUD-400
+        - MANI-AUD-401
+        - MANI-AUD-403
+        - MANI-AUD-404
         - MANI-EVT-404E
         - MANI-ZON-400
         - MANI-ZON-404
@@ -3002,6 +3153,10 @@ components:
         MANI-MSG-403: 'HTTP 403 — solo el cliente y el aliado del servicio participan en la mensajería.'
         MANI-MSG-404: 'HTTP 404 — la solicitud no existe o la sesión no es su cliente ni su aliado asignado.'
         MANI-MSG-409E: 'HTTP 409 — la solicitud en su estado actual no admite mensajes nuevos.'
+        MANI-AUD-400: 'HTTP 400 — id, límite, cursor o filtro inválidos en el registro de transacciones.'
+        MANI-AUD-401: 'HTTP 401 — sesión requerida para consultar el registro de transacciones.'
+        MANI-AUD-403: 'HTTP 403 — el rol no puede consultar este registro de transacciones.'
+        MANI-AUD-404: 'HTTP 404 — el pago no existe o no es visible para la sesión.'
         INTERNAL_ERROR: 'HTTP 500 — fallo no controlado del servicio.'
 
     ErrorResponse:
@@ -4097,6 +4252,61 @@ components:
         correlationId:
           type: string
       required: [mensajes]
+
+    TransactionEvent:
+      type: object
+      description: Evento inmutable de una transacción. No se modifica ni se borra.
+      properties:
+        id:
+          type: string
+          format: uuid
+        pagoId:
+          type: string
+          format: uuid
+        tipo:
+          type: string
+          description: Tipo de transacción registrada. Hoy `PAGO_REGISTRADO`.
+          example: PAGO_REGISTRADO
+        estado:
+          type: string
+          description: Estado resultante de la transacción.
+          example: APROBADO
+        monto:
+          type: number
+        moneda:
+          type: string
+          example: COP
+        actor:
+          type: object
+          description: Quién la hizo, tomado del JWT de la sesión.
+          properties:
+            id:
+              type: string
+              format: uuid
+            rol:
+              type: string
+              example: CLIENT
+          required: [id, rol]
+        correlationId:
+          type: string
+          nullable: true
+          description: Correlación de la petición que originó la transacción.
+        creadoEn:
+          type: string
+          format: date-time
+          description: Hora de la base de datos.
+      required: [id, pagoId, tipo, estado, monto, moneda, actor, creadoEn]
+
+    TransactionEventListResponse:
+      type: object
+      properties:
+        eventos:
+          type: array
+          items:
+            $ref: '#/components/schemas/TransactionEvent'
+        correlationId:
+          type: string
+      required: [eventos]
 
     QuoteDecisionResponse:
       type: object
