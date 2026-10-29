@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.21.0
+  version: 0.22.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -1338,7 +1338,10 @@ paths:
       summary: El aliado asignado registra un evento durante la ejecución
       description: >
         US-04.3.2 (SCRUM-869, RF-18). Solo el aliado asignado y solo con la solicitud en `EN_EJECUCION`. El autor y
-        la hora los pone Core. La evidencia es opcional y entra solo como archivo (campo `foto`, PNG, JPEG o WEBP de
+        la hora de registro los pone Core. Un evento tomado sin conexión (US-04.3.6, SCRUM-873) envía `ocurridoEn`,
+        la hora de captura, que pasa a ser la oficial: debe caer entre el inicio y el fin de la ejecución y no estar
+        más de 5 minutos en el futuro. Con `ocurridoEn` también se acepta un servicio ya `FINALIZADA`, nunca uno
+        cancelado. La evidencia es opcional y entra solo como archivo (campo `foto`, PNG, JPEG o WEBP de
         hasta 5 MB); una URL se rechaza. Con `claveIdempotencia` un reintento devuelve el evento ya registrado con
         `200` en lugar de `201`.
       security:
@@ -1377,7 +1380,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/ServiceEventResponse'
         '400':
-          description: Tipo desconocido, observación fuera de 3 a 2000 caracteres, evidencia como URL o que no es imagen, clave que no es UUID o id inválido (`MANI-EVT-400`)
+          description: >
+            Tipo desconocido, observación fuera de 3 a 2000 caracteres, evidencia como URL o que no es imagen, clave
+            que no es UUID, `ocurridoEn` que no es ISO 8601 con zona horaria o id inválido (`MANI-EVT-400`);
+            `ocurridoEn` más de 5 minutos en el futuro (`MANI-EVT-400F`)
           content:
             application/json:
               schema:
@@ -1401,7 +1407,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: La solicitud no está en ejecución (`MANI-EVT-409E`)
+          description: >
+            La solicitud no está en ejecución, o con `ocurridoEn` no está en ejecución ni finalizada
+            (`MANI-EVT-409E`); `ocurridoEn` antes del inicio o después del fin de la ejecución (`MANI-EVT-409T`)
           content:
             application/json:
               schema:
@@ -1420,7 +1428,8 @@ paths:
       summary: El cliente dueño o el aliado asignado consultan la secuencia de eventos del servicio
       description: >
         US-04.3.2 (SCRUM-869). Todos los eventos de la solicitud (creación, cotización, inicio, eventos de la
-        ejecución y fin), del más antiguo al más reciente, con el autor y su rol. No expone la ruta de la evidencia,
+        ejecución y fin), del más antiguo al más reciente por hora de captura (`ocurridoEn`, SCRUM-873), con el autor
+        y su rol. No expone la ruta de la evidencia,
         solo si existe. Para cualquier otro usuario la solicitud responde 404.
       security:
         - bearerAuth: []
@@ -3691,6 +3700,8 @@ components:
         - MANI-EVT-403A
         - MANI-EVT-404
         - MANI-EVT-409E
+        - MANI-EVT-400F
+        - MANI-EVT-409T
         - MANI-MSG-400
         - MANI-MSG-401
         - MANI-MSG-403
@@ -3758,6 +3769,8 @@ components:
         MANI-EVT-403A: 'HTTP 403 — solo el aliado asignado registra eventos del servicio.'
         MANI-EVT-404: 'HTTP 404 — la solicitud no existe o no es visible para la sesión.'
         MANI-EVT-409E: 'HTTP 409 — solo se registran eventos con la solicitud en ejecución.'
+        MANI-EVT-400F: 'HTTP 400 — la hora de captura del evento está más de 5 minutos en el futuro.'
+        MANI-EVT-409T: 'HTTP 409 — la hora de captura del evento cae antes del inicio o después del fin de la ejecución.'
         MANI-EVT-404E: 'HTTP 404 — el evento no existe en la solicitud o no tiene evidencia.'
         MANI-ZON-400: 'HTTP 400 — nivel geográfico fuera de la jerarquía, o identificador de zona que no es UUID.'
         MANI-ZON-404: 'HTTP 404 — la zona, o la zona padre indicada, no existe.'
@@ -5366,6 +5379,12 @@ components:
         claveIdempotencia:
           type: string
           format: uuid
+        ocurridoEn:
+          type: string
+          format: date-time
+          description: >
+            SCRUM-873. Hora de captura de un evento tomado sin conexión, en ISO 8601 con zona horaria. Sin ella, la
+            hora de captura es la del servidor.
       required: [observacion]
 
     ServiceEvent:
@@ -5382,10 +5401,16 @@ components:
         descripcion:
           type: string
           nullable: true
+        ocurridoEn:
+          type: string
+          format: date-time
+          description: >
+            Hora de captura (SCRUM-873); es la oficial, la que se muestra y por la que se ordena la secuencia. Si el
+            evento no la trajo, es igual a `registradoEn`.
         registradoEn:
           type: string
           format: date-time
-          description: Hora del servidor.
+          description: Hora del servidor al registrar el evento, para auditoría.
         autor:
           type: object
           properties:
@@ -5397,7 +5422,7 @@ components:
           required: [id, rol]
         tieneEvidencia:
           type: boolean
-      required: [id, tipo, descripcion, registradoEn, autor, tieneEvidencia]
+      required: [id, tipo, descripcion, ocurridoEn, registradoEn, autor, tieneEvidencia]
 
     ServiceEventResponse:
       type: object
