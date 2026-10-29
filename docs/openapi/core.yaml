@@ -47,6 +47,11 @@ tags:
     description: Autenticación e identidad de usuarios (Clientes, Aliados, Admins)
   - name: Ally Registration
     description: Registro de Aliados persona natural y empresa
+  - name: Direct Employees
+    description: >
+      Registro del empleado directo por el administrador del tenant (HU-M02-08 / SCRUM-1376, RF-05). Queda VERIFICADO
+      de inmediato, sin pasar por la bandeja de verificación, con la copia de su documento de identidad. Tenant, usuario
+      y rol salen del JWT; la operación queda auditada (T10).
   - name: Client Registration
     description: Registro de Clientes persona natural y empresa
   - name: Service Requests
@@ -476,6 +481,96 @@ paths:
           description: >
             Ya existe un usuario con ese email (`EMAIL_ALREADY_REGISTERED`) o la empresa ya está
             registrada con ese NIT en este tenant (`COMPANY_ALREADY_REGISTERED`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /allies/employees:
+    post:
+      tags: [Direct Employees]
+      operationId: registerDirectEmployee
+      summary: El administrador del tenant registra a un empleado directo
+      description: >
+        HU-M02-08 (SCRUM-1376, RF-05; implementación inicial SCRUM-850). Decisión del PO del 26-oct-2026:
+        **datos obligatorios** nombre completo, tipo y número de documento de identidad, correo, teléfono y al menos una
+        categoría de servicio; **documento obligatorio**: copia del documento de identidad (campo `documento_identidad`,
+        PDF, JPG o PNG de hasta 5 MB; no se piden RUT ni Cámara de Comercio). El empleado queda `VERIFICADO` de
+        inmediato y no entra a la bandeja de verificación. Si no se envía `password`, Core genera una temporal y la
+        devuelve una sola vez.
+
+
+        El tenant sale **solo** del JWT: un `tenantId` en el cuerpo, la consulta o un encabezado se ignora, y el
+        empleado siempre se crea con rol de aliado (no se eleva privilegio). Solo el rol administrador del tenant puede
+        llamarla. Un documento de identidad ya registrado en el tenant responde `409`. La operación se audita (T10):
+        quién, cuándo y `X-Correlation-ID`.
+
+
+        También responde en `/allies/direct-employees` y `/admin/employees` (alias por compatibilidad con SCRUM-850).
+        **Diferido:** los documentos adicionales configurables por tenant (RNF-10) dependen de la configuración por
+        tenant (CONS-44), que aún no existe; hoy el único documento exigido es la copia del documento de identidad.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/RegisterDirectEmployeeRequest'
+                - type: object
+                  required: [documento_identidad]
+                  properties:
+                    documento_identidad:
+                      type: string
+                      format: binary
+                      description: Copia del documento de identidad, hasta 5 MB
+            encoding:
+              documento_identidad:
+                contentType: application/pdf, image/jpeg, image/png
+      responses:
+        '201':
+          description: Empleado directo registrado y verificado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterDirectEmployeeResponse'
+        '400':
+          description: >
+            Dato obligatorio ausente o inválido (`VALIDATION_ERROR`), copia del documento ausente
+            (`DOCUMENT_REQUIRED`), tipo que no es PDF, JPG o PNG o contenido que no corresponde
+            (`DOCUMENT_TYPE_INVALID`), categoría inexistente, inactiva o de otro tenant (`CATEGORY_NOT_FOUND`) o
+            tenant inexistente/inactivo (`TENANT_NOT_FOUND`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado (`UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es administrador del tenant (`FORBIDDEN`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: >
+            Ya existe un aliado con ese número de documento en el tenant (`DOCUMENT_ALREADY_REGISTERED`) o un usuario
+            con ese correo (`EMAIL_ALREADY_REGISTERED`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: La copia del documento supera 5 MB (`DOCUMENT_TOO_LARGE`)
           content:
             application/json:
               schema:
@@ -3661,6 +3756,9 @@ components:
         - EMAIL_ALREADY_REGISTERED
         - DOCUMENT_ALREADY_REGISTERED
         - COMPANY_ALREADY_REGISTERED
+        - DOCUMENT_REQUIRED
+        - DOCUMENT_TYPE_INVALID
+        - DOCUMENT_TOO_LARGE
         - TERMS_NOT_ACCEPTED
         - SERVICE_UNAVAILABLE
         - MANI-SOL-400
@@ -3784,6 +3882,107 @@ components:
         MANI-AUD-403: 'HTTP 403 — el rol no puede consultar este registro de transacciones.'
         MANI-AUD-404: 'HTTP 404 — el pago no existe o no es visible para la sesión.'
         INTERNAL_ERROR: 'HTTP 500 — fallo no controlado del servicio.'
+
+    RegisterDirectEmployeeRequest:
+      type: object
+      required: [fullName, email, phone, documentType, documentNumber, categoriaIds]
+      properties:
+        fullName:
+          type: string
+          minLength: 2
+          description: Nombre completo (también se acepta `nombre`)
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          example: '+573001234567'
+          description: Teléfono, de 7 a 20 caracteres (también se acepta `telefono`)
+        documentType:
+          type: string
+          enum: [CC, CE, PASSPORT]
+          description: Tipo de documento de identidad (también se acepta `tipoDocumento`)
+        documentNumber:
+          type: string
+          description: Número de documento; único por tenant (también se acepta `numeroDocumento`)
+        categoriaIds:
+          type: array
+          minItems: 1
+          items:
+            type: string
+          description: >
+            Categorías de servicio activas del tenant que atiende. En multipart se envía el campo repetido, una lista
+            JSON o ids separados por coma. `categoriaId` (una sola) se conserva por compatibilidad.
+        password:
+          type: string
+          minLength: 8
+          description: Opcional; si falta, Core genera una temporal
+
+    RegisterDirectEmployeeResponse:
+      type: object
+      required: [message, correlationId, tenantId, employee]
+      properties:
+        message:
+          type: string
+        correlationId:
+          type: string
+        tenantId:
+          type: string
+          description: Tenant del JWT
+        temporaryPassword:
+          type: string
+          description: Solo si Core generó la contraseña; se entrega una sola vez
+        employee:
+          type: object
+          required: [id, usuarioId, tenantId, fullName, email, phone, documentType, documentNumber, categoriaIds, tipo, estadoVerificacion, documento]
+          properties:
+            id:
+              type: string
+              description: Id del aliado
+            usuarioId:
+              type: string
+            tenantId:
+              type: string
+            fullName:
+              type: string
+            email:
+              type: string
+            phone:
+              type: string
+            documentType:
+              type: string
+              enum: [CC, CE, PASSPORT]
+            documentNumber:
+              type: string
+            categoriaId:
+              type: string
+              nullable: true
+              description: Primera categoría (compatibilidad)
+            categoriaIds:
+              type: array
+              items:
+                type: string
+            tipo:
+              type: string
+              enum: [EMPLEADO_DIRECTO]
+            estadoVerificacion:
+              type: string
+              enum: [VERIFICADO]
+            documento:
+              type: object
+              required: [id, tipoDocumento, contentType, sizeBytes]
+              properties:
+                id:
+                  type: string
+                  nullable: true
+                tipoDocumento:
+                  type: string
+                  enum: [documento_identidad]
+                contentType:
+                  type: string
+                  enum: [application/pdf, image/jpeg, image/png]
+                sizeBytes:
+                  type: integer
 
     ErrorResponse:
       type: object
