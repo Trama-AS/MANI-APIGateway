@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.21.0
+  version: 0.22.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -97,6 +97,16 @@ tags:
       SCRUM-1387, RF-08). Toda sede tiene dirección y zona del catálogo
       (RF-09). Solo las consultan y modifican el propio cliente empresa y el
       administrador de su tenant; el tenant, el usuario y el rol salen del JWT.
+  - name: Ratings and Closure
+    description: >
+      Calificación bidireccional (SCRUM-874, SCRUM-875), cierre condicionado a ambas calificaciones (SCRUM-1418) y
+      calificación agregada visible en el listado (SCRUM-876) del Módulo M-08.
+  - name: Cancellation Penalty
+    description: >
+      Política de penalización por cancelación tardía del tenant y vista previa antes de cancelar (SCRUM-878).
+  - name: Service History
+    description: >
+      Historial cronológico de servicios del cliente (SCRUM-879) y de trabajos del aliado (SCRUM-880).
 
 paths:
   /auth/login:
@@ -3395,6 +3405,555 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /solicitudes/{id}/calificaciones:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id de la solicitud
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Ratings and Closure]
+      operationId: rateServiceRequest
+      summary: El cliente o el aliado asignado registra su calificación sobre el servicio ejecutado
+      description: >
+        SCRUM-874 (cliente -> aliado) y SCRUM-875 (aliado -> cliente). El puntaje es un entero entre 1 y 5 y el
+        comentario es opcional (máximo 500 caracteres). Solo el cliente titular y el aliado asignado pueden calificar
+        la solicitud cuando su estado es `COMPLETADA` o `CERRADA`. Cada parte puede registrar una única calificación
+        por solicitud; cuando ambas calificaciones existen, la solicitud transiciona automáticamente a `CERRADA`
+        (SCRUM-1418).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRatingRequest'
+      responses:
+        '201':
+          description: Calificación registrada y estado de cierre actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateRatingResponse'
+        '400':
+          description: El id de la solicitud no es un UUID (`MANI-CAL-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin sesión válida (`MANI-CAL-401`, `UNAUTHORIZED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El usuario no es el cliente titular ni el aliado asignado de la solicitud (`MANI-CAL-403`, `MANI-CAL-403P`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La solicitud no existe en el tenant (`MANI-CAL-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: La solicitud no está ejecutada (`MANI-CAL-409E`) o ya existe calificación de este autor (`MANI-CAL-409D`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Puntaje fuera de 1..5 (`MANI-CAL-422P`) o comentario mayor a 500 caracteres (`MANI-CAL-422C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Base de datos no disponible (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      tags: [Ratings and Closure]
+      operationId: getServiceRequestRatings
+      summary: Consulta las calificaciones y el estado de cierre de una solicitud
+      description: >
+        SCRUM-1418, SCRUM-874 y SCRUM-875. Devuelve las calificaciones registradas (cliente -> aliado y aliado ->
+        cliente) y el bloque `cierre` indicando si la solicitud ya está `CERRADA` o qué calificación sigue pendiente.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Calificaciones y estado de cierre de la solicitud
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceRequestRatingsResponse'
+        '400':
+          description: El id de la solicitud no es un UUID (`MANI-CAL-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin sesión válida (`MANI-CAL-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La solicitud no existe o no es visible para la sesión (`MANI-CAL-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Base de datos no disponible (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /solicitudes/{id}/cerrar:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id de la solicitud
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Ratings and Closure]
+      operationId: closeServiceRequest
+      summary: Declara el cierre definitivo de la solicitud condicionado a la calificación bidireccional
+      description: >
+        SCRUM-1418 (HU-M08-03, RF-19). Verifica que la solicitud haya finalizado su ejecución y cuente tanto con la
+        calificación del cliente hacia el aliado como con la del aliado hacia el cliente. Si falta alguna de las dos,
+        responde `409 MANI-CAL-409C` indicando cuáles siguen pendientes.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Solicitud cerrada con ambas calificaciones registradas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CloseServiceRequestResponse'
+        '400':
+          description: El id de la solicitud no es un UUID (`MANI-CAL-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin sesión válida (`MANI-CAL-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La solicitud no existe o no es visible para la sesión (`MANI-CAL-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Falta alguna de las dos calificaciones (`MANI-CAL-409C`) o el servicio no está ejecutado (`MANI-CAL-409E`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Base de datos no disponible (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /aliados/calificaciones:
+    get:
+      tags: [Ratings and Closure]
+      operationId: listAlliesAggregatedRatings
+      summary: Listado de aliados del tenant con su calificación agregada (SCRUM-876)
+      description: >
+        SCRUM-876 (US-04.4.3 / HU-M08-04). Devuelve los aliados verificados del tenant con `calificacionPromedio`,
+        `totalCalificaciones` y `etiquetaCalificacion`. Cuando un aliado no tiene calificaciones previas, devuelve
+        `calificacionPromedio: null`, `totalCalificaciones: 0` y `etiquetaCalificacion: "Sin valorar"` (nunca un `0.0`
+        engañoso).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: categoriaId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: zonaId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Aliados del tenant con su calificación agregada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllyAggregatedRatingListResponse'
+        '400':
+          description: Filtro inválido (`MANI-CAL-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin sesión válida (`MANI-CAL-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Base de datos no disponible (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /aliados/{id}/calificacion:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id del aliado
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Ratings and Closure]
+      operationId: getAllyAggregatedRating
+      summary: Calificación agregada de un aliado del tenant (SCRUM-876)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Resumen de calificación agregada del aliado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllyAggregatedRatingDetailResponse'
+        '400':
+          description: El id del aliado no es un UUID (`MANI-CAL-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin sesión válida (`MANI-CAL-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: El aliado no existe en el tenant (`MANI-CAL-404A`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Base de datos no disponible (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tenants/me/politica-cancelacion:
+    get:
+      tags: [Cancellation Penalty]
+      operationId: getTenantCancellationPolicy
+      summary: Consulta la política vigente de penalización por cancelación tardía del tenant (SCRUM-878)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Política de cancelación vigente del tenant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantCancellationPolicyResponse'
+        '401':
+          description: Sin sesión válida (`MANI-PEN-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Base de datos no disponible (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      tags: [Cancellation Penalty]
+      operationId: upsertTenantCancellationPolicy
+      summary: Configura la política de penalización por cancelación tardía del tenant (SCRUM-878)
+      description: >
+        Solo el administrador del tenant (`ADMIN` / `ADMIN_TENANT`). Registra auditoría estructurada (T10) del cambio.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertTenantCancellationPolicyRequest'
+      responses:
+        '200':
+          description: Política actualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantCancellationPolicyResponse'
+        '401':
+          description: Sin sesión válida (`MANI-PEN-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Solo el administrador del tenant puede modificar la política (`MANI-PEN-403`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Parámetros inválidos (`MANI-PEN-422`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Base de datos no disponible (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /solicitudes/me/{id}/cancelacion-preview:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id de la solicitud del cliente
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Cancellation Penalty]
+      operationId: previewServiceRequestCancellation
+      summary: Calcula la vista previa de penalización antes de cancelar una solicitud (SCRUM-878)
+      description: >
+        Si la solicitud ya fue asignada y la política activa del tenant aplica cargo por cancelación tardía, informa
+        `aplica: true` y el `monto` correspondiente. Si no hay política activa o la solicitud sigue en `PENDIENTE`,
+        informa `aplica: false` y `monto: 0`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Vista previa de cancelación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancellationPreviewResponse'
+        '400':
+          description: El id de la solicitud no es un UUID (`MANI-PEN-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin sesión válida (`MANI-PEN-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Solo un cliente activo puede consultar la vista previa de cancelación (`MANI-PEN-403C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: La solicitud no existe o no pertenece al cliente (`MANI-SOL-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Base de datos no disponible (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /solicitudes/me/historial:
+    get:
+      tags: [Service History]
+      operationId: listClientServiceHistory
+      summary: Historial cronológico de servicios del cliente autenticado (SCRUM-879)
+      description: >
+        SCRUM-879 (US-04.6.1 / HU-M08-06). Devuelve las solicitudes del cliente en el tenant ordenadas de la más
+        reciente a la más antigua, incluyendo aliado asignado, penalización si aplicó y calificaciones emitidas/recibidas.
+        Cuando el cliente no tiene servicios previos, responde `200` con `historial: []` y `total: 0`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Historial de servicios del cliente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientServiceHistoryResponse'
+        '401':
+          description: Sin sesión válida (`MANI-HIS-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Solo un cliente activo puede consultar su historial de servicios (`MANI-HIS-403C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Base de datos no disponible (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /allies/me/history:
+    get:
+      tags: [Service History]
+      operationId: listAllyJobHistory
+      summary: Historial cronológico de trabajos del aliado autenticado (SCRUM-880)
+      description: >
+        SCRUM-880 (US-04.6.2 / HU-M08-07). Devuelve únicamente los servicios asignados al aliado de la sesión dentro
+        de su tenant, en orden cronológico descendente, con su estado, montos y calificaciones. Cuando el aliado no
+        tiene trabajos asignados, devuelve `trabajos: []` y `total: 0`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Historial de trabajos del aliado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllyJobHistoryResponse'
+        '401':
+          description: Sin sesión válida (`MANI-HIS-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Solo un aliado activo puede consultar su historial de trabajos (`MANI-HIS-403A`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Base de datos no disponible (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /allies/me/history/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id del trabajo (solicitud asignada al aliado)
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Service History]
+      operationId: getAllyJobHistoryDetail
+      summary: Detalle de un trabajo en el historial del aliado autenticado (SCRUM-880)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Trabajo del historial del aliado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllyJobHistoryDetailResponse'
+        '400':
+          description: El id de la solicitud no es un UUID (`MANI-HIS-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin sesión válida (`MANI-HIS-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Solo un aliado activo puede consultar su historial de trabajos (`MANI-HIS-403A`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: El trabajo no existe o fue asignado a otro aliado (`MANI-HIS-404`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Base de datos no disponible (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -3703,6 +4262,27 @@ components:
         - MANI-EVT-404E
         - MANI-ZON-400
         - MANI-ZON-404
+        - MANI-CAL-400
+        - MANI-CAL-401
+        - MANI-CAL-403
+        - MANI-CAL-403P
+        - MANI-CAL-404
+        - MANI-CAL-404A
+        - MANI-CAL-409C
+        - MANI-CAL-409D
+        - MANI-CAL-409E
+        - MANI-CAL-422P
+        - MANI-CAL-422C
+        - MANI-PEN-400
+        - MANI-PEN-401
+        - MANI-PEN-403
+        - MANI-PEN-403C
+        - MANI-PEN-422
+        - MANI-HIS-400
+        - MANI-HIS-401
+        - MANI-HIS-403C
+        - MANI-HIS-403A
+        - MANI-HIS-404
         - INTERNAL_ERROR
       x-code-meanings:
         VALIDATION_ERROR: 'HTTP 400 — el body no cumple el esquema (campo faltante/formato inválido).'
@@ -3770,6 +4350,27 @@ components:
         MANI-AUD-401: 'HTTP 401 — sesión requerida para consultar el registro de transacciones.'
         MANI-AUD-403: 'HTTP 403 — el rol no puede consultar este registro de transacciones.'
         MANI-AUD-404: 'HTTP 404 — el pago no existe o no es visible para la sesión.'
+        MANI-CAL-400: 'HTTP 400 — el identificador de solicitud, aliado o filtro no es un UUID válido.'
+        MANI-CAL-401: 'HTTP 401 — sesión requerida para calificar, cerrar o consultar calificaciones.'
+        MANI-CAL-403: 'HTTP 403 — solo el cliente o el aliado asignado pueden calificar el servicio.'
+        MANI-CAL-403P: 'HTTP 403 — el usuario no es el cliente titular ni el aliado asignado de la solicitud.'
+        MANI-CAL-404: 'HTTP 404 — la solicitud no existe en el tenant o no es visible para la sesión.'
+        MANI-CAL-404A: 'HTTP 404 — el aliado no existe en el tenant.'
+        MANI-CAL-409C: 'HTTP 409 — no se declara el cierre completo de la solicitud sin ambas calificaciones.'
+        MANI-CAL-409D: 'HTTP 409 — ya existe una calificación registrada por este autor para esta solicitud.'
+        MANI-CAL-409E: 'HTTP 409 — la solicitud no está ejecutada (requiere estado COMPLETADA o CERRADA).'
+        MANI-CAL-422P: 'HTTP 422 — el puntaje debe ser un entero entre 1 y 5.'
+        MANI-CAL-422C: 'HTTP 422 — el comentario no puede superar 500 caracteres.'
+        MANI-PEN-400: 'HTTP 400 — el id de la solicitud no es un UUID válido.'
+        MANI-PEN-401: 'HTTP 401 — sesión requerida para consultar o configurar la política de cancelación.'
+        MANI-PEN-403: 'HTTP 403 — solo el administrador del tenant puede modificar la política de cancelación.'
+        MANI-PEN-403C: 'HTTP 403 — solo un cliente activo del tenant puede previsualizar la cancelación.'
+        MANI-PEN-422: 'HTTP 422 — parámetros inválidos en la política de cancelación.'
+        MANI-HIS-400: 'HTTP 400 — el id del servicio o trabajo no es un UUID válido.'
+        MANI-HIS-401: 'HTTP 401 — sesión requerida para consultar el historial.'
+        MANI-HIS-403C: 'HTTP 403 — solo un cliente activo del tenant puede consultar su historial de servicios.'
+        MANI-HIS-403A: 'HTTP 403 — solo un aliado activo del tenant puede consultar su historial de trabajos.'
+        MANI-HIS-404: 'HTTP 404 — el trabajo no existe en el historial del aliado.'
         INTERNAL_ERROR: 'HTTP 500 — fallo no controlado del servicio.'
 
     ErrorResponse:
@@ -5603,3 +6204,444 @@ components:
         correlationId:
           type: string
       required: [sitios, correlationId]
+
+    CreateRatingRequest:
+      type: object
+      required: [puntaje]
+      properties:
+        puntaje:
+          type: integer
+          minimum: 1
+          maximum: 5
+          example: 5
+        comentario:
+          type: string
+          maxLength: 500
+          nullable: true
+          example: Excelente servicio y puntualidad.
+
+    RatingRecord:
+      type: object
+      required: [id, solicitudId, autorId, destinatarioId, rolAutor, puntaje, creadaEn]
+      properties:
+        id:
+          type: string
+          format: uuid
+        solicitudId:
+          type: string
+          format: uuid
+        autorId:
+          type: string
+          format: uuid
+        destinatarioId:
+          type: string
+          format: uuid
+        rolAutor:
+          type: string
+          enum: [CLIENT, ALLY]
+        puntaje:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comentario:
+          type: string
+          nullable: true
+        creadaEn:
+          type: string
+          format: date-time
+
+    ClosureStatus:
+      type: object
+      required: [cerrada, estadoSolicitud, tieneCalificacionCliente, tieneCalificacionAliado, pendientes]
+      properties:
+        cerrada:
+          type: boolean
+        estadoSolicitud:
+          type: string
+          example: CERRADA
+        cerradaEn:
+          type: string
+          format: date-time
+          nullable: true
+        tieneCalificacionCliente:
+          type: boolean
+        tieneCalificacionAliado:
+          type: boolean
+        pendientes:
+          type: array
+          items:
+            type: string
+            enum: [CALIFICACION_CLIENTE, CALIFICACION_ALIADO]
+
+    CreateRatingResponse:
+      type: object
+      required: [calificacion, cierre, correlationId]
+      properties:
+        calificacion:
+          $ref: '#/components/schemas/RatingRecord'
+        cierre:
+          $ref: '#/components/schemas/ClosureStatus'
+        correlationId:
+          type: string
+
+    ServiceRequestRatingsResponse:
+      type: object
+      required: [solicitudId, estado, cierre, calificaciones, correlationId]
+      properties:
+        solicitudId:
+          type: string
+          format: uuid
+        estado:
+          type: string
+        cerradaEn:
+          type: string
+          format: date-time
+          nullable: true
+        cierre:
+          $ref: '#/components/schemas/ClosureStatus'
+        calificaciones:
+          type: object
+          properties:
+            clienteAAliado:
+              $ref: '#/components/schemas/RatingRecord'
+            aliadoACliente:
+              $ref: '#/components/schemas/RatingRecord'
+        correlationId:
+          type: string
+
+    CloseServiceRequestResponse:
+      type: object
+      required: [solicitud, cierre, correlationId]
+      properties:
+        solicitud:
+          type: object
+          required: [id, estado, cerradaEn]
+          properties:
+            id:
+              type: string
+              format: uuid
+            estado:
+              type: string
+              enum: [CERRADA]
+            cerradaEn:
+              type: string
+              format: date-time
+        cierre:
+          $ref: '#/components/schemas/ClosureStatus'
+        correlationId:
+          type: string
+
+    AllyAggregatedRatingSummary:
+      type: object
+      required: [aliadoId, nombreRazonSocial, tipo, estadoVerificacion, calificacionPromedio, totalCalificaciones, etiquetaCalificacion]
+      properties:
+        aliadoId:
+          type: string
+          format: uuid
+        usuarioId:
+          type: string
+          format: uuid
+        nombreRazonSocial:
+          type: string
+        tipo:
+          type: string
+        estadoVerificacion:
+          type: string
+        calificacionPromedio:
+          type: number
+          nullable: true
+          description: Promedio (1.0 a 5.0) o `null` cuando `totalCalificaciones == 0` (SCRUM-876).
+        totalCalificaciones:
+          type: integer
+          minimum: 0
+        etiquetaCalificacion:
+          type: string
+          example: Sin valorar
+
+    AllyAggregatedRatingListResponse:
+      type: object
+      required: [aliados, totalCount, correlationId]
+      properties:
+        aliados:
+          type: array
+          items:
+            $ref: '#/components/schemas/AllyAggregatedRatingSummary'
+        totalCount:
+          type: integer
+          minimum: 0
+        correlationId:
+          type: string
+
+    AllyAggregatedRatingDetailResponse:
+      type: object
+      required: [aliado, correlationId]
+      properties:
+        aliado:
+          $ref: '#/components/schemas/AllyAggregatedRatingSummary'
+        correlationId:
+          type: string
+
+    TenantCancellationPolicy:
+      type: object
+      required: [tenantId, activa, modoCalculo, porcentajePenalizacion, montoFijoPenalizacion, minutosGraciaSinCosto]
+      properties:
+        tenantId:
+          type: string
+          format: uuid
+        activa:
+          type: boolean
+        modoCalculo:
+          type: string
+          enum: [PORCENTAJE, MONTO_FIJO]
+        porcentajePenalizacion:
+          type: number
+          minimum: 0
+          maximum: 100
+        montoFijoPenalizacion:
+          type: number
+          minimum: 0
+        minutosGraciaSinCosto:
+          type: integer
+          minimum: 0
+        actualizadaEn:
+          type: string
+          format: date-time
+          nullable: true
+
+    UpsertTenantCancellationPolicyRequest:
+      type: object
+      required: [activa]
+      properties:
+        activa:
+          type: boolean
+        modoCalculo:
+          type: string
+          enum: [PORCENTAJE, MONTO_FIJO]
+        porcentajePenalizacion:
+          type: number
+          minimum: 0
+          maximum: 100
+        montoFijoPenalizacion:
+          type: number
+          minimum: 0
+        minutosGraciaSinCosto:
+          type: integer
+          minimum: 0
+
+    TenantCancellationPolicyResponse:
+      type: object
+      required: [politica, correlationId]
+      properties:
+        politica:
+          $ref: '#/components/schemas/TenantCancellationPolicy'
+        correlationId:
+          type: string
+
+    CancellationPenaltySummary:
+      type: object
+      required: [aplica, monto, motivo, modoCalculo]
+      properties:
+        aplica:
+          type: boolean
+        monto:
+          type: number
+        motivo:
+          type: string
+          nullable: true
+        modoCalculo:
+          type: string
+          nullable: true
+
+    CancellationPreviewResponse:
+      type: object
+      required: [solicitudId, estadoActual, cancelable, penalizacion, politicaVigente, correlationId]
+      properties:
+        solicitudId:
+          type: string
+          format: uuid
+        estadoActual:
+          type: string
+        cancelable:
+          type: boolean
+        penalizacion:
+          $ref: '#/components/schemas/CancellationPenaltySummary'
+        politicaVigente:
+          type: object
+          required: [activa, modoCalculo, porcentajePenalizacion, montoFijoPenalizacion, minutosGraciaSinCosto]
+          properties:
+            activa:
+              type: boolean
+            modoCalculo:
+              type: string
+            porcentajePenalizacion:
+              type: number
+            montoFijoPenalizacion:
+              type: number
+            minutosGraciaSinCosto:
+              type: integer
+        correlationId:
+          type: string
+
+    ClientServiceHistoryItem:
+      type: object
+      required: [id, estado, categoriaId, categoria, descripcion, direccion, zona, penalizacion, calificaciones, creadaEn]
+      properties:
+        id:
+          type: string
+          format: uuid
+        estado:
+          type: string
+        categoriaId:
+          type: string
+          format: uuid
+        categoria:
+          type: string
+        flujoOperativo:
+          type: string
+          nullable: true
+        descripcion:
+          type: string
+        direccion:
+          type: string
+        zona:
+          type: string
+        zonaPadre:
+          type: string
+          nullable: true
+        aliado:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              format: uuid
+            nombreRazonSocial:
+              type: string
+        valorTotal:
+          type: number
+          nullable: true
+        penalizacion:
+          type: object
+          required: [aplicada, monto]
+          properties:
+            aplicada:
+              type: boolean
+            monto:
+              type: number
+            motivo:
+              type: string
+              nullable: true
+        calificaciones:
+          type: object
+          properties:
+            emitidaAlAliado:
+              $ref: '#/components/schemas/RatingRecord'
+            recibidaDelAliado:
+              $ref: '#/components/schemas/RatingRecord'
+        creadaEn:
+          type: string
+          format: date-time
+        cerradaEn:
+          type: string
+          format: date-time
+          nullable: true
+
+    ClientServiceHistoryResponse:
+      type: object
+      required: [historial, total, correlationId]
+      properties:
+        historial:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClientServiceHistoryItem'
+        total:
+          type: integer
+          minimum: 0
+        mensajeVacio:
+          type: string
+          nullable: true
+        correlationId:
+          type: string
+
+    AllyJobHistoryItem:
+      type: object
+      required: [id, estado, categoriaId, categoria, descripcion, direccion, zona, cliente, calificaciones, creadaEn]
+      properties:
+        id:
+          type: string
+          format: uuid
+        estado:
+          type: string
+        categoriaId:
+          type: string
+          format: uuid
+        categoria:
+          type: string
+        flujoOperativo:
+          type: string
+          nullable: true
+        descripcion:
+          type: string
+        direccion:
+          type: string
+        zona:
+          type: string
+        zonaPadre:
+          type: string
+          nullable: true
+        cliente:
+          type: object
+          required: [id, nombre]
+          properties:
+            id:
+              type: string
+              format: uuid
+            nombre:
+              type: string
+        valorTotal:
+          type: number
+          nullable: true
+        calificaciones:
+          type: object
+          properties:
+            recibidaDelCliente:
+              $ref: '#/components/schemas/RatingRecord'
+            emitidaAlCliente:
+              $ref: '#/components/schemas/RatingRecord'
+        creadaEn:
+          type: string
+          format: date-time
+        cerradaEn:
+          type: string
+          format: date-time
+          nullable: true
+
+    AllyJobHistoryResponse:
+      type: object
+      required: [trabajos, historial, total, correlationId]
+      properties:
+        trabajos:
+          type: array
+          items:
+            $ref: '#/components/schemas/AllyJobHistoryItem'
+        historial:
+          type: array
+          items:
+            $ref: '#/components/schemas/AllyJobHistoryItem'
+        total:
+          type: integer
+          minimum: 0
+        mensajeVacio:
+          type: string
+          nullable: true
+        correlationId:
+          type: string
+
+    AllyJobHistoryDetailResponse:
+      type: object
+      required: [trabajo, correlationId]
+      properties:
+        trabajo:
+          $ref: '#/components/schemas/AllyJobHistoryItem'
+        correlationId:
+          type: string
