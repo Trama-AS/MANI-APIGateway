@@ -9,7 +9,7 @@ fallos=0
 esperar() {
   local descripcion="$1" esperado="$2" obtenido
   shift 2
-  obtenido=$(curl -s -o /dev/null -w '%{http_code}' "$@")
+  obtenido=$(curl -s -k -L -o /dev/null -w '%{http_code}' "$@")
   if [ "$obtenido" = "$esperado" ]; then
     echo "ok    $descripcion -> $obtenido"
   else
