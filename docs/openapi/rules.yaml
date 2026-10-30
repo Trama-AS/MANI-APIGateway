@@ -36,7 +36,7 @@ info:
     override por tenant: cambiarlos no requiere desplegar Core. Una regla
     incumplida es `200` con `allowed=false`, no un error HTTP. El nombre único
     por tenant (409) sigue en el índice `ux_categoria_tenant_nombre`.
-  version: 1.0.0
+  version: 1.1.0
 servers:
   - url: https://api.mani.app/api/v1/rules
     description: Producción, a través del Gateway
@@ -47,6 +47,10 @@ servers:
 tags:
   - name: Category Rules
     description: Reglas operativas de la categoría de servicio.
+  - name: Rates
+    description: >
+      Evaluación de importes contra su tarifa de referencia (SCRUM-887 / SCRUM-1462, RF-22 / RF-23). Rules no tiene base
+      de datos: Core envía cada importe con la tarifa que regía y Rules decide; Core no compara por su cuenta.
   - name: Health
     description: Estado del servicio.
 security:
@@ -192,6 +196,62 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+  /rates/evaluate:
+    post:
+      tags: [Rates]
+      operationId: evaluateRates
+      summary: Evalúa importes contra su tarifa de referencia
+      description: >
+        Un importe está dentro del rango si `valorMin × (1 − t) <= total <= valorMax × (1 + t)`, con `t` la tolerancia
+        de Rules (`mani.rules.rates.tolerance-percent`, 0 por omisión). `desviacionPorcentaje` es cuánto se sale respecto
+        al límite cruzado (0 dentro del rango), con dos decimales. Función pura: es seguro reintentarla. Máximo 500
+        importes por petición; Core parte la lista en lotes. Un importe fuera de rango es `200` con su resultado.
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/TenantIdInternal'
+        - $ref: '#/components/parameters/UserRoleInternal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RateEvaluationRequest'
+            example:
+              items:
+                - { id: 9b2f6a1e-0000-4000-8000-000000000001, total: 80000, valorMin: 100000, valorTipico: 150000, valorMax: 200000 }
+                - { id: 9b2f6a1e-0000-4000-8000-000000000002, total: 150000, valorMin: 100000, valorTipico: 150000, valorMax: 200000 }
+      responses:
+        '200':
+          description: Un resultado por importe, en el orden de la petición
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateEvaluationResponse'
+              example:
+                version: rates-v1
+                toleranciaPorcentaje: 0
+                tenantId: 10000000-0000-4000-8000-000000000011
+                resultados:
+                  - { id: 9b2f6a1e-0000-4000-8000-000000000001, resultado: POR_DEBAJO, desviacionPorcentaje: 20.00 }
+                  - { id: 9b2f6a1e-0000-4000-8000-000000000002, resultado: DENTRO_DE_RANGO, desviacionPorcentaje: 0.00 }
+                correlationId: corr-887
+        '400':
+          description: >
+            Cuerpo inválido (sin importes, más de 500, valores negativos o faltantes, o tarifa sin `valorMin <= valorTipico
+            <= valorMax` con `valorMin < valorMax`): `VALIDATION_ERROR`. Sin `X-Tenant-Id`: `TENANT_REQUIRED`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '401':
+          description: Falta `X-User-Role` (`UNAUTHORIZED`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
 components:
   securitySchemes:
     bearerAuth:
@@ -232,6 +292,40 @@ components:
       schema:
         type: string
   schemas:
+    RateEvaluationRequest:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            type: object
+            required: [id, total, valorMin, valorTipico, valorMax]
+            properties:
+              id: { type: string, description: Identificador del importe para quien llama (p. ej. la cotización) }
+              total: { type: number, minimum: 0 }
+              valorMin: { type: number, minimum: 0 }
+              valorTipico: { type: number, minimum: 0 }
+              valorMax: { type: number, minimum: 0 }
+    RateEvaluationResponse:
+      type: object
+      required: [version, toleranciaPorcentaje, tenantId, resultados, correlationId]
+      properties:
+        version: { type: string, example: rates-v1 }
+        toleranciaPorcentaje: { type: number }
+        tenantId: { type: string }
+        resultados:
+          type: array
+          items:
+            type: object
+            required: [id, resultado, desviacionPorcentaje]
+            properties:
+              id: { type: string }
+              resultado: { type: string, enum: [DENTRO_DE_RANGO, POR_DEBAJO, POR_ENCIMA] }
+              desviacionPorcentaje: { type: number }
+        correlationId: { type: string }
     CategoryEvaluationRequest:
       type: object
       required: [context]

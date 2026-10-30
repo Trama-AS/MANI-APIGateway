@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.22.0
+  version: 0.23.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -43,6 +43,25 @@ servers:
     description: Gateway local (docker compose up -d gateway core-service)
 
 tags:
+  - name: Tariffs
+    description: >
+      Tarifario de referencia por categoría y tenant (M-10: HU-M10-01 / SCRUM-885, HU-M10-02 / SCRUM-886, HU-M10-03 /
+      SCRUM-887; RF-22, RF-23). Core persiste las tarifas versionadas y auditadas; Rules evalúa si una cotización está en
+      rango (Mesa CFG-23a punto M2). Editar nunca sobrescribe: crea la versión siguiente y deja la anterior REEMPLAZADA.
+      Tenant, usuario y rol salen del JWT.
+  - name: Complaints
+    description: >
+      Quejas del cliente y su gestión por el tenant (HU-M12-01 / SCRUM-895, HU-M12-02 / SCRUM-896; RF-26). Transiciones
+      ABIERTA -> EN_REVISION | RESUELTA | RECHAZADA y EN_REVISION -> RESUELTA | RECHAZADA, con historial inmutable de
+      actor, rol, fecha, nota y correlación. El cliente solo ve sus quejas; el administrador, las de su tenant.
+  - name: Operational Metrics
+    description: >
+      Métricas operativas agregadas del tenant de la sesión para un periodo (HU-M12-06 / SCRUM-900, RF-28). Un periodo
+      sin datos da ceros y tasas nulas reales.
+  - name: Tenants
+    description: >
+      Administración de plataforma (HU-M12-07 / SCRUM-901, RF-28 / RF-01). Exigen el permiso explícito PLATFORM_ADMIN
+      (claim `admin_plataforma`), que ningún rol de tenant incluye. Cada cambio de estado queda en un registro inmutable.
   - name: Auth
     description: Autenticación e identidad de usuarios (Clientes, Aliados, Admins)
   - name: Ally Registration
@@ -4058,6 +4077,887 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /tarifas:
+    get:
+      tags: [Tariffs]
+      operationId: listTariffs
+      summary: Tarifas activas del tenant (administrador)
+      description: HU-M10-01 (SCRUM-885). Versiones ACTIVA del tenant de la sesión, opcionalmente de una categoría.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: categoriaId
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Tarifas activas (lista vacía si no hay)
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tarifas, correlationId]
+                properties:
+                  tarifas:
+                    type: array
+                    items: { $ref: '#/components/schemas/Tariff' }
+                  correlationId: { type: string }
+        '400':
+          description: '`categoriaId` no es UUID (`MANI-TAR-400`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 'Sin token, token inválido o expirado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 'El rol no es administrador del tenant (`MANI-TAR-403`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 'La base de datos no está configurada o no responde (`MANI-SRV-503`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      tags: [Tariffs]
+      operationId: createTariff
+      summary: Carga una tarifa de referencia para una categoría (administrador)
+      description: >
+        HU-M10-01 (SCRUM-885) C1/C2. Crea la versión siguiente de la categoría en estado ACTIVA. Valores no negativos con
+        máximo dos decimales y `valorMin <= valorTipico <= valorMax` con `valorMin < valorMax`; `vigenciaHasta` (opcional,
+        inclusive) no anterior a `vigenciaDesde` (por omisión, hoy en Colombia). Si la vigencia se cruza con otra tarifa
+        ACTIVA de la categoría responde 409 y no toca la vigente: para cambiarla se edita.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/TariffInput'
+                - type: object
+                  required: [categoriaId]
+                  properties:
+                    categoriaId: { type: string, format: uuid }
+            example:
+              categoriaId: 6f1c2b8e-3d4a-4e5f-9a0b-1c2d3e4f5a6b
+              valorMin: 80000
+              valorTipico: 120000
+              valorMax: 180000
+              moneda: COP
+              vigenciaDesde: '2026-11-01'
+              condiciones: Incluye visita técnica y desplazamiento dentro de la ciudad
+      responses:
+        '201':
+          description: Tarifa creada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TariffResponse' }
+        '400':
+          description: 'Valores negativos, invertidos o sin rango, vigencia inválida, moneda no ISO 4217 o condiciones de más de 500 caracteres (`MANI-TAR-400`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 'Sin token, token inválido o expirado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 'El rol no es administrador del tenant (`MANI-TAR-403`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 'La categoría no existe en el tenant de la sesión (`MANI-TAR-404C`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 'La vigencia se cruza con otra tarifa activa de la categoría (`MANI-TAR-409V`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 'La base de datos no está configurada o no responde (`MANI-SRV-503`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tarifas/{id}:
+    put:
+      tags: [Tariffs]
+      operationId: updateTariff
+      summary: Edita una tarifa creando la versión siguiente (administrador)
+      description: >
+        HU-M10-01 (SCRUM-885). En una transacción marca la versión `id` como REEMPLAZADA y crea la siguiente con los datos
+        enviados (mismas reglas que el alta; la categoría no cambia). Un error deja intacta la versión vigente. Las
+        versiones son inmutables en la base (disparador `trg_tarifa_referencia_inmutable`).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TariffInput' }
+      responses:
+        '200':
+          description: Versión nueva
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TariffResponse' }
+        '400':
+          description: 'Datos inválidos (`MANI-TAR-400`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 'Sin token, token inválido o expirado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 'El rol no es administrador del tenant (`MANI-TAR-403`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 'La tarifa no existe en el tenant de la sesión (`MANI-TAR-404`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 'La versión ya fue reemplazada (`MANI-TAR-409R`) o la vigencia se cruza con otra tarifa activa (`MANI-TAR-409V`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 'La base de datos no está configurada o no responde (`MANI-SRV-503`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tarifas/categorias/{categoriaId}/historial:
+    get:
+      tags: [Tariffs]
+      operationId: getTariffHistory
+      summary: Historial de versiones de la tarifa de una categoría (administrador)
+      description: HU-M10-01 (SCRUM-885) T10. Todas las versiones, de la más reciente a la más antigua, con su auditoría.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: categoriaId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Versiones de la categoría (lista vacía si no tiene)
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [versiones, correlationId]
+                properties:
+                  versiones:
+                    type: array
+                    items: { $ref: '#/components/schemas/Tariff' }
+                  correlationId: { type: string }
+        '400':
+          description: '`categoriaId` no es UUID (`MANI-TAR-400`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 'Sin token, token inválido o expirado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 'El rol no es administrador del tenant (`MANI-TAR-403`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 'La categoría no existe en el tenant de la sesión (`MANI-TAR-404C`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 'La base de datos no está configurada o no responde (`MANI-SRV-503`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /solicitudes/{id}/tarifa-referencia:
+    get:
+      tags: [Tariffs]
+      operationId: getRequestReferenceTariff
+      summary: Tarifa de referencia vigente para cotizar una solicitud
+      description: >
+        HU-M10-02 (SCRUM-886). La ven el cliente dueño, el aliado asignado y el administrador del tenant. Vigente = ACTIVA
+        y con la fecha de hoy (Colombia) dentro de su vigencia. Sin tarifa vigente responde `disponible: false` y
+        `tarifa: null`: nunca un valor por defecto. Una solicitud ajena responde 404 sin revelar que existe.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Referencia de la categoría de la solicitud, o que no hay
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [disponible, tarifa, correlationId]
+                properties:
+                  disponible: { type: boolean }
+                  tarifa:
+                    allOf:
+                      - $ref: '#/components/schemas/ReferenceTariff'
+                    nullable: true
+                  correlationId: { type: string }
+        '400':
+          description: 'El id no es UUID (`MANI-TAR-400`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 'Sin token, token inválido o expirado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 'El rol no consulta tarifas (`MANI-TAR-403`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 'La solicitud no existe o la sesión no la puede ver (`MANI-TAR-404S`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 'La base de datos no está configurada o no responde (`MANI-SRV-503`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /reportes/cotizaciones-fuera-de-rango:
+    get:
+      tags: [Tariffs]
+      operationId: getOutOfRangeQuotesReport
+      summary: Cotizaciones del periodo evaluadas fuera de rango por Rules (administrador)
+      description: >
+        HU-M10-03 (SCRUM-887). Core toma las cotizaciones emitidas en el periodo (fechas inclusive, hora de Colombia, máximo
+        92 días) con la versión de tarifa que regía al emitirlas y Rules (`POST /api/v1/rules/rates/evaluate`) decide si
+        están en rango. Las que no tenían tarifa se cuentan en `sinTarifa` y no se evalúan. Si Rules no responde, 503 sin
+        valores calculados en Core (T2).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - { name: desde, in: query, required: true, schema: { type: string, format: date } }
+        - { name: hasta, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: Reporte (vacío controlado si no hay datos)
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OutOfRangeQuotesReport' }
+        '400':
+          description: 'Fechas inválidas, `desde` posterior a `hasta` o más de 92 días (`MANI-TAR-400`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 'Sin token, token inválido o expirado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 'El rol no es administrador del tenant (`MANI-TAR-403`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: 'Rules respondió fuera de contrato (`RULES_SERVICE_ERROR`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 'Rules o la base de datos no están disponibles (`RULES_SERVICE_UNAVAILABLE`, `MANI-SRV-503`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /solicitudes/{id}/quejas:
+    post:
+      tags: [Complaints]
+      operationId: createComplaint
+      summary: El cliente presenta una queja sobre un servicio propio
+      description: >
+        HU-M12-01 (SCRUM-895) C1/C2. Solo el cliente dueño, sobre una solicitud que ya tuvo aliado asignado. Una sola
+        queja abierta (ABIERTA o EN_REVISION) por solicitud. Queda la transición inicial NULL -> ABIERTA.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [motivo, descripcion]
+              properties:
+                motivo: { $ref: '#/components/schemas/ComplaintReason' }
+                descripcion: { type: string, minLength: 10, maxLength: 1000 }
+            example:
+              motivo: INCUMPLIMIENTO_DE_HORARIO
+              descripcion: El aliado llegó dos horas tarde sin avisar
+      responses:
+        '201':
+          description: Queja registrada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ComplaintResponse' }
+        '400':
+          description: 'Motivo fuera del catálogo o descripción de menos de 10 o más de 1000 caracteres (`MANI-QJA-400`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 'Sin token, token inválido o expirado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 'El rol no es cliente (`MANI-QJA-403`) o el cliente no está activo (`MANI-QJA-403C`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 'La solicitud no existe o es de otro cliente (`MANI-QJA-404S`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 'La solicitud no tiene aliado asignado (`MANI-QJA-409S`) o ya tiene una queja abierta (`MANI-QJA-409A`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 'La base de datos no está configurada o no responde (`MANI-SRV-503`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /quejas/mias:
+    get:
+      tags: [Complaints]
+      operationId: listOwnComplaints
+      summary: Quejas del cliente de la sesión
+      description: HU-M12-01 (SCRUM-895) C3. Solo las del cliente autenticado, de la más reciente a la más antigua.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Quejas del cliente (lista vacía si no tiene)
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ComplaintListResponse' }
+        '401':
+          description: 'Sin token, token inválido o expirado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 'El rol no es cliente (`MANI-QJA-403`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 'La base de datos no está configurada o no responde (`MANI-SRV-503`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /quejas:
+    get:
+      tags: [Complaints]
+      operationId: listComplaints
+      summary: Quejas del tenant (administrador)
+      description: HU-M12-02 (SCRUM-896). Solo el administrador del tenant de la sesión; filtrable por estado.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - { name: estado, in: query, required: false, schema: { $ref: '#/components/schemas/ComplaintStatus' } }
+        - { name: limite, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200':
+          description: Quejas del tenant
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ComplaintListResponse' }
+        '400':
+          description: 'Estado fuera del catálogo o límite fuera de 1 a 100 (`MANI-QJA-400`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 'Sin token, token inválido o expirado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 'El rol no es administrador del tenant (`MANI-QJA-403`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 'La base de datos no está configurada o no responde (`MANI-SRV-503`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /quejas/{id}:
+    get:
+      tags: [Complaints]
+      operationId: getComplaint
+      summary: Detalle de una queja con su historial
+      description: HU-M12-01/02. El cliente dueño o el administrador del tenant; para cualquier otro, 404.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: La queja
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ComplaintResponse' }
+        '400':
+          description: 'El id no es UUID (`MANI-QJA-400`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 'Sin token, token inválido o expirado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 'El rol no consulta quejas (`MANI-QJA-403`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 'La queja no existe o la sesión no la puede ver (`MANI-QJA-404`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 'La base de datos no está configurada o no responde (`MANI-SRV-503`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /quejas/{id}/estado:
+    patch:
+      tags: [Complaints]
+      operationId: changeComplaintStatus
+      summary: El administrador cambia el estado de una queja
+      description: >
+        HU-M12-02 (SCRUM-896) C1/C2/C3. Transiciones válidas: ABIERTA -> EN_REVISION | RESUELTA | RECHAZADA y
+        EN_REVISION -> RESUELTA | RECHAZADA. Pasar a RESUELTA o RECHAZADA exige `nota` (la respuesta al cliente). Una
+        transición inválida responde 409 y no modifica nada; la base la rechaza igual (disparador
+        `trg_queja_transicion_valida`). El cliente recibe el aviso `QUEJA_ACTUALIZADA` en su bandeja.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [estado]
+              properties:
+                estado: { $ref: '#/components/schemas/ComplaintStatus' }
+                nota: { type: string, minLength: 5, maxLength: 1000 }
+            example:
+              estado: RESUELTA
+              nota: Se aplicó un descuento del 20% en el servicio
+      responses:
+        '200':
+          description: Queja con el estado nuevo y su historial
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ComplaintResponse' }
+        '400':
+          description: 'Estado fuera del catálogo o falta la nota para cerrar (`MANI-QJA-400`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 'Sin token, token inválido o expirado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 'El rol no es administrador del tenant (`MANI-QJA-403`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 'La queja no existe en el tenant de la sesión (`MANI-QJA-404`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 'Transición no permitida desde el estado actual (`MANI-QJA-409T`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 'La base de datos no está configurada o no responde (`MANI-SRV-503`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /metricas/operativas:
+    get:
+      tags: [Operational Metrics]
+      operationId: getOperationalMetrics
+      summary: Métricas operativas del tenant en un periodo (administrador)
+      description: >
+        HU-M12-06 (SCRUM-900). Agregados del tenant de la sesión con fechas inclusive en hora de Colombia (máximo 366
+        días). Nunca mezcla tenants; sin datos devuelve ceros y tasas `null`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - { name: desde, in: query, required: true, schema: { type: string, format: date } }
+        - { name: hasta, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: Métricas del periodo
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OperationalMetrics' }
+        '400':
+          description: 'Fechas inválidas, `desde` posterior a `hasta` o más de 366 días (`MANI-MET-400`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 'Sin token, token inválido o expirado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 'El rol no es administrador del tenant (`MANI-MET-403`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 'La base de datos no está configurada o no responde (`MANI-SRV-503`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tenants:
+    get:
+      tags: [Tenants]
+      operationId: listTenants
+      summary: Lista global de tenants (administrador de plataforma)
+      description: SCRUM-1364 / HU-M12-07 C3. Solo con el permiso explícito PLATFORM_ADMIN.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Todos los tenants
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  message: { type: string }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/TenantSummary' }
+        '401':
+          description: 'Sin token, token inválido o expirado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es PLATFORM_ADMIN
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /tenants/{id}/estado:
+    patch:
+      tags: [Tenants]
+      operationId: changeTenantStatus
+      summary: Habilita, suspende o inactiva un tenant (administrador de plataforma)
+      description: >
+        HU-M12-07 (SCRUM-901) C1/C2. Exige PLATFORM_ADMIN y motivo; el cambio y su registro (actor, rol, tenant de origen
+        del actor, motivo, correlación y fecha) van en la misma transacción. Un admin_tenant no puede cambiarlo, ni el de
+        su propio tenant (también lo impide RLS, migración 0031).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [estado, motivo]
+              properties:
+                estado: { $ref: '#/components/schemas/TenantStatus' }
+                motivo: { type: string, minLength: 10, maxLength: 500 }
+            example:
+              estado: SUSPENDED
+              motivo: Mora de dos meses en el plan contratado
+      responses:
+        '200':
+          description: Tenant con su estado nuevo y el registro del cambio
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tenant, cambio, correlationId]
+                properties:
+                  tenant: { $ref: '#/components/schemas/TenantSummary' }
+                  cambio: { $ref: '#/components/schemas/TenantStatusChange' }
+                  correlationId: { type: string }
+        '400':
+          description: 'Estado fuera del catálogo o motivo de menos de 10 o más de 500 caracteres (`MANI-TEN-400`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 'Sin token, token inválido o expirado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 'El rol no es PLATFORM_ADMIN'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 'El tenant no existe (`MANI-TEN-404`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 'El tenant ya está en ese estado (`MANI-TEN-409`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 'La base de datos no está configurada o no responde (`MANI-SRV-503`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tenants/{id}/estado/historial:
+    get:
+      tags: [Tenants]
+      operationId: getTenantStatusHistory
+      summary: Historial de cambios de estado de un tenant (administrador de plataforma)
+      description: HU-M12-07 (SCRUM-901) T10. Del más reciente al más antiguo. El registro es inmutable.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Cambios del tenant
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [cambios, correlationId]
+                properties:
+                  cambios:
+                    type: array
+                    items: { $ref: '#/components/schemas/TenantStatusChange' }
+                  correlationId: { type: string }
+        '401':
+          description: 'Sin token, token inválido o expirado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 'El rol no es PLATFORM_ADMIN'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 'El tenant no existe (`MANI-TEN-404`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 'La base de datos no está configurada o no responde (`MANI-SRV-503`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -4393,6 +5293,33 @@ components:
         - MANI-HIS-403A
         - MANI-HIS-404
         - INTERNAL_ERROR
+        - MANI-TAR-400
+        - MANI-TAR-401
+        - MANI-TAR-403
+        - MANI-TAR-404
+        - MANI-TAR-404C
+        - MANI-TAR-404S
+        - MANI-TAR-409R
+        - MANI-TAR-409V
+        - MANI-QJA-400
+        - MANI-QJA-401
+        - MANI-QJA-403
+        - MANI-QJA-403C
+        - MANI-QJA-404
+        - MANI-QJA-404S
+        - MANI-QJA-409A
+        - MANI-QJA-409S
+        - MANI-QJA-409T
+        - MANI-MET-400
+        - MANI-MET-401
+        - MANI-MET-403
+        - MANI-TEN-400
+        - MANI-TEN-401
+        - MANI-TEN-403
+        - MANI-TEN-404
+        - MANI-TEN-409
+        - RULES_SERVICE_UNAVAILABLE
+        - RULES_SERVICE_ERROR
       x-code-meanings:
         VALIDATION_ERROR: 'HTTP 400 — el body no cumple el esquema (campo faltante/formato inválido).'
         INVALID_CREDENTIALS: 'HTTP 401 — email y/o password no coinciden con ningún usuario del tenant.'
@@ -4584,6 +5511,226 @@ components:
                   enum: [application/pdf, image/jpeg, image/png]
                 sizeBytes:
                   type: integer
+
+    TariffInput:
+      type: object
+      required: [valorMin, valorTipico, valorMax]
+      properties:
+        valorMin: { type: number, minimum: 0, description: 'Hasta diez dígitos enteros y dos decimales.' }
+        valorTipico: { type: number, minimum: 0 }
+        valorMax: { type: number, minimum: 0 }
+        moneda: { type: string, pattern: '^[A-Z]{3}$', default: COP }
+        vigenciaDesde: { type: string, format: date, description: 'Por omisión, hoy en America/Bogota.' }
+        vigenciaHasta: { type: string, format: date, nullable: true, description: 'Inclusive; null = sin fin.' }
+        condiciones: { type: string, maxLength: 500, nullable: true, description: Reglas contractuales en texto libre }
+
+    ReferenceTariff:
+      type: object
+      description: Lo que ven el cliente y el aliado al cotizar (sin auditoría).
+      required: [id, categoriaId, valorMin, valorTipico, valorMax, moneda, vigenciaDesde, version]
+      properties:
+        id: { type: string, format: uuid }
+        categoriaId: { type: string, format: uuid }
+        categoriaNombre: { type: string }
+        valorMin: { type: number }
+        valorTipico: { type: number }
+        valorMax: { type: number }
+        moneda: { type: string }
+        vigenciaDesde: { type: string, format: date }
+        vigenciaHasta: { type: string, format: date, nullable: true }
+        condiciones: { type: string, nullable: true }
+        version: { type: integer, minimum: 1 }
+
+    Tariff:
+      allOf:
+        - $ref: '#/components/schemas/ReferenceTariff'
+        - type: object
+          required: [estado, auditoria]
+          properties:
+            estado: { type: string, enum: [ACTIVA, REEMPLAZADA] }
+            reemplazaId: { type: string, format: uuid, nullable: true }
+            auditoria:
+              type: object
+              properties:
+                creadoPor: { type: string, format: uuid }
+                actorRol: { type: string, example: ADMIN }
+                correlationId: { type: string, nullable: true }
+                creadaEn: { type: string, format: date-time }
+
+    TariffResponse:
+      type: object
+      required: [tarifa, correlationId]
+      properties:
+        tarifa: { $ref: '#/components/schemas/Tariff' }
+        correlationId: { type: string }
+
+    OutOfRangeQuotesReport:
+      type: object
+      required: [periodo, totales, cotizaciones, correlationId]
+      properties:
+        periodo:
+          type: object
+          properties:
+            desde: { type: string, format: date }
+            hasta: { type: string, format: date }
+        reglasVersion: { type: string, nullable: true, example: rates-v1 }
+        totales:
+          type: object
+          properties:
+            cotizaciones: { type: integer }
+            evaluadas: { type: integer }
+            sinTarifa: { type: integer }
+            fueraDeRango: { type: integer }
+        cotizaciones:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              solicitudId: { type: string, format: uuid }
+              version: { type: integer }
+              estado: { type: string }
+              creadaEn: { type: string, format: date-time }
+              total: { type: number }
+              categoria: { type: object, properties: { id: { type: string, format: uuid }, nombre: { type: string } } }
+              aliado: { type: object, properties: { id: { type: string, format: uuid }, nombre: { type: string } } }
+              tarifa:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  version: { type: integer }
+                  valorMin: { type: number }
+                  valorTipico: { type: number }
+                  valorMax: { type: number }
+                  moneda: { type: string }
+              resultado: { type: string, enum: [POR_DEBAJO, POR_ENCIMA] }
+              desviacionPorcentaje: { type: number, description: 'Cuánto se sale del límite cruzado, en porcentaje' }
+        correlationId: { type: string }
+
+    ComplaintReason:
+      type: string
+      enum: [CALIDAD_DEL_SERVICIO, INCUMPLIMIENTO_DE_HORARIO, COBRO_INDEBIDO, TRATO_INADECUADO, DANO_A_LA_PROPIEDAD, OTRO]
+
+    ComplaintStatus:
+      type: string
+      enum: [ABIERTA, EN_REVISION, RESUELTA, RECHAZADA]
+
+    Complaint:
+      type: object
+      required: [id, solicitudId, motivo, descripcion, estado, creadaEn]
+      properties:
+        id: { type: string, format: uuid }
+        solicitudId: { type: string, format: uuid }
+        categoria: { type: string }
+        estadoSolicitud: { type: string }
+        motivo: { $ref: '#/components/schemas/ComplaintReason' }
+        descripcion: { type: string }
+        estado: { $ref: '#/components/schemas/ComplaintStatus' }
+        respuesta: { type: string, nullable: true }
+        cliente: { type: object, properties: { email: { type: string } } }
+        creadaEn: { type: string, format: date-time }
+        actualizadaEn: { type: string, format: date-time }
+        historial:
+          type: array
+          description: Solo en el detalle, el alta y el cambio de estado.
+          items:
+            type: object
+            properties:
+              estadoAnterior: { allOf: [{ $ref: '#/components/schemas/ComplaintStatus' }], nullable: true }
+              estadoNuevo: { $ref: '#/components/schemas/ComplaintStatus' }
+              actor: { type: object, properties: { id: { type: string, format: uuid }, rol: { type: string } } }
+              nota: { type: string, nullable: true }
+              correlationId: { type: string, nullable: true }
+              fecha: { type: string, format: date-time }
+
+    ComplaintResponse:
+      type: object
+      required: [queja, correlationId]
+      properties:
+        queja: { $ref: '#/components/schemas/Complaint' }
+        correlationId: { type: string }
+
+    ComplaintListResponse:
+      type: object
+      required: [quejas, correlationId]
+      properties:
+        quejas:
+          type: array
+          items: { $ref: '#/components/schemas/Complaint' }
+        correlationId: { type: string }
+
+    OperationalMetrics:
+      type: object
+      required: [periodo, solicitudes, cotizaciones, pagos, calificaciones, quejas, aliadosConServicios, correlationId]
+      properties:
+        periodo:
+          type: object
+          properties:
+            desde: { type: string, format: date }
+            hasta: { type: string, format: date }
+            zonaHoraria: { type: string, example: America/Bogota }
+        solicitudes:
+          type: object
+          properties:
+            creadas: { type: integer }
+            porEstado: { type: object, additionalProperties: { type: integer } }
+            finalizadas: { type: integer, description: FINALIZADA o CERRADA }
+            canceladas: { type: integer }
+            tasaCancelacion: { type: number, nullable: true }
+        cotizaciones:
+          type: object
+          properties:
+            emitidas: { type: integer }
+            aceptadas: { type: integer }
+            tasaAceptacion: { type: number, nullable: true }
+        pagos:
+          type: object
+          properties:
+            aprobados: { type: integer }
+            montoAprobado: { type: number }
+        calificaciones:
+          type: object
+          properties:
+            total: { type: integer }
+            promedio: { type: number, nullable: true }
+        quejas:
+          type: object
+          properties:
+            registradas: { type: integer }
+            abiertas: { type: integer }
+            cerradas: { type: integer }
+        aliadosConServicios: { type: integer }
+        correlationId: { type: string }
+
+    TenantStatus:
+      type: string
+      enum: [ACTIVE, SUSPENDED, INACTIVE]
+
+    TenantSummary:
+      type: object
+      required: [id, name, status]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        slug: { type: string }
+        status: { $ref: '#/components/schemas/TenantStatus' }
+
+    TenantStatusChange:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        tenantId: { type: string, format: uuid }
+        estadoAnterior: { $ref: '#/components/schemas/TenantStatus' }
+        estadoNuevo: { $ref: '#/components/schemas/TenantStatus' }
+        motivo: { type: string }
+        actor:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            rol: { type: string, example: PLATFORM_ADMIN }
+            tenantId: { type: string, format: uuid }
+        correlationId: { type: string, nullable: true }
+        fecha: { type: string, format: date-time }
 
     ErrorResponse:
       type: object
