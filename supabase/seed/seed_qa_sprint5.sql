@@ -29,7 +29,9 @@
 --     broadcast. Las cuentas nuevas del Tenant 1 no entran en ese conteo
 --     (cubren Suba o atienden otra categoría).
 --   * Una categoría ACTIVO y una INACTIVO más por tenant.
---   * Una tarifa de referencia por cada categoría activa de cada tenant.
+--   * Una tarifa de referencia por cada categoría activa de cada tenant:
+--     valores propios para las de CFG-04 y las de aquí, y una tarifa por
+--     defecto para cualquier otra categoría activa que siga sin tarifa.
 --
 -- CÓMO SE CORRE
 --   Con psql, no con el SQL Editor del dashboard: el editor no entiende
@@ -358,6 +360,19 @@ INSERT INTO tarifa_referencia (id, tenant_id, categoria_id, valor_min, valor_tip
   ('a0000000-0000-4000-8000-000000005102', '10000000-0000-4000-8000-000000000011', '60000000-0000-4000-8000-000000005101',  60000, 120000, 250000),  -- Cerrajeria
   ('a0000000-0000-4000-8000-000000005201', '10000000-0000-4000-8000-000000000021', '60000000-0000-4000-8000-000000000021',  90000, 160000, 400000),  -- Electricidad
   ('a0000000-0000-4000-8000-000000005202', '10000000-0000-4000-8000-000000000021', '60000000-0000-4000-8000-000000005201', 200000, 450000, 900000)   -- Pintura
+ON CONFLICT DO NOTHING;
+
+-- QA ya trae categorías activas de pruebas anteriores en los dos tenants.
+-- Cada una que siga sin tarifa recibe una por defecto. El id sale de
+-- md5(categoria_id), así que es el mismo en cada corrida, y el NOT EXISTS
+-- respeta la tarifa que la categoría ya tenga.
+INSERT INTO tarifa_referencia (id, tenant_id, categoria_id, valor_min, valor_tipico, valor_max)
+SELECT md5('tarifa_sprint5:' || cs.id::text)::uuid, cs.tenant_id, cs.id, 50000, 100000, 250000
+  FROM categoria_servicio cs
+ WHERE cs.tenant_id IN ('10000000-0000-4000-8000-000000000011', '10000000-0000-4000-8000-000000000021')
+   AND cs.estado = 'ACTIVO'
+   AND NOT EXISTS (SELECT 1 FROM tarifa_referencia tr
+                    WHERE tr.categoria_id = cs.id AND tr.tenant_id = cs.tenant_id)
 ON CONFLICT DO NOTHING;
 
 -- ---------------------------------------------------------------------

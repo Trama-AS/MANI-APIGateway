@@ -22,7 +22,10 @@
 --   3. Cada barrio con su padre: LOCALIDAD activa existente.
 --   4. Categorías y tarifas: 2 activas y 1 inactiva por tenant, cada activa
 --      con tarifa coherente (valor_min <= valor_tipico <= valor_max).
---   5. Nada cruzado entre tenants.
+--   5. Nada cruzado entre tenants. El claim tenant_id de auth.users solo se
+--      exige en las 7 cuentas de esta semilla (bloque 5): en las cuentas que
+--      ya había en QA el claim real lo pone custom_access_token_hook desde
+--      public.usuario, así que su desajuste sale como fila informativa.
 -- =====================================================================
 
 \set ON_ERROR_STOP on
@@ -130,6 +133,19 @@ cruces AS (
   SELECT 'auth.users -> usuario (claim tenant_id)', au.id FROM auth.users au
     JOIN usuario u ON u.id = au.id
    WHERE au.raw_app_meta_data ->> 'tenant_id' IS DISTINCT FROM u.tenant_id::text
+     AND (au.id::text LIKE '30000000-0000-4000-8000-00000000510_'
+          OR au.id::text LIKE '30000000-0000-4000-8000-00000000520_')
+),
+
+-- Cuentas @qa.mani.test que no son de esta semilla y cuyo claim tenant_id
+-- falta o no coincide con usuario.tenant_id. Solo informa.
+claims_desalineados AS (
+  SELECT au.id FROM auth.users au
+    JOIN usuario u ON u.id = au.id
+   WHERE au.email LIKE '%@qa.mani.test'
+     AND au.raw_app_meta_data ->> 'tenant_id' IS DISTINCT FROM u.tenant_id::text
+     AND au.id::text NOT LIKE '30000000-0000-4000-8000-00000000510_'
+     AND au.id::text NOT LIKE '30000000-0000-4000-8000-00000000520_'
 )
 
 SELECT 1 AS orden, 'elegibles t1 plomeria chapinero' AS chequeo, '= 51' AS esperado,
@@ -188,7 +204,11 @@ UNION ALL
 SELECT 10, 'cruces entre tenants', '= 0',
        count(*)::text || coalesce(' (' || string_agg(DISTINCT relacion, ', ') || ')', ''),
        count(*) = 0
-  FROM cruces;
+  FROM cruces
+UNION ALL
+SELECT 11, 'informativo: claims tenant_id desalineados (cuentas previas)', 'solo informa',
+       count(*)::text, true
+  FROM claims_desalineados;
 
 SELECT chequeo, esperado, obtenido, ok FROM chequeo_sprint5 ORDER BY orden, chequeo;
 
