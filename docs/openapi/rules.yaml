@@ -36,7 +36,7 @@ info:
     override por tenant: cambiarlos no requiere desplegar Core. Una regla
     incumplida es `200` con `allowed=false`, no un error HTTP. El nombre único
     por tenant (409) sigue en el índice `ux_categoria_tenant_nombre`.
-  version: 1.1.0
+  version: 1.2.0
 servers:
   - url: https://api.mani.app/api/v1/rules
     description: Producción, a través del Gateway
@@ -47,6 +47,10 @@ servers:
 tags:
   - name: Category Rules
     description: Reglas operativas de la categoría de servicio.
+  - name: Tenant Rules
+    description: >
+      Coherencia de las reglas operativas propias del tenant (SCRUM-1366). Core las guarda versionadas y pregunta aquí
+      antes de cada versión nueva; Rules no guarda nada.
   - name: Health
     description: Estado del servicio.
   - name: Ranking
@@ -305,6 +309,67 @@ paths:
                 $ref: '#/components/schemas/ApiError'
         '401':
           description: Falta `X-User-Role` (`UNAUTHORIZED`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /tenant-rules/validate:
+    post:
+      tags: [Tenant Rules]
+      operationId: validateTenantRules
+      summary: Valida la coherencia de las reglas operativas de un tenant
+      description: >
+        Límites (versión de política `tenant-rules-v1`): `ordenListado.criterio` CALIFICACION o COBERTURA (los de
+        `/rank-allies`); `alertaTarifa.toleranciaPorcentaje` 0-50; `comision.porcentaje` 0-30;
+        `cancelacion.ventanaHoras` 0-72 y `penalizacionPorcentaje` 0-100, con penalización mayor que 0 solo si la
+        ventana es mayor que 0; `oferta.minutosParaAceptar` entero 1-1440. Unas reglas incoherentes son `200` con
+        `valid: false` y sus violaciones. Función pura: es seguro reintentarla.
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/TenantIdInternal'
+        - $ref: '#/components/parameters/UserRoleInternal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rules]
+              properties:
+                rules:
+                  type: object
+                  description: Mismo objeto `TenantRulesPayload` de core.yaml.
+            example:
+              rules:
+                ordenListado: { criterio: COBERTURA }
+                alertaTarifa: { toleranciaPorcentaje: 15 }
+                comision: { porcentaje: 10 }
+                cancelacion: { ventanaHoras: 4, penalizacionPorcentaje: 25 }
+                oferta: { minutosParaAceptar: 30 }
+      responses:
+        '200':
+          description: Resultado de la validación
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [valid, version, violations, tenantId, correlationId]
+                properties:
+                  valid: { type: boolean }
+                  version: { type: string, example: tenant-rules-v1 }
+                  violations:
+                    type: array
+                    items: { type: string }
+                  tenantId: { type: string }
+                  correlationId: { type: string }
+        '400':
+          description: 'Falta `rules` (`VALIDATION_ERROR`) o `X-Tenant-Id` (`TENANT_REQUIRED`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 'Falta `X-User-Role` (`UNAUTHORIZED`)'
           content:
             application/json:
               schema:
