@@ -31,18 +31,17 @@ info:
     Dispatch falla cerrado y no da nada por asignado.
 
 
-    ## Orden de los elegibles (borrador, SCRUM-1401 / SCRUM-1462)
+    ## Orden de los elegibles (SCRUM-1401 / SCRUM-1462)
 
-    El campo `ranking` de `MatchResponse` y los campos `posicion`, `puntaje` y `razones` de cada aliado son un
-    **borrador** para que MANI-Rules (SCRUM-1462) y Dispatch acuerden cómo entregar el orden. Mientras Dispatch
-    no los envíe, el cliente los trata como `ranking.estado = NO_DISPONIBLE`. Reglas del borrador:
+    `GET /requests/{requestId}/eligible-allies` trae de Core todos los candidatos, pide el orden a Rules con el
+    criterio vigente del tenant y después pagina:
 
     - `matchedAllies` llega **ya ordenado**: el cliente no reordena ni recalcula nada.
-    - `APLICADO` solo si el orden salió de una evaluación real de Rules. Si Rules no responde, responde con su
-      mock o no está configurado, Dispatch envía `NO_DISPONIBLE` con un `motivo` y la lista en su orden estable
-      (sin `posicion`, `puntaje` ni `razones`). Nunca reenvía un puntaje simulado como si fuera real.
-    - El orden se aplica antes de paginar, así que `posicion` es global (la página 2 empieza en `pageSize + 1`).
-  version: 0.3.0
+    - `posicion` es global (la página 2 empieza en `pageSize + 1`); `puntaje` es informativo.
+    - Si Rules no responde, no está configurado o el criterio del tenant no se puede leer, la respuesta es
+      `503 RULES_SERVICE_UNAVAILABLE`. Dispatch no presenta otro orden en su lugar (T2).
+    - Sin elegibles no se consulta a Rules y `ranking` se omite. `POST /match` tampoco ordena.
+  version: 0.4.0
 servers:
   - url: http://localhost/api/v1/dispatch
     description: A través del Gateway (docker compose)
@@ -115,8 +114,9 @@ paths:
       description: >
         Solo el cliente o el admin del tenant y solo para una solicitud `PENDIENTE` (`409 MANI-DSP-409E`). Publica
         una oferta `OFERTA_DESPACHO` por aliado elegible, sin incluir a los que ya la rechazaron. Es idempotente
-        (RNF-03): si la solicitud ya tiene ofertas, responde con ellas sin publicar de nuevo, y Core guarda una
-        sola oferta por aliado y solicitud aunque dos orquestaciones lleguen a la vez.
+        (RNF-03): un reintento publica solo las ofertas que faltan y responde con todas, así un despacho cortado a la
+        mitad se completa (SCRUM-1451). Core guarda una sola oferta por aliado y solicitud aunque dos orquestaciones
+        lleguen a la vez.
       security:
         - bearerAuth: []
       parameters:
@@ -386,8 +386,8 @@ components:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
     Unavailable:
       description: >
-        Core no respondió (`CORE_SERVICE_UNAVAILABLE`) o la base de Dispatch no está disponible
-        (`DATABASE_UNAVAILABLE`). Nada se da por hecho; se puede reintentar.
+        Core no respondió (`CORE_SERVICE_UNAVAILABLE`), Rules no pudo ordenar (`RULES_SERVICE_UNAVAILABLE`) o la base
+        de Dispatch no está disponible (`DATABASE_UNAVAILABLE`). Nada se da por hecho; se puede reintentar.
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -414,6 +414,7 @@ components:
         - MANI-SOL-422M
         - MANI-SOL-422D
         - CORE_SERVICE_UNAVAILABLE
+        - RULES_SERVICE_UNAVAILABLE
         - DATABASE_UNAVAILABLE
       x-code-meanings:
         MANI-DSP-400: 'HTTP 400 — un id no es UUID o un parámetro está fuera del catálogo.'
@@ -434,6 +435,7 @@ components:
         MANI-SOL-422M: 'HTTP 422 — falta el motivo de rechazo o no está en el catálogo.'
         MANI-SOL-422D: 'HTTP 422 — el detalle del rechazo no cumple: OTRO lo exige (3 a 280 caracteres) y los demás motivos no lo llevan.'
         CORE_SERVICE_UNAVAILABLE: 'HTTP 503 — Core no respondió o respondió algo inesperado.'
+        RULES_SERVICE_UNAVAILABLE: 'HTTP 503 — Rules no respondió, no está configurado o no se pudo leer el criterio del tenant; no se presenta otro orden.'
         DATABASE_UNAVAILABLE: 'HTTP 503 — la base de Dispatch no está configurada o falló.'
 
     ErrorResponse:
@@ -467,29 +469,24 @@ components:
         ranking: { $ref: '#/components/schemas/RankingInfo' }
         matchedAllies:
           type: array
-          description: En el orden en que se deben mostrar. Si `ranking.estado` es `APLICADO`, por `posicion`.
+          description: En el orden en que se deben mostrar. Con `ranking`, por `posicion`.
           items: { $ref: '#/components/schemas/EligibleAlly' }
         timestamp: { type: string, format: date-time }
 
     RankingInfo:
       type: object
       description: >
-        Borrador (SCRUM-1401 / SCRUM-1462). Si falta, el cliente lo trata como `NO_DISPONIBLE`.
-      required: [estado]
+        El orden que aplicó Rules (SCRUM-1462). Se omite si la operación no ordena o no hay elegibles; en ese caso el
+        cliente lo trata como `NO_DISPONIBLE`.
+      required: [estado, criterio]
       properties:
         estado:
           type: string
-          enum: [APLICADO, NO_DISPONIBLE]
+          enum: [APLICADO]
         criterio:
           type: string
-          nullable: true
-          description: Identificador de la regla de Rules que ordenó la lista (solo con `APLICADO`).
-          example: CERCANIA_Y_CALIFICACION_V1
-        motivo:
-          type: string
-          nullable: true
-          description: Por qué no hay orden (solo con `NO_DISPONIBLE`).
-          enum: [RULES_NO_CONFIGURADO, RULES_NO_DISPONIBLE, RULES_SIN_EVALUACION, null]
+          enum: [CALIFICACION, COBERTURA]
+          description: Criterio vigente del tenant con el que Rules ordenó la lista.
 
     EligibleAlly:
       type: object
@@ -503,17 +500,17 @@ components:
           type: integer
           minimum: 1
           nullable: true
-          description: Borrador. Posición global en el orden de Rules (solo con `APLICADO`).
+          description: Posición global en el orden de Rules (solo con `ranking`).
         puntaje:
           type: number
           minimum: 0
           maximum: 1
           nullable: true
-          description: Borrador. Puntaje normalizado de Rules (solo con `APLICADO`); informativo, no reordenar.
+          description: Puntaje normalizado de Rules (solo con `ranking`); informativo, no reordenar. `null` si el aliado no tiene dato para el criterio.
         razones:
           type: array
           nullable: true
-          description: Borrador. Razones legibles del puesto (solo con `APLICADO`), por ejemplo "Atiende tu zona".
+          description: Razones legibles del puesto (solo con `ranking`), por ejemplo "Cubre 4 zonas".
           items: { type: string }
 
     OrchestrateRequest:

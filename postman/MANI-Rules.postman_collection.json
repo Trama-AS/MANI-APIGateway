@@ -1124,6 +1124,130 @@
           }
         }
       ]
+    },
+    {
+      "name": "Ally Ranking",
+      "item": [
+        {
+          "name": "Ranking por CALIFICACION: valorado primero, sin calificación después (SCRUM-1462)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('orden real', () => pm.expect(body.aliados.map((a) => a.id)).to.eql(['aliado-a', 'aliado-b']));",
+                  "pm.test('sin calificación no vale 0', () => pm.expect(body.aliados[1].puntaje).to.eql(null));",
+                  "pm.test('tenant = claim del JWT (tenantA)', () => pm.expect(body.tenantId).to.eql(pm.variables.get('tenantA')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-ID",
+                "value": "{{correlationId}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminTokenA}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"criterio\": \"CALIFICACION\",\n  \"candidatos\": [\n    {\n      \"id\": \"aliado-b\",\n      \"calificacionPromedio\": null,\n      \"totalCalificaciones\": 0\n    },\n    {\n      \"id\": \"aliado-a\",\n      \"calificacionPromedio\": 4.5,\n      \"totalCalificaciones\": 12\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/rules/rank-allies",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rules",
+                "rank-allies"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Ranking sin criterio: no hay orden por omisión (400 VALIDATION_ERROR)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const Ajv = require('ajv');",
+                  "let schemaErrors = null;",
+                  "function validateSchema(schema, data) {",
+                  "  const ajv = new Ajv({ allErrors: true });",
+                  "  const ok = ajv.validate(schema, data);",
+                  "  schemaErrors = ajv.errors;",
+                  "  return ok;",
+                  "}",
+                  "pm.test('status 400', () => pm.response.to.have.status(400));",
+                  "const body = pm.response.json();",
+                  "pm.test('cumple el esquema ApiError', () => pm.expect(validateSchema({\"type\":\"object\",\"required\":[\"error\",\"code\",\"correlationId\"],\"properties\":{\"error\":{\"type\":\"string\"},\"code\":{\"type\":\"string\"},\"correlationId\":{\"type\":\"string\"}}}, body), JSON.stringify(schemaErrors)).to.be.true);",
+                  "pm.test('code VALIDATION_ERROR', () => pm.expect(body.code).to.eql('VALIDATION_ERROR'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Correlation-ID",
+                "value": "{{correlationId}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminTokenA}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"candidatos\": [\n    {\n      \"id\": \"aliado-a\",\n      \"calificacionPromedio\": 4.5,\n      \"totalCalificaciones\": 12\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/rules/rank-allies",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "rules",
+                "rank-allies"
+              ]
+            }
+          }
+        }
+      ]
     }
   ]
 }
