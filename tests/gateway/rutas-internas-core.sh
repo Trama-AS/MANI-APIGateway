@@ -7,7 +7,7 @@ fallos=0
 
 esperar() {
   local metodo="$1" ruta="$2" esperado="$3" obtenido
-  obtenido=$(curl -s -o /dev/null -w '%{http_code}' -X "$metodo" -H 'Authorization: Bearer token-de-cliente' "$BASE$ruta")
+  obtenido=$(curl -s -k -L -o /dev/null -w '%{http_code}' -X "$metodo" -H 'Authorization: Bearer token-de-cliente' "$BASE$ruta")
   if [ "$obtenido" = "$esperado" ]; then
     echo "ok   $metodo $ruta -> $obtenido"
   else
@@ -40,6 +40,18 @@ for metodo in GET POST; do
   esperar "$metodo" /api/v1/core/Allies/Me/Offers/ 404
   esperar "$metodo" /api/v1/core/api/v1/allies/me/offers 404
   esperar "$metodo" "/api/v1/core/allies/me/offers;x" 404
+
+  # TEC-09 (SCRUM-1456): dev-token y validate-token bloqueados al tráfico externo
+  esperar "$metodo" /api/v1/core/auth/dev-token 404
+  esperar "$metodo" /api/v1/core/auth/dev-token/ 404
+  esperar "$metodo" /api/v1/core/auth/DEV-TOKEN 404
+  esperar "$metodo" /api/v1/core/api/v1/core/auth/dev-token 404
+  esperar "$metodo" "/api/v1/core/auth/dev-token;x" 404
+  esperar "$metodo" /api/v1/core/auth/validate-token 404
+  esperar "$metodo" /api/v1/core/auth/validate-token/ 404
+  esperar "$metodo" /api/v1/core/auth/VALIDATE-TOKEN 404
+  esperar "$metodo" /api/v1/core/api/v1/core/auth/validate-token 404
+  esperar "$metodo" "/api/v1/core/auth/validate-token;x" 404
 done
 
 # Siguen pasando: el resto de Core no se ve afectado.

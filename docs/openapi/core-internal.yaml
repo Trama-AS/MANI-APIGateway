@@ -29,7 +29,7 @@ info:
     el aliado no haya rechazado la oferta) y le pide a Core que registre la asignación con
     `POST /solicitudes/{id}/asignacion`. La migración 0019 de Core le quita a `mani_dispatch_svc` el `UPDATE`
     sobre `solicitud`.
-  version: 0.2.0
+  version: 0.3.0
   x-internal: true
 servers:
   - url: http://core-service:3000/api/v1
@@ -498,6 +498,20 @@ components:
         nombreRazonSocial: { type: string, example: Ana Pérez }
         tipo: { $ref: '#/components/schemas/TipoAliado' }
         estadoVerificacion: { type: string, enum: [VERIFICADO] }
+        calificacionPromedio:
+          type: number
+          nullable: true
+          description: Promedio de calificaciones recibidas como aliado (1.0 a 5.0), o `null` si aún no tiene calificaciones (SCRUM-876).
+          example: 4.8
+        totalCalificaciones:
+          type: integer
+          minimum: 0
+          description: Cantidad total de calificaciones recibidas como aliado en el tenant (SCRUM-876).
+          example: 12
+        etiquetaCalificacion:
+          type: string
+          description: Etiqueta legible para mostrar en listados (`"Sin valorar"` cuando `totalCalificaciones == 0`).
+          example: '4.8'
 
     EligibleAlliesPage:
       type: object

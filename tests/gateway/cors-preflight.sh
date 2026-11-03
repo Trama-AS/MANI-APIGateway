@@ -12,7 +12,7 @@ fallos=0
 # preflight <metodo> <ruta> <encabezados que pide la app, en minúscula y separados por coma>
 preflight() {
   local metodo="$1" ruta="$2" pedidos="$3" respuesta codigo permitidos origen_resp faltan=""
-  respuesta=$(curl -s -o /dev/null -D - -X OPTIONS \
+  respuesta=$(curl -s -k -L -o /dev/null -D - -X OPTIONS \
     -H "Origin: $ORIGEN" \
     -H "Access-Control-Request-Method: $metodo" \
     -H "Access-Control-Request-Headers: $pedidos" \
