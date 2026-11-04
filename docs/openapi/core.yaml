@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.26.0
+  version: 0.27.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -114,6 +114,10 @@ tags:
     description: >
       Zonas donde el aliado atiende (US-02.1.4 / SCRUM-1380). La app ya no llama RPC de Supabase: tenant, usuario y
       rol salen del JWT y las zonas se consultan en `GET /catalog/zones`.
+  - name: Notifications Inbox
+    description: >
+      Bandeja de avisos del usuario autenticado (HU-M09-06 / SCRUM-1428; pantalla de SCRUM-882 y 884): mensajes
+      nuevos del servicio y cambios de estado. Tenant, usuario y rol salen del JWT.
   - name: Ally Categories
     description: Categorías de servicio que el aliado declara atender (US-03.1.3 / SCRUM-1380)
   - name: Geographic Zones
@@ -2922,6 +2926,52 @@ paths:
           $ref: '#/components/responses/AbsenceForbidden'
         '404':
           $ref: '#/components/responses/AbsenceNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /profiles/me/inbox:
+    get:
+      tags: [Notifications Inbox]
+      operationId: listMyInbox
+      summary: Bandeja de avisos del usuario autenticado
+      description: >
+        Devuelve los avisos que el proveedor de notificaciones entregó a la sesión, o le habría entregado si es el
+        simulador (`simulada: true`), del más reciente al más antiguo. Cualquier rol lee solo los suyos; el tenant y el
+        usuario salen del JWT, nunca de la consulta. Un aviso lleva su `tipo` (por ejemplo `MENSAJE_NUEVO`,
+        `SOLICITUD_ASIGNADA`, `EJECUCION_INICIADA`, `EJECUCION_FINALIZADA`) y, en `payload`, la solicitud a la que se
+        refiere (`requestId`). Va bajo `/profiles/me/` y no bajo `/notifications`, que el Gateway cierra al tráfico externo.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: limit
+          in: query
+          required: false
+          description: Máximo de avisos, de 1 a 100 (por omisión 50).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: Avisos de la sesión (lista vacía si no tiene ninguno)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboxResponse'
+        '400':
+          description: El `limit` no es un entero entre 1 y 100 (`MANI-NOT-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado, o sesión sin usuario o tenant (`MANI-NOT-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -7246,6 +7296,48 @@ components:
           maximum: 100
           description: Hasta dos decimales. El tenant sale del JWT, nunca del cuerpo.
       required: [porcentaje]
+
+    InboxItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tipo:
+          type: string
+          description: Tipo de aviso, por ejemplo `MENSAJE_NUEVO` o `EJECUCION_FINALIZADA`.
+          example: MENSAJE_NUEVO
+        canal:
+          type: string
+          example: PUSH
+        payload:
+          type: object
+          additionalProperties: true
+          description: Datos del aviso; trae `requestId` (o `solicitudId`) cuando se refiere a una solicitud.
+        enviadoAt:
+          type: string
+          format: date-time
+          nullable: true
+        leidoAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, tipo, canal, payload]
+
+    InboxResponse:
+      type: object
+      properties:
+        proveedor:
+          type: string
+          example: mock
+        simulada:
+          type: boolean
+          description: true si el proveedor es el simulador y el aviso no salió como push real.
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/InboxItem'
+      required: [proveedor, simulada, items]
 
     SendMessageRequest:
       type: object
