@@ -13,6 +13,7 @@ const path = require('node:path');
 
 const OUTPUT_PATH = path.join(__dirname, '..', 'postman', 'MANI-Rules.postman_collection.json');
 const EVALUATE = '/api/v1/rules/categories/evaluate';
+const RANK = '/api/v1/rules/rank-allies';
 
 const ERROR_SCHEMA = {
   type: 'object',
@@ -122,6 +123,35 @@ function evaluateRequest(name, { token = '{{adminTokenA}}', body, extraHeaders =
     },
   };
 }
+
+function rankRequest(name, options) {
+  const item = evaluateRequest(name, options);
+  item.request.url = { raw: `{{baseUrl}}${RANK}`, host: ['{{baseUrl}}'], path: RANK.slice(1).split('/') };
+  return item;
+}
+
+const rankItems = [
+  rankRequest('Ranking por CALIFICACION: valorado primero, sin calificación después (SCRUM-1462)', {
+    body: {
+      criterio: 'CALIFICACION',
+      candidatos: [
+        { id: 'aliado-b', calificacionPromedio: null, totalCalificaciones: 0 },
+        { id: 'aliado-a', calificacionPromedio: 4.5, totalCalificaciones: 12 },
+      ],
+    },
+    asserts: [
+      expectStatus(200),
+      'const body = pm.response.json();',
+      "pm.test('orden real', () => pm.expect(body.aliados.map((a) => a.id)).to.eql(['aliado-a', 'aliado-b']));",
+      "pm.test('sin calificación no vale 0', () => pm.expect(body.aliados[1].puntaje).to.eql(null));",
+      "pm.test('tenant = claim del JWT (tenantA)', () => pm.expect(body.tenantId).to.eql(pm.variables.get('tenantA')));",
+    ],
+  }),
+  rankRequest('Ranking sin criterio: no hay orden por omisión (400 VALIDATION_ERROR)', {
+    body: { candidatos: [{ id: 'aliado-a', calificacionPromedio: 4.5, totalCalificaciones: 12 }] },
+    asserts: errorAsserts(400, 'VALIDATION_ERROR'),
+  }),
+];
 
 const items = [
   {
@@ -243,8 +273,8 @@ const collection = {
     { key: 'tenantA', value: '10000000-0000-4000-8000-000000000011' },
     { key: 'tenantB', value: '10000000-0000-4000-8000-000000000021' },
   ],
-  item: [{ name: 'Category Rules', item: items }],
+  item: [{ name: 'Category Rules', item: items }, { name: 'Ally Ranking', item: rankItems }],
 };
 
 fs.writeFileSync(OUTPUT_PATH, `${JSON.stringify(collection, null, 2)}\n`);
-console.log(`✔ Colección generada: ${path.relative(process.cwd(), OUTPUT_PATH)} (${items.length} requests)`);
+console.log(`✔ Colección generada: ${path.relative(process.cwd(), OUTPUT_PATH)} (${items.length + rankItems.length} requests)`);

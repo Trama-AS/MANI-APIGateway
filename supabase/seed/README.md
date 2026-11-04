@@ -20,6 +20,44 @@ los seeds que dependen de él, en este orden:
 | 4 | `qa/storage/cargar_kyc.mjs` (en **MANI-Flutter**) | CFG-13: sube los PDF al bucket `kyc-documentos`, si no están (ver `qa/storage/README.md` de MANI-Flutter) |
 | 5 | `supabase/seed/verificar_aislamiento.sql` | Verificación de CFG-04: 2 filas con 4 usuarios (3 de CFG-04 y 1 de CFG-12), 1 aliado verificado y 1 categoría activa |
 | 6 | `database/verify/11-normalizacion-dominios.sql` | Verificación de dominios, hook y `kyc_isolation`: 20/20 |
+| 7 | `supabase/seed/seed_qa_sprint5.sql` | TEC-16 (SCRUM-1463): barrios, una cuenta de GoTrue por tipo y tenant, 51 aliados elegibles para el broadcast, categorías y tarifario |
+| 8 | `supabase/seed/verificar_siembra_sprint5.sql` | Verificación de TEC-16: todos los chequeos en `ok = true` y el aviso final de que la semilla pasa |
+
+Los pasos 5 y 6 van antes del 7 porque sus conteos esperados son los de CFG-04 sola: después de
+la semilla del Sprint 5 cada tenant tiene más usuarios, sitios y aliados.
+
+La semilla del Sprint 5 se corre con `psql`, no con el SQL Editor, porque la contraseña de sus 7
+cuentas llega como variable y no queda escrita en el archivo:
+
+```bash
+psql "$URL_QA" -v clave_qa="$CLAVE_QA" -f supabase/seed/seed_qa_sprint5.sql
+psql "$URL_QA" -f supabase/seed/verificar_siembra_sprint5.sql
+```
+
+Es idempotente y no borra nada: correrla otra vez no cambia el estado (tampoco la contraseña de
+las cuentas que ya existen).
+
+### Antes de volver a correr CFG-04
+
+CFG-04 se niega a correr si en `auth.users` hay cuentas `@qa.mani.test` con ids que no son los
+suyos, y las 7 cuentas del Sprint 5 lo son. Su Parte A ya borra lo de dominio de esas cuentas, así
+que antes de CFG-04 solo hay que quitarlas de Auth (desde Authentication > Users o con este
+bloque) y, al terminar la tabla de arriba, volver a correr los pasos 7 y 8:
+
+```sql
+BEGIN;
+DELETE FROM auth.identities WHERE user_id IN (SELECT id FROM auth.users
+  WHERE id::text LIKE '30000000-0000-4000-8000-00000000510_'
+     OR id::text LIKE '30000000-0000-4000-8000-00000000520_');
+DELETE FROM auth.users
+ WHERE id::text LIKE '30000000-0000-4000-8000-00000000510_'
+    OR id::text LIKE '30000000-0000-4000-8000-00000000520_';
+COMMIT;
+```
+
+El seed de CFG-12 (paso 2) toma "un aliado" de cada tenant sin orden fijo. Si se vuelve a correr
+solo, con la semilla del Sprint 5 ya puesta, puede colgar su `documento_kyc` de otro aliado del
+Tenant 1. Por eso el orden completo es siempre el de la tabla.
 
 El seed de CFG-09 (`supabase/poc-cfg09/10_seed_concurrencia.sql`) usa su propio tenant
 (`poc-concurrencia`), así que CFG-04 no lo toca y no hace falta repetirlo.

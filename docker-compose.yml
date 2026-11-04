@@ -56,6 +56,9 @@ services:
     container_name: mani-dispatch-service
     restart: unless-stopped
     profiles: ["full"]
+    environment:
+      # Orden de los elegibles (SCRUM-1462): sin Rules, eligible-allies responde 503.
+      RULES_SERVICE_URL: ${RULES_SERVICE_URL:-http://rules-service:8080}
     expose:
       - "5000"
     networks:

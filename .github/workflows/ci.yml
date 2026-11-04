@@ -104,6 +104,12 @@ jobs:
       - name: Verificar que los documentos legales se leen sin token (SCRUM-856)
         run: bash gateway/tests/gateway/ruta-publica-legal.sh http://localhost
 
+      - name: Verificar que /metrics responde a través del Gateway sin token (TEC-14 / R-4)
+        run: bash gateway/tests/gateway/ruta-publica-metrics.sh http://localhost
+
+      - name: Verificar el límite de tamaño de fotos de perfil (TEC-23 / SCRUM-1389)
+        run: bash gateway/tests/gateway/limite-foto-perfil.sh http://localhost
+
       - name: Verificar el preflight CORS de los encabezados que envía Flutter Web
         run: bash gateway/tests/gateway/cors-preflight.sh http://localhost
 

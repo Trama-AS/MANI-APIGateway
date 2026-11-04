@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.22.0
+  version: 0.23.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -44,7 +44,19 @@ servers:
 
 tags:
   - name: Auth
-    description: Autenticación e identidad de usuarios (Clientes, Aliados, Admins)
+    description: >
+      Autenticación e identidad de usuarios (Clientes, Aliados, Admins).
+
+      El inicio de sesión y la renovación del token NO están en este contrato
+      y no son de Core: conforme a ADR-0031, el emisor del JWT es Supabase
+      Auth (GoTrue), y el cliente Flutter habla con él directamente. La única
+      excepción aprobada para que Core firme un token es
+      `/api/v1/auth/dev-token`, limitada a desarrollo, pruebas y CI.
+
+      Lo que sí expone Core en este dominio: registro (que delega la emisión
+      del token en Supabase Auth), cierre de sesión, recuperación y cambio de
+      contraseña, y `validate-token`, que es la consulta interna que hace el
+      Gateway con `auth_request` y no se llama desde el cliente.
   - name: Ally Registration
     description: Registro de Aliados persona natural y empresa
   - name: Direct Employees
@@ -114,90 +126,6 @@ tags:
       Historial cronológico de servicios del cliente (SCRUM-879) y de trabajos del aliado (SCRUM-880).
 
 paths:
-  /auth/login:
-    post:
-      tags: [Auth]
-      operationId: login
-      summary: '[PENDIENTE] Inicia sesión y obtiene tokens de acceso'
-      description: >
-        [PENDIENTE DE IMPLEMENTACIÓN EN CORE NODE]
-        Especificación del contrato para cuando Core implemente autenticación.
-        Autentica un usuario (CLIENT, ALLY o ADMIN) dentro del tenant
-        resuelto por `X-Tenant-Slug` (ADR-0018) y devuelve un `accessToken`/`refreshToken`
-        con el claim `tenant_id` embebido.
-      parameters:
-        - $ref: '#/components/parameters/XTenantSlug'
-        - $ref: '#/components/parameters/XCorrelationId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/LoginRequest'
-      responses:
-        '200':
-          description: Credenciales válidas, sesión iniciada
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LoginResponse'
-        '400':
-          description: >
-            Body inválido (`VALIDATION_ERROR`) o tenant inexistente/inactivo
-            (`TENANT_NOT_FOUND`)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          description: Credenciales incorrectas (`INVALID_CREDENTIALS`)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
-  /auth/refresh:
-    post:
-      tags: [Auth]
-      operationId: refreshToken
-      summary: '[PENDIENTE] Renueva el accessToken a partir de un refreshToken vigente'
-      description: >
-        [PENDIENTE DE IMPLEMENTACIÓN EN CORE NODE]
-        Especificación del contrato para cuando Core implemente renovación de sesión.
-        El tenant del nuevo accessToken se conserva del claim `tenant_id`
-        del refreshToken original; este endpoint no acepta `X-Tenant-Slug` ni `X-Tenant-Id`.
-      parameters:
-        - $ref: '#/components/parameters/XCorrelationId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RefreshRequest'
-      responses:
-        '200':
-          description: Token renovado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RefreshResponse'
-        '400':
-          description: Body inválido (`VALIDATION_ERROR`)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '401':
-          description: refreshToken inválido o expirado (`TOKEN_INVALID` / `TOKEN_EXPIRED`)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
   /auth/logout:
     post:
       tags: [Auth]
@@ -2005,6 +1933,183 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '504':
           description: El proveedor no respondió a tiempo; no se realizó ningún cobro (`MANI-PAG-504`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /pagos/aliado:
+    get:
+      tags: [Payments]
+      operationId: listAllyCollections
+      summary: El aliado consulta sus cobros (retención y liquidación)
+      description: >
+        US-07.2.2 (SCRUM-894). Devuelve, del más reciente al más antiguo (hasta 100), la retención en garantía de cada
+        pago de un servicio del aliado y, si ya se liberó al finalizar el servicio, su liquidación con el desglose de la
+        comisión. Sin movimientos devuelve la lista vacía. Todo es simulado (`simulado: true`): el sandbox no mueve
+        dinero real. Tenant, usuario y rol salen del JWT; otro aliado o tenant nunca ve estos cobros.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Cobros del aliado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllyCollectionsResponse'
+        '401':
+          description: Sin token, token inválido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es aliado o la cuenta no es un aliado activo (`MANI-FON-403`, `MANI-FON-403A`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /pagos/comision:
+    get:
+      tags: [Payments]
+      operationId: getCommission
+      summary: El administrador consulta la comisión de su tenant
+      description: >
+        US-07.2.1 (SCRUM-893). Porcentaje que se descuenta al aliado al liquidar. `porDefecto: true` indica que el tenant
+        no la configuró y rige el 10 %, un supuesto que la PO debe confirmar. Solo el administrador del tenant.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Comisión vigente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommissionResponse'
+        '401':
+          description: Sin token, token inválido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es administrador del tenant (`MANI-FON-403`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      tags: [Payments]
+      operationId: setCommission
+      summary: El administrador fija la comisión de su tenant
+      description: >
+        US-07.2.1 (SCRUM-893). Porcentaje de 0 a 100 con hasta dos decimales. Un valor inválido responde `422` y no
+        cambia nada, así una configuración inválida nunca llega a una liquidación. Solo afecta las liquidaciones futuras:
+        las ya generadas conservan el porcentaje con el que se calcularon.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetCommissionRequest'
+      responses:
+        '200':
+          description: Comisión fijada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommissionResponse'
+        '401':
+          description: Sin token, token inválido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es administrador del tenant (`MANI-FON-403`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: El porcentaje no es un número entre 0 y 100 con hasta dos decimales (`MANI-FON-422`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /pagos/{id}/retencion:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Id del pago
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Payments]
+      operationId: getPaymentRetention
+      summary: El cliente consulta la retención en garantía de su pago
+      description: >
+        US-07.1.4 y US-07.1.5 (SCRUM-891, SCRUM-892). Un pago aprobado retiene su monto en garantía (`RETENIDA`) y se
+        libera (`LIBERADA`) cuando el servicio finaliza. Es una simulación, diferenciada de una custodia monetaria real
+        (`simulada: true`). Un pago rechazado o pendiente no tiene retención. El pago de otro cliente o de otro tenant
+        responde `404`, igual que uno inexistente.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: La retención del pago
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentRetentionResponse'
+        '400':
+          description: El id no es un UUID (`MANI-PAG-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: El rol no es cliente o la cuenta no es un cliente activo (`MANI-PAG-403`, `MANI-PAG-403C`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: El pago no existe, no es del cliente o no tiene retención (`MANI-FON-404`)
           content:
             application/json:
               schema:
@@ -4633,25 +4738,6 @@ components:
           description: Unix timestamp de expiración.
       required: [sub, app_metadata, iat, exp]
 
-    LoginRequest:
-      type: object
-      properties:
-        email:
-          type: string
-          format: email
-        password:
-          type: string
-          format: password
-          minLength: 8
-      required: [email, password]
-
-    RefreshRequest:
-      type: object
-      properties:
-        refreshToken:
-          type: string
-      required: [refreshToken]
-
     AuthTokens:
       type: object
       properties:
@@ -4660,22 +4746,15 @@ components:
           description: JWT de corta duración emitido por Supabase Auth. Payload descrito en `TokenClaims`.
         refreshToken:
           type: string
-          description: Token opaco de larga duración, usado solo contra `/auth/refresh` y `/auth/logout`.
+          description: >
+            Token opaco de larga duración. Lo renueva el cliente contra
+            Supabase Auth, que es el emisor (ADR-0031); Core solo lo recibe
+            en `/auth/logout`.
         expiresIn:
           type: integer
           description: Segundos hasta la expiración del accessToken
           example: 3600
       required: [accessToken, refreshToken, expiresIn]
-
-    RefreshResponse:
-      type: object
-      properties:
-        accessToken:
-          type: string
-        expiresIn:
-          type: integer
-          example: 3600
-      required: [accessToken, expiresIn]
 
     ProfileSummary:
       type: object
@@ -4695,15 +4774,6 @@ components:
           type: string
           enum: [VERIFIED, PENDING, REJECTED]
       required: [id, tenantId, role, fullName, status]
-
-    LoginResponse:
-      type: object
-      properties:
-        profile:
-          $ref: '#/components/schemas/ProfileSummary'
-        tokens:
-          $ref: '#/components/schemas/AuthTokens'
-      required: [profile, tokens]
 
     RegisterAllyNaturalPersonRequest:
       type: object
@@ -5757,6 +5827,120 @@ components:
         correlationId:
           type: string
       required: [comprobante]
+
+    PaymentRetention:
+      type: object
+      description: Retención en garantía simulada de un pago aprobado.
+      properties:
+        id:
+          type: string
+          format: uuid
+        pagoId:
+          type: string
+          format: uuid
+        solicitudId:
+          type: string
+          format: uuid
+        monto:
+          type: number
+        moneda:
+          type: string
+          example: COP
+        estado:
+          type: string
+          enum: [RETENIDA, LIBERADA]
+        simulada:
+          type: boolean
+          description: Siempre `true` en el sandbox; no es custodia monetaria real.
+        creadaEn:
+          type: string
+          format: date-time
+        liberadaEn:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, pagoId, solicitudId, monto, moneda, estado, simulada, creadaEn]
+
+    PaymentRetentionResponse:
+      type: object
+      properties:
+        retencion:
+          $ref: '#/components/schemas/PaymentRetention'
+        correlationId:
+          type: string
+      required: [retencion]
+
+    AllySettlement:
+      type: object
+      description: "Liquidación simulada al aliado (bruto = comisión + neto)."
+      properties:
+        id:
+          type: string
+          format: uuid
+        montoBruto:
+          type: number
+        porcentajeComision:
+          type: number
+        comision:
+          type: number
+        montoNeto:
+          type: number
+      required: [id, montoBruto, porcentajeComision, comision, montoNeto]
+
+    AllyCollection:
+      allOf:
+        - $ref: '#/components/schemas/PaymentRetention'
+        - type: object
+          properties:
+            liquidacion:
+              allOf:
+                - $ref: '#/components/schemas/AllySettlement'
+              nullable: true
+              description: Presente solo cuando la retención ya se liberó.
+
+    AllyCollectionsResponse:
+      type: object
+      properties:
+        cobros:
+          type: array
+          items:
+            $ref: '#/components/schemas/AllyCollection'
+        simulado:
+          type: boolean
+        correlationId:
+          type: string
+      required: [cobros, simulado]
+
+    Commission:
+      type: object
+      properties:
+        porcentaje:
+          type: number
+          minimum: 0
+          maximum: 100
+        porDefecto:
+          type: boolean
+          description: true si el tenant no configuró la comisión y rige el valor por defecto (10 %).
+      required: [porcentaje, porDefecto]
+
+    CommissionResponse:
+      type: object
+      properties:
+        comision:
+          $ref: '#/components/schemas/Commission'
+        correlationId:
+          type: string
+      required: [comision]
+
+    SetCommissionRequest:
+      type: object
+      properties:
+        porcentaje:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Hasta dos decimales. El tenant sale del JWT, nunca del cuerpo.
+      required: [porcentaje]
 
     SendMessageRequest:
       type: object

@@ -1,5 +1,15 @@
 # 🐘 Base de Datos Local con Docker — MANI
 
+> [!WARNING]
+> ### ⚠️ Directorio Congelado — Histórico de Esquema (ADR-0030 §1 / HU-M01-05)
+> De acuerdo con **[ADR-0030 §1](https://github.com/Trama-AS/MANI-docs/blob/main/wiki/02-arquitectura/adr/ADR-0030-propiedad-esquema-y-frontera-de-datos.md)**, este directorio `database/` se encuentra **congelado como registro histórico**. 
+> **No es la fuente viva de migraciones ni evolución del esquema.**
+> 
+> El **único dueño oficial** de la evolución del esquema PostgreSQL/Supabase compartido es **Core Service (`MANI-Node`)** en su serie viva:
+> 👉 [`MANI-Node/db/migrations/`](https://github.com/Trama-AS/MANI-Node/tree/develop/db/migrations)
+> 
+> Ningún servicio ni desarrollador debe agregar migraciones, modificar DDL ni ejecutar scripts desde este repositorio contra bases de datos compartidas.
+
 Este directorio contiene los scripts de inicialización y configuración para levantar localmente la base de datos PostgreSQL con **exactamente el mismo esquema** utilizado en los ambientes de desarrollo (`dev`) y producción (`prod`).
 
 ---
