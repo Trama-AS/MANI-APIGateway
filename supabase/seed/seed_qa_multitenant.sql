@@ -167,7 +167,10 @@ DECLARE
 BEGIN
   FOR r IN SELECT * FROM (VALUES
       ('tarifa_referencia', 'trg_tarifa_referencia_inmutable'),
-      ('regla_tenant', 'trg_regla_tenant_inmutable')
+      ('regla_tenant', 'trg_regla_tenant_inmutable'),
+      ('queja', 'trg_queja_transicion_valida'),
+      ('queja_transicion', 'trg_queja_transicion_inmutable'),
+      ('tenant_estado_cambio', 'trg_tenant_estado_cambio_inmutable')
     ) AS v(tabla, disparador)
   LOOP
     IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = r.disparador AND tgrelid = to_regclass('public.' || r.tabla)) THEN
@@ -181,6 +184,19 @@ DELETE FROM mensaje           WHERE tenant_id IN ('10000000-0000-4000-8000-00000
 DELETE FROM notificacion      WHERE tenant_id IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
 DELETE FROM evento_servicio   WHERE tenant_id IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
 DELETE FROM cotizacion        WHERE tenant_id IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
+-- queja y queja_transicion (MANI-Node 0032) apuntan a solicitud, cliente y tenant con ON DELETE RESTRICT, y
+-- tenant_estado_cambio (0033) a tenant: se borran antes. En una base sin esas migraciones no se tocan.
+DO $$
+DECLARE
+  t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['queja_transicion', 'queja', 'tenant_estado_cambio'] LOOP
+    IF to_regclass('public.' || t) IS NOT NULL THEN
+      EXECUTE format('DELETE FROM %I WHERE tenant_id IN (%L, %L)', t,
+        '10000000-0000-4000-8000-000000000011', '10000000-0000-4000-8000-000000000021');
+    END IF;
+  END LOOP;
+END $$;
 DELETE FROM solicitud         WHERE tenant_id IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
 DELETE FROM cobertura_aliado  WHERE tenant_id IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
 DELETE FROM aliado_categoria  WHERE tenant_id IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
@@ -208,7 +224,10 @@ DECLARE
 BEGIN
   FOR r IN SELECT * FROM (VALUES
       ('tarifa_referencia', 'trg_tarifa_referencia_inmutable'),
-      ('regla_tenant', 'trg_regla_tenant_inmutable')
+      ('regla_tenant', 'trg_regla_tenant_inmutable'),
+      ('queja', 'trg_queja_transicion_valida'),
+      ('queja_transicion', 'trg_queja_transicion_inmutable'),
+      ('tenant_estado_cambio', 'trg_tenant_estado_cambio_inmutable')
     ) AS v(tabla, disparador)
   LOOP
     IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = r.disparador AND tgrelid = to_regclass('public.' || r.tabla)) THEN
