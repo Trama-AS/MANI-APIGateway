@@ -1,15 +1,21 @@
-# Geometrías territoriales de los barrios de QA (SCRUM-1396)
+# Geometrías territoriales del catálogo de QA (SCRUM-1396)
 
-Polígonos reales de los seis barrios del catálogo de QA, para la visualización
-cartográfica de HU-M04-07. **No son aproximaciones ni centroides**: son los
-límites publicados por el Catastro Distrital.
+Polígonos reales de las dos localidades y los seis barrios del catálogo de QA,
+para la visualización cartográfica de HU-M04-07. **No son aproximaciones ni
+centroides**: son los límites publicados por el Catastro Distrital.
+
+| Archivo | Contenido |
+|---|---|
+| `localidades_catastro.geojson` | Chapinero y Suba |
+| `barrios_catastro.geojson` | Los seis sectores catastrales de esos barrios |
 
 ## Procedencia y licencia
 
 | | |
 |---|---|
-| Fuente | Sector Catastral, Bogotá D.C. — Unidad Administrativa Especial de Catastro Distrital (UAECD) |
-| Servicio | `https://serviciosgis.catastrobogota.gov.co/arcgis/rest/services/catastro/sectorcatastral/MapServer/0` |
+| Fuente | Unidad Administrativa Especial de Catastro Distrital (UAECD): capa **Sector Catastral** para los barrios y capa **Localidad** para las localidades |
+| Servicio de barrios | `https://serviciosgis.catastrobogota.gov.co/arcgis/rest/services/catastro/sectorcatastral/MapServer/0` |
+| Servicio de localidades | `https://serviciosgis.catastrobogota.gov.co/arcgis/rest/services/ordenamientoterritorial/localidad/MapServer/0` |
 | Portal | https://datosabiertos.bogota.gov.co/dataset/sector-catastral |
 | Licencia | **CC BY 4.0** — exige atribución a la UAECD en cualquier interfaz que muestre estos límites |
 | Actualización del dato en la fuente | 30/11/2025 |
@@ -34,6 +40,28 @@ curl -s -G "https://serviciosgis.catastrobogota.gov.co/arcgis/rest/services/cata
 
 `SCACODIGO` es el identificador del sector catastral y `SCANOMBRE` su nombre.
 El servicio admite hasta 2000 registros por consulta; aquí se piden seis.
+
+Las localidades salen de otra capa del mismo servidor, con los mismos
+parámetros y los campos `LOCCODIGO` y `LOCNOMBRE`:
+
+```sh
+curl -s -G "https://serviciosgis.catastrobogota.gov.co/arcgis/rest/services/ordenamientoterritorial/localidad/MapServer/0/query" \
+  --data-urlencode "where=LOCNOMBRE IN ('CHAPINERO','SUBA')" \
+  --data-urlencode "outFields=LOCCODIGO,LOCNOMBRE" \
+  --data-urlencode "returnGeometry=true" \
+  --data-urlencode "outSR=4326" \
+  --data-urlencode "f=geojson" \
+  -o localidades_catastro.geojson
+```
+
+| Zona de QA | Localidad | Código | Centroide | Vértices |
+|---|---|---|---|---|
+| `…0002` | CHAPINERO | `02` | -74.02210, 4.63763 | 2293 |
+| `…0003` | SUBA | `11` | -74.08913, 4.77307 | 913 |
+
+El centroide de Chapinero cae más al oriente de lo que sugiere su parte
+urbana porque la localidad incluye los cerros orientales. No es un error de
+proyección: el polígono es el límite administrativo completo.
 
 ## Correspondencia con el catálogo, y por qué cambia
 
@@ -64,20 +92,34 @@ NORTE, NIZA SUR y NIZA SUBA. Renombrar la semilla es decisión del dueño del
 dato de QA; mientras no se tome, estos polígonos no se pueden asociar a esas
 tres zonas.
 
-## Tamaño
+## Tamaño, medido
 
-40,5 KB para los seis polígonos juntos, entre 42 y 370 vértices cada uno. **No
-hace falta simplificar** con este volumen, y no hay motivo para introducir
-PostGIS: no hay ninguna consulta espacial, solo transporte y dibujo.
+| | Polígonos | Vértices | Peso |
+|---|---|---|---|
+| Barrios | 6 | 42 a 370 | 40,5 KB |
+| Localidades | 2 | 913 y 2293 | 130,8 KB |
+
+**No se simplificó ninguno.** El peor caso real de una petición es una
+localidad con sus tres barrios, unos 105 KB, que es razonable para la web.
+Chapinero es la pesada porque su límite administrativo incluye los cerros
+orientales.
+
+Simplificar reduciría el peso, pero el criterio aprobado pide **no fijar
+umbrales arbitrarios**: si QA mide lentitud en el mapa, ahí se decide la
+tolerancia con el dato de la medición, y se regenera con la consulta de
+arriba. Mientras no haya esa medición, se entregan los límites exactos.
+
+Tampoco hay motivo para introducir PostGIS: no existe ninguna consulta
+espacial en el alcance, solo transporte y dibujo.
 
 ## Lo que falta
 
-- **Las localidades (Chapinero y Suba) y la ciudad no tienen polígono.** La capa
-  de límites de localidad no está en el servicio de Sector Catastral; el
-  conjunto «Localidad. Bogotá D.C.» es de la Secretaría Distrital de
-  Planeación y hay que ubicar su servicio. Mientras no esté, el C1 se puede
-  acreditar a nivel de barrio y de sitio, no de zona.
+- **La ciudad (Bogotá D.C.) no tiene polígono.** No hace falta para el mapa:
+  la vista se encuadra sobre la localidad y sus barrios. Si se quisiera, la
+  capa `ordenamientoterritorial/entidadterritorial` del mismo servidor es el
+  sitio por donde empezar.
 - La carga a la base de QA depende de la tabla de geometrías, cuyo diseño
   corresponde a Core (ADR-0030 §1), y de que DevOps aplique la migración
   (`README.md` del repositorio, «Quién ejecuta las migraciones en cada
-  ambiente»).
+  ambiente»). **Eso es posterior a la aprobación del PR, no un requisito para
+  cerrarlo.**
