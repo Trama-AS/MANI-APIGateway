@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.23.0
+  version: 0.24.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -43,6 +43,12 @@ servers:
     description: Gateway local (docker compose up -d gateway core-service)
 
 tags:
+  - name: Tariffs
+    description: >
+      Tarifario de referencia por categoría y tenant (M-10: HU-M10-01 / SCRUM-885, HU-M10-02 / SCRUM-886, HU-M10-03 /
+      SCRUM-887; RF-22, RF-23). Core persiste las tarifas versionadas y auditadas; Rules evalúa si una cotización está en
+      rango (Mesa CFG-23a punto M2). Editar nunca sobrescribe: crea la versión siguiente y deja la anterior REEMPLAZADA.
+      Tenant, usuario y rol salen del JWT.
   - name: Auth
     description: >
       Autenticación e identidad de usuarios (Clientes, Aliados, Admins).
@@ -4163,6 +4169,391 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /tarifas:
+    get:
+      tags: [Tariffs]
+      operationId: listTariffs
+      summary: Tarifas activas del tenant (administrador)
+      description: HU-M10-01 (SCRUM-885). Versiones ACTIVA del tenant de la sesión, opcionalmente de una categoría.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: categoriaId
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Tarifas activas (lista vacía si no hay)
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tarifas, correlationId]
+                properties:
+                  tarifas:
+                    type: array
+                    items: { $ref: '#/components/schemas/Tariff' }
+                  correlationId: { type: string }
+        '400':
+          description: '`categoriaId` no es UUID (`MANI-TAR-400`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 'Sin token, token inválido o expirado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 'El rol no es administrador del tenant (`MANI-TAR-403`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 'La base de datos no está configurada o no responde (`MANI-SRV-503`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      tags: [Tariffs]
+      operationId: createTariff
+      summary: Carga una tarifa de referencia para una categoría (administrador)
+      description: >
+        HU-M10-01 (SCRUM-885) C1/C2. Crea la versión siguiente de la categoría en estado ACTIVA. Valores no negativos con
+        máximo dos decimales y `valorMin <= valorTipico <= valorMax` con `valorMin < valorMax`; `vigenciaHasta` (opcional,
+        inclusive) no anterior a `vigenciaDesde` (por omisión, hoy en Colombia). Si la vigencia se cruza con otra tarifa
+        ACTIVA de la categoría responde 409 y no toca la vigente: para cambiarla se edita.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/TariffInput'
+                - type: object
+                  required: [categoriaId]
+                  properties:
+                    categoriaId: { type: string, format: uuid }
+            example:
+              categoriaId: 6f1c2b8e-3d4a-4e5f-9a0b-1c2d3e4f5a6b
+              valorMin: 80000
+              valorTipico: 120000
+              valorMax: 180000
+              moneda: COP
+              vigenciaDesde: '2026-11-01'
+              condiciones: Incluye visita técnica y desplazamiento dentro de la ciudad
+      responses:
+        '201':
+          description: Tarifa creada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TariffResponse' }
+        '400':
+          description: 'Valores negativos, invertidos o sin rango, vigencia inválida, moneda no ISO 4217 o condiciones de más de 500 caracteres (`MANI-TAR-400`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 'Sin token, token inválido o expirado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 'El rol no es administrador del tenant (`MANI-TAR-403`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 'La categoría no existe en el tenant de la sesión (`MANI-TAR-404C`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 'La vigencia se cruza con otra tarifa activa de la categoría (`MANI-TAR-409V`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 'La base de datos no está configurada o no responde (`MANI-SRV-503`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tarifas/{id}:
+    put:
+      tags: [Tariffs]
+      operationId: updateTariff
+      summary: Edita una tarifa creando la versión siguiente (administrador)
+      description: >
+        HU-M10-01 (SCRUM-885). En una transacción marca la versión `id` como REEMPLAZADA y crea la siguiente con los datos
+        enviados (mismas reglas que el alta; la categoría no cambia). Un error deja intacta la versión vigente. Las
+        versiones son inmutables en la base (disparador `trg_tarifa_referencia_inmutable`).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TariffInput' }
+      responses:
+        '200':
+          description: Versión nueva
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TariffResponse' }
+        '400':
+          description: 'Datos inválidos (`MANI-TAR-400`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 'Sin token, token inválido o expirado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 'El rol no es administrador del tenant (`MANI-TAR-403`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 'La tarifa no existe en el tenant de la sesión (`MANI-TAR-404`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 'La versión ya fue reemplazada (`MANI-TAR-409R`) o la vigencia se cruza con otra tarifa activa (`MANI-TAR-409V`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 'La base de datos no está configurada o no responde (`MANI-SRV-503`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tarifas/categorias/{categoriaId}/historial:
+    get:
+      tags: [Tariffs]
+      operationId: getTariffHistory
+      summary: Historial de versiones de la tarifa de una categoría (administrador)
+      description: HU-M10-01 (SCRUM-885) T10. Todas las versiones, de la más reciente a la más antigua, con su auditoría.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: categoriaId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Versiones de la categoría (lista vacía si no tiene)
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [versiones, correlationId]
+                properties:
+                  versiones:
+                    type: array
+                    items: { $ref: '#/components/schemas/Tariff' }
+                  correlationId: { type: string }
+        '400':
+          description: '`categoriaId` no es UUID (`MANI-TAR-400`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 'Sin token, token inválido o expirado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 'El rol no es administrador del tenant (`MANI-TAR-403`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 'La categoría no existe en el tenant de la sesión (`MANI-TAR-404C`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 'La base de datos no está configurada o no responde (`MANI-SRV-503`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /solicitudes/{id}/tarifa-referencia:
+    get:
+      tags: [Tariffs]
+      operationId: getRequestReferenceTariff
+      summary: Tarifa de referencia vigente para cotizar una solicitud
+      description: >
+        HU-M10-02 (SCRUM-886). La ven el cliente dueño, el aliado asignado y el administrador del tenant. Vigente = ACTIVA
+        y con la fecha de hoy (Colombia) dentro de su vigencia. Sin tarifa vigente responde `disponible: false` y
+        `tarifa: null`: nunca un valor por defecto. Una solicitud ajena responde 404 sin revelar que existe.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Referencia de la categoría de la solicitud, o que no hay
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [disponible, tarifa, correlationId]
+                properties:
+                  disponible: { type: boolean }
+                  tarifa:
+                    allOf:
+                      - $ref: '#/components/schemas/ReferenceTariff'
+                    nullable: true
+                  correlationId: { type: string }
+        '400':
+          description: 'El id no es UUID (`MANI-TAR-400`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 'Sin token, token inválido o expirado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 'El rol no consulta tarifas (`MANI-TAR-403`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 'La solicitud no existe o la sesión no la puede ver (`MANI-TAR-404S`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 'La base de datos no está configurada o no responde (`MANI-SRV-503`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /reportes/cotizaciones-fuera-de-rango:
+    get:
+      tags: [Tariffs]
+      operationId: getOutOfRangeQuotesReport
+      summary: Cotizaciones del periodo evaluadas fuera de rango por Rules (administrador)
+      description: >
+        HU-M10-03 (SCRUM-887). Core toma las cotizaciones emitidas en el periodo (fechas inclusive, hora de Colombia, máximo
+        92 días) con la versión de tarifa que regía al emitirlas y Rules (`POST /api/v1/rules/rates/evaluate`) decide si
+        están en rango. Las que no tenían tarifa se cuentan en `sinTarifa` y no se evalúan. Si Rules no responde, 503 sin
+        valores calculados en Core (T2).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - { name: desde, in: query, required: true, schema: { type: string, format: date } }
+        - { name: hasta, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: Reporte (vacío controlado si no hay datos)
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OutOfRangeQuotesReport' }
+        '400':
+          description: 'Fechas inválidas, `desde` posterior a `hasta` o más de 92 días (`MANI-TAR-400`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 'Sin token, token inválido o expirado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 'El rol no es administrador del tenant (`MANI-TAR-403`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: 'Rules respondió fuera de contrato (`RULES_SERVICE_ERROR`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 'Rules o la base de datos no están disponibles (`RULES_SERVICE_UNAVAILABLE`, `MANI-SRV-503`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -4498,6 +4889,16 @@ components:
         - MANI-HIS-403A
         - MANI-HIS-404
         - INTERNAL_ERROR
+        - MANI-TAR-400
+        - MANI-TAR-401
+        - MANI-TAR-403
+        - MANI-TAR-404
+        - MANI-TAR-404C
+        - MANI-TAR-404S
+        - MANI-TAR-409R
+        - MANI-TAR-409V
+        - RULES_SERVICE_UNAVAILABLE
+        - RULES_SERVICE_ERROR
       x-code-meanings:
         VALIDATION_ERROR: 'HTTP 400 — el body no cumple el esquema (campo faltante/formato inválido).'
         INVALID_CREDENTIALS: 'HTTP 401 — email y/o password no coinciden con ningún usuario del tenant.'
@@ -4689,6 +5090,101 @@ components:
                   enum: [application/pdf, image/jpeg, image/png]
                 sizeBytes:
                   type: integer
+
+    TariffInput:
+      type: object
+      required: [valorMin, valorTipico, valorMax]
+      properties:
+        valorMin: { type: number, minimum: 0, description: 'Hasta diez dígitos enteros y dos decimales.' }
+        valorTipico: { type: number, minimum: 0 }
+        valorMax: { type: number, minimum: 0 }
+        moneda: { type: string, pattern: '^[A-Z]{3}$', default: COP }
+        vigenciaDesde: { type: string, format: date, description: 'Por omisión, hoy en America/Bogota.' }
+        vigenciaHasta: { type: string, format: date, nullable: true, description: 'Inclusive; null = sin fin.' }
+        condiciones: { type: string, maxLength: 500, nullable: true, description: Reglas contractuales en texto libre }
+
+    ReferenceTariff:
+      type: object
+      description: Lo que ven el cliente y el aliado al cotizar (sin auditoría).
+      required: [id, categoriaId, valorMin, valorTipico, valorMax, moneda, vigenciaDesde, version]
+      properties:
+        id: { type: string, format: uuid }
+        categoriaId: { type: string, format: uuid }
+        categoriaNombre: { type: string }
+        valorMin: { type: number }
+        valorTipico: { type: number }
+        valorMax: { type: number }
+        moneda: { type: string }
+        vigenciaDesde: { type: string, format: date }
+        vigenciaHasta: { type: string, format: date, nullable: true }
+        condiciones: { type: string, nullable: true }
+        version: { type: integer, minimum: 1 }
+
+    Tariff:
+      allOf:
+        - $ref: '#/components/schemas/ReferenceTariff'
+        - type: object
+          required: [estado, auditoria]
+          properties:
+            estado: { type: string, enum: [ACTIVA, REEMPLAZADA] }
+            reemplazaId: { type: string, format: uuid, nullable: true }
+            auditoria:
+              type: object
+              properties:
+                creadoPor: { type: string, format: uuid }
+                actorRol: { type: string, example: ADMIN }
+                correlationId: { type: string, nullable: true }
+                creadaEn: { type: string, format: date-time }
+
+    TariffResponse:
+      type: object
+      required: [tarifa, correlationId]
+      properties:
+        tarifa: { $ref: '#/components/schemas/Tariff' }
+        correlationId: { type: string }
+
+    OutOfRangeQuotesReport:
+      type: object
+      required: [periodo, totales, cotizaciones, correlationId]
+      properties:
+        periodo:
+          type: object
+          properties:
+            desde: { type: string, format: date }
+            hasta: { type: string, format: date }
+        reglasVersion: { type: string, nullable: true, example: rates-v1 }
+        totales:
+          type: object
+          properties:
+            cotizaciones: { type: integer }
+            evaluadas: { type: integer }
+            sinTarifa: { type: integer }
+            fueraDeRango: { type: integer }
+        cotizaciones:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              solicitudId: { type: string, format: uuid }
+              version: { type: integer }
+              estado: { type: string }
+              creadaEn: { type: string, format: date-time }
+              total: { type: number }
+              categoria: { type: object, properties: { id: { type: string, format: uuid }, nombre: { type: string } } }
+              aliado: { type: object, properties: { id: { type: string, format: uuid }, nombre: { type: string } } }
+              tarifa:
+                type: object
+                properties:
+                  id: { type: string, format: uuid }
+                  version: { type: integer }
+                  valorMin: { type: number }
+                  valorTipico: { type: number }
+                  valorMax: { type: number }
+                  moneda: { type: string }
+              resultado: { type: string, enum: [POR_DEBAJO, POR_ENCIMA] }
+              desviacionPorcentaje: { type: number, description: 'Cuánto se sale del límite cruzado, en porcentaje' }
+        correlationId: { type: string }
 
     ErrorResponse:
       type: object
