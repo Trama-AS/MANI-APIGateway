@@ -3432,6 +3432,74 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /catalog/geometrias:
+    get:
+      tags: [Geographic Zones]
+      operationId: getZoneGeometries
+      summary: Límites geográficos de las zonas, como GeoJSON (HU-M04-07)
+      description: >
+        Devuelve los límites de las zonas pedidas en `zonaIds` como un
+        `FeatureCollection` de GeoJSON (RFC 7946). Las coordenadas van en
+        **WGS84 (EPSG 4326) y en orden longitud, latitud**, como exige la
+        especificación; invertir el par es el error habitual al consumirla.
+        Se admiten `Polygon` y `MultiPolygon`.
+
+
+        Va en una operación aparte y no dentro de `/catalog/zones` porque la
+        geometría es opcional y pesada: el catálogo se lee en cada listado y
+        formulario, y arrastrarla ahí degradaría respuestas ya validadas. Por
+        la misma razón hay un tope de 20 zonas por petición.
+
+
+        La respuesta distingue tres situaciones y **no inventa ninguna**: la
+        zona con límite cargado va en `features`; la que existe en el catálogo
+        pero todavía no tiene límite va en `sinGeometria`; y el identificador
+        que no corresponde a ninguna zona va en `desconocidas`. Una zona sin
+        límite no se sustituye por un centroide ni por un polígono aproximado.
+
+
+        Las zonas son un catálogo global sin `tenant_id`, así que la respuesta
+        es la misma para cualquier tenant: en un límite de barrio no hay dato
+        privado de ninguna organización. Aun así exige JWT, que es la única
+        forma de no depender de un tenant o un rol enviados por el cliente.
+
+
+        `attribution` no es informativo: la licencia de la fuente obliga a
+        acreditarla en cualquier interfaz que muestre los límites, así que
+        viaja con cada geometría y debe mostrarse.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: zonaIds
+          in: query
+          required: true
+          description: >
+            Identificadores de zona separados por comas. Máximo 20 por
+            petición; pedir más responde 400 `MANI-GEO-400`.
+          schema:
+            type: string
+          example: 20000000-0000-4000-8000-000000000002,20000000-0000-4000-8000-000000005002
+      responses:
+        '200':
+          description: Colección de geometrías, más las zonas sin límite y las desconocidas.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ZoneGeometryCollection'
+        '400':
+          description: >
+            `MANI-GEO-400` si falta `zonaIds` o se piden más de 20 zonas;
+            `MANI-ZON-400` si un identificador no es un UUID válido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token ausente, vencido o con firma inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /catalog/zones:
     get:
       tags: [Geographic Zones]
@@ -6520,6 +6588,118 @@ components:
             - PADRE_ES_LA_MISMA_ZONA
             - RELACION_DE_NIVEL_INVERTIDA
       required: [id, level, parentId, reason]
+
+    ZoneGeometryCollection:
+      type: object
+      description: >
+        `FeatureCollection` de GeoJSON (RFC 7946) con los límites encontrados,
+        más la relación de lo que no se pudo entregar y por qué.
+      required: [type, features, sinGeometria, desconocidas, atribuciones]
+      properties:
+        type:
+          type: string
+          enum: [FeatureCollection]
+        features:
+          type: array
+          items:
+            $ref: '#/components/schemas/ZoneGeometryFeature'
+        sinGeometria:
+          type: array
+          description: >
+            Zonas que existen en el catálogo pero todavía no tienen límite
+            cargado. Se enumeran para que la interfaz pueda decirlo en lugar
+            de dibujar una forma aproximada.
+          items:
+            type: string
+            format: uuid
+        desconocidas:
+          type: array
+          description: Identificadores que no corresponden a ninguna zona del catálogo.
+          items:
+            type: string
+            format: uuid
+        atribuciones:
+          type: array
+          description: >
+            Textos de atribución de las fuentes presentes en la respuesta. La
+            licencia obliga a mostrarlos donde se dibujen los límites.
+          items:
+            type: string
+
+    ZoneGeometryFeature:
+      type: object
+      description: Un `Feature` de GeoJSON con el límite de una zona.
+      required: [type, id, geometry, properties]
+      properties:
+        type:
+          type: string
+          enum: [Feature]
+        id:
+          type: string
+          format: uuid
+        geometry:
+          $ref: '#/components/schemas/GeoJsonGeometry'
+        properties:
+          type: object
+          required: [zoneId, name, level, attribution]
+          properties:
+            zoneId:
+              type: string
+              format: uuid
+            name:
+              type: string
+            level:
+              type: string
+              enum: [CIUDAD, LOCALIDAD, BARRIO]
+            selectable:
+              type: boolean
+              description: >
+                `false` en una zona desactivada. Se devuelve igual, porque un
+                sitio histórico puede apuntar a ella.
+            source:
+              type: string
+              description: Fuente de la que provienen los límites.
+            sourceCode:
+              type: string
+              nullable: true
+              description: Identificador de la entidad en la fuente original.
+            licence:
+              type: string
+            attribution:
+              type: string
+              description: Texto que la interfaz debe mostrar, exigido por la licencia.
+            sourceDate:
+              type: string
+              format: date
+              nullable: true
+              description: Fecha de actualización del dato en la fuente.
+            updatedAt:
+              type: string
+              format: date-time
+
+    GeoJsonGeometry:
+      type: object
+      description: >
+        Geometría GeoJSON conforme a RFC 7946, en WGS84 (EPSG 4326). Las
+        coordenadas van en orden **longitud, latitud**. Para `Polygon`,
+        `coordinates` es una lista de anillos; para `MultiPolygon`, una lista
+        de polígonos. El primer anillo es el contorno exterior y debe estar
+        cerrado: su último punto repite el primero.
+      required: [type, coordinates]
+      properties:
+        type:
+          type: string
+          enum: [Polygon, MultiPolygon]
+        coordinates:
+          type: array
+          items: {}
+      example:
+        type: Polygon
+        coordinates:
+          - - [-74.05045, 4.68132]
+            - [-74.04500, 4.68132]
+            - [-74.04500, 4.67500]
+            - [-74.05045, 4.68132]
 
     ZoneCatalogResponse:
       type: object
