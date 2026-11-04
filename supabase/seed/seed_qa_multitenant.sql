@@ -156,6 +156,24 @@ END $$;
 -- Barre TODAS las tablas tenant-scoped, no solo las 9 del ticket: si algo
 -- en solicitud/cotizacion/evento apunta a una fila seed, un DELETE parcial
 -- revienta por FK.
+--
+-- Las tablas de Core con versiones inmutables (MANI-Node db/migrations 0030+) rechazan DELETE con un disparador, también
+-- el que llega en cascada al borrar categoria_servicio o tenant. Se desactivan solo durante esta limpieza y se vuelven a
+-- activar antes de sembrar. ALTER TABLE es transaccional: si la semilla falla, el ROLLBACK los deja activos. En una base
+-- sin esas migraciones el bloque no hace nada.
+DO $$
+DECLARE
+  r record;
+BEGIN
+  FOR r IN SELECT * FROM (VALUES
+      ('tarifa_referencia', 'trg_tarifa_referencia_inmutable')
+    ) AS v(tabla, disparador)
+  LOOP
+    IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = r.disparador AND tgrelid = to_regclass('public.' || r.tabla)) THEN
+      EXECUTE format('ALTER TABLE %I DISABLE TRIGGER %I', r.tabla, r.disparador);
+    END IF;
+  END LOOP;
+END $$;
 
 DELETE FROM calificacion      WHERE tenant_id IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
 DELETE FROM mensaje           WHERE tenant_id IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
@@ -173,6 +191,21 @@ DELETE FROM aliado            WHERE tenant_id IN ('10000000-0000-4000-8000-00000
 DELETE FROM cliente           WHERE tenant_id IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
 DELETE FROM usuario           WHERE tenant_id IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
 DELETE FROM tenant            WHERE id        IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
+
+-- Se reactivan los disparadores de inmutabilidad desactivados arriba.
+DO $$
+DECLARE
+  r record;
+BEGIN
+  FOR r IN SELECT * FROM (VALUES
+      ('tarifa_referencia', 'trg_tarifa_referencia_inmutable')
+    ) AS v(tabla, disparador)
+  LOOP
+    IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = r.disparador AND tgrelid = to_regclass('public.' || r.tabla)) THEN
+      EXECUTE format('ALTER TABLE %I ENABLE TRIGGER %I', r.tabla, r.disparador);
+    END IF;
+  END LOOP;
+END $$;
 
 -- Usuarios de Auth, por UUID fijo. identities primero (FK a users).
 DELETE FROM auth.identities WHERE user_id IN (
