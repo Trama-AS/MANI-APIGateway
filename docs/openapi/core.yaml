@@ -3474,9 +3474,12 @@ paths:
         desactivadas se devuelven con `selectable: false` salvo que se pida
         `onlyActive=true`: una zona inactiva sigue siendo consultable porque un
         sitio histórico puede apuntar a ella, pero nunca se ofrece para
-        escoger. Una fila que no puede colocarse en el árbol (sin zona padre,
-        con padre inexistente o con relación de nivel invertida) no se cuelga
-        en un lugar inventado: queda fuera de `zones` y `tree`, y se reporta en
+        escoger. La jerarquía es estricta: cada zona cuelga del nivel
+        inmediatamente superior, así que el padre de un `BARRIO` es una
+        `LOCALIDAD` y el de una `LOCALIDAD` es una `CIUDAD`. Una fila que no
+        puede colocarse en el árbol (sin zona padre, con padre inexistente, con
+        relación de nivel invertida, o que se salta un nivel) no se cuelga en un
+        lugar inventado: queda fuera de `zones` y `tree`, y se reporta en
         `inconsistencies`.
       security:
         - bearerAuth: []
@@ -7804,6 +7807,9 @@ components:
       description: >
         Fila del catálogo que no puede colocarse en el árbol. Se reporta en
         lugar de colgarla en un lugar inventado o de descartarla en silencio.
+        `SALTO_DE_NIVEL` es el caso en que la zona y su padre existen pero no
+        son niveles contiguos, por ejemplo un barrio colgado directamente de una
+        ciudad (SCRUM-1395).
       properties:
         id:
           type: string
@@ -7821,6 +7827,7 @@ components:
             - PADRE_INEXISTENTE
             - PADRE_ES_LA_MISMA_ZONA
             - RELACION_DE_NIVEL_INVERTIDA
+            - SALTO_DE_NIVEL
       required: [id, level, parentId, reason]
 
     ZoneCatalogResponse:

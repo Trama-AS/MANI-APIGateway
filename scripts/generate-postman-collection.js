@@ -178,7 +178,7 @@ function wireUpIdentityFlow(collection) {
   setFormDataValue(register.request.body, 'fullName', 'María Fernanda Rojas');
   setFormDataValue(register.request.body, 'email', '{{allyEmail}}');
   setFormDataValue(register.request.body, 'password', '{{allyPassword}}');
-  setFormDataValue(register.request.body, 'categoriaId', 'cat-1');
+  setFormDataValue(register.request.body, 'categoriaId', 'd0eebc99-9c0b-4ef8-bb6d-6bb9bd380a18');
   // SCRUM-856: Core exige la aceptación expresa de términos (acceptsTerms=true).
   setFormDataValue(register.request.body, 'acceptsTerms', 'true');
   // src relativo al --working-dir con el que se invoca Newman (ver package.json: postman/).
@@ -228,7 +228,7 @@ function wireUpIdentityFlow(collection) {
   setFormDataValue(company.request.body, 'docRepresentante', '1020304050');
   setFormDataValue(company.request.body, 'email', '{{companyEmail}}');
   setFormDataValue(company.request.body, 'password', '{{allyPassword}}');
-  setFormDataValue(company.request.body, 'categoriaId', 'cat-1');
+  setFormDataValue(company.request.body, 'categoriaId', 'd0eebc99-9c0b-4ef8-bb6d-6bb9bd380a18');
   disableFormDataField(company.request.body, 'phone');
   setFormDataFile(company.request.body, 'camara_comercio', 'fixtures/camara-comercio-fake.pdf');
   setFormDataFile(company.request.body, 'rut_empresa', 'fixtures/rut-empresa-fake.pdf');
