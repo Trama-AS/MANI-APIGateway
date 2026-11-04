@@ -4,7 +4,7 @@
       "id": "84d8589a-61d0-dc6e-17f2-02d46d3509e9",
       "name": "Ally Registration",
       "description": {
-        "content": "Registro de Aliados persona natural",
+        "content": "Registro de Aliados persona natural y empresa",
         "type": "text/plain"
       },
       "item": [
@@ -88,6 +88,12 @@
                   "src": "fixtures/cedula-fake.pdf"
                 },
                 {
+                  "key": "acceptsTerms",
+                  "value": "true",
+                  "type": "text",
+                  "description": "(Required) Aceptación expresa de los Términos y Condiciones y de la Política de Datos Personales (SCRUM-856, Ley 1581). Debe llegar en `true`; si falta o llega con otro valor, Core responde 400 `TERMS_NOT_ACCEPTED` y no crea ningún registro. Al aceptar, Core guarda el consentimiento con versión, usuario y fecha.\n"
+                },
+                {
                   "key": "phone",
                   "value": "+573001234567",
                   "type": "text",
@@ -96,7 +102,7 @@
                 },
                 {
                   "key": "documentType",
-                  "value": "CC",
+                  "value": "CE",
                   "type": "text",
                   "description": "Tipo de documento de identidad (persona natural). Opcional. (This can only be one of CC,CE,PASSPORT)",
                   "disabled": true
@@ -171,7 +177,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "QKIPjbrAHncGaR@MWcusXIeyFjxzKInmDpapUU.rp",
+                      "value": "F08JAl7EXPBXEYh@LdxUhVjcaLoDKIRnbKZiRoreCjVawCc.gvo",
                       "type": "text"
                     },
                     {
@@ -203,6 +209,15 @@
                     },
                     {
                       "description": {
+                        "content": "(Required) Aceptación expresa de los Términos y Condiciones y de la Política de Datos Personales (SCRUM-856, Ley 1581). Debe llegar en `true`; si falta o llega con otro valor, Core responde 400 `TERMS_NOT_ACCEPTED` y no crea ningún registro. Al aceptar, Core guarda el consentimiento con versión, usuario y fecha.\n",
+                        "type": "text/plain"
+                      },
+                      "key": "acceptsTerms",
+                      "value": "true",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
                         "content": "",
                         "type": "text/plain"
                       },
@@ -216,7 +231,7 @@
                         "type": "text/plain"
                       },
                       "key": "documentType",
-                      "value": "CC",
+                      "value": "CE",
                       "type": "text"
                     },
                     {
@@ -247,13 +262,13 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"profile\": {\n    \"id\": \"string\",\n    \"tenantId\": \"trama-demo\",\n    \"role\": \"ALLY\",\n    \"fullName\": \"string\",\n    \"status\": \"PENDING\"\n  },\n  \"tokens\": {\n    \"accessToken\": \"string\",\n    \"refreshToken\": \"string\",\n    \"expiresIn\": 3600\n  }\n}",
+              "body": "{\n  \"profile\": {\n    \"id\": \"string\",\n    \"tenantId\": \"trama-demo\",\n    \"role\": \"CLIENT\",\n    \"fullName\": \"string\",\n    \"status\": \"REJECTED\"\n  },\n  \"tokens\": {\n    \"accessToken\": \"string\",\n    \"refreshToken\": \"string\",\n    \"expiresIn\": 3600\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
               "id": "e8f6ba02-3a97-67b3-01a7-fc56b36c1e51",
-              "name": "Body inválido (`VALIDATION_ERROR`), tenant inexistente/inactivo (`TENANT_NOT_FOUND`) o categoría inexistente/inactiva (`CATEGORY_NOT_FOUND`)\n",
+              "name": "Body inválido (`VALIDATION_ERROR`), términos y condiciones no aceptados (`TERMS_NOT_ACCEPTED`), tenant inexistente/inactivo (`TENANT_NOT_FOUND`) o categoría inexistente/inactiva (`CATEGORY_NOT_FOUND`)\n",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -304,7 +319,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "QKIPjbrAHncGaR@MWcusXIeyFjxzKInmDpapUU.rp",
+                      "value": "F08JAl7EXPBXEYh@LdxUhVjcaLoDKIRnbKZiRoreCjVawCc.gvo",
                       "type": "text"
                     },
                     {
@@ -336,6 +351,15 @@
                     },
                     {
                       "description": {
+                        "content": "(Required) Aceptación expresa de los Términos y Condiciones y de la Política de Datos Personales (SCRUM-856, Ley 1581). Debe llegar en `true`; si falta o llega con otro valor, Core responde 400 `TERMS_NOT_ACCEPTED` y no crea ningún registro. Al aceptar, Core guarda el consentimiento con versión, usuario y fecha.\n",
+                        "type": "text/plain"
+                      },
+                      "key": "acceptsTerms",
+                      "value": "true",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
                         "content": "",
                         "type": "text/plain"
                       },
@@ -349,7 +373,7 @@
                         "type": "text/plain"
                       },
                       "key": "documentType",
-                      "value": "CC",
+                      "value": "CE",
                       "type": "text"
                     },
                     {
@@ -380,7 +404,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-PEN-403\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -437,7 +461,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "QKIPjbrAHncGaR@MWcusXIeyFjxzKInmDpapUU.rp",
+                      "value": "F08JAl7EXPBXEYh@LdxUhVjcaLoDKIRnbKZiRoreCjVawCc.gvo",
                       "type": "text"
                     },
                     {
@@ -469,6 +493,15 @@
                     },
                     {
                       "description": {
+                        "content": "(Required) Aceptación expresa de los Términos y Condiciones y de la Política de Datos Personales (SCRUM-856, Ley 1581). Debe llegar en `true`; si falta o llega con otro valor, Core responde 400 `TERMS_NOT_ACCEPTED` y no crea ningún registro. Al aceptar, Core guarda el consentimiento con versión, usuario y fecha.\n",
+                        "type": "text/plain"
+                      },
+                      "key": "acceptsTerms",
+                      "value": "true",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
                         "content": "",
                         "type": "text/plain"
                       },
@@ -482,7 +515,7 @@
                         "type": "text/plain"
                       },
                       "key": "documentType",
-                      "value": "CC",
+                      "value": "CE",
                       "type": "text"
                     },
                     {
@@ -513,7 +546,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-PEN-403\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -570,7 +603,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "QKIPjbrAHncGaR@MWcusXIeyFjxzKInmDpapUU.rp",
+                      "value": "F08JAl7EXPBXEYh@LdxUhVjcaLoDKIRnbKZiRoreCjVawCc.gvo",
                       "type": "text"
                     },
                     {
@@ -602,6 +635,15 @@
                     },
                     {
                       "description": {
+                        "content": "(Required) Aceptación expresa de los Términos y Condiciones y de la Política de Datos Personales (SCRUM-856, Ley 1581). Debe llegar en `true`; si falta o llega con otro valor, Core responde 400 `TERMS_NOT_ACCEPTED` y no crea ningún registro. Al aceptar, Core guarda el consentimiento con versión, usuario y fecha.\n",
+                        "type": "text/plain"
+                      },
+                      "key": "acceptsTerms",
+                      "value": "true",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
                         "content": "",
                         "type": "text/plain"
                       },
@@ -615,7 +657,7 @@
                         "type": "text/plain"
                       },
                       "key": "documentType",
-                      "value": "CC",
+                      "value": "CE",
                       "type": "text"
                     },
                     {
@@ -646,7 +688,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-PEN-403\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -711,6 +753,797 @@
                   "",
                   "  pm.collectionVariables.set('accessToken', body.tokens.accessToken);",
                   "  pm.collectionVariables.set('refreshToken', body.tokens.refreshToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        },
+        {
+          "id": "66d96edf-30c5-be37-2b92-2c75162abf63",
+          "name": "Registra un nuevo Aliado empresa (persona jurídica)",
+          "request": {
+            "name": "Registra un nuevo Aliado empresa (persona jurídica)",
+            "description": {
+              "content": "Crea el usuario y el perfil de Aliado empresa (rol ALLY) en estado PENDING, con sus documentos KYC (Cámara de Comercio obligatoria) y datos del representante legal, dentro del tenant resuelto por `X-Tenant-Slug` (ADR-0018 / US-02.1.2-M2).\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "auth",
+                "register",
+                "ally",
+                "company"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "disabled": false,
+                "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
+                "key": "X-Tenant-Slug",
+                "value": "{{tenantSlug}}"
+              },
+              {
+                "disabled": false,
+                "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                "key": "X-Correlation-ID",
+                "value": "string"
+              },
+              {
+                "key": "Content-Type",
+                "value": "multipart/form-data"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "razonSocial",
+                  "value": "Soluciones Industriales SAS",
+                  "type": "text",
+                  "description": "(Required) "
+                },
+                {
+                  "key": "nit",
+                  "value": "{{companyNit}}",
+                  "type": "text",
+                  "description": "(Required) "
+                },
+                {
+                  "key": "nombreRepresentante",
+                  "value": "Carlos Gómez",
+                  "type": "text",
+                  "description": "(Required) "
+                },
+                {
+                  "key": "email",
+                  "value": "{{companyEmail}}",
+                  "type": "text",
+                  "description": "(Required) "
+                },
+                {
+                  "key": "password",
+                  "value": "{{allyPassword}}",
+                  "type": "text",
+                  "description": "(Required) "
+                },
+                {
+                  "key": "camara_comercio",
+                  "type": "file",
+                  "contentType": "application/pdf",
+                  "description": "(Required) Documento KYC obligatorio (Cámara de Comercio).",
+                  "src": "fixtures/camara-comercio-fake.pdf"
+                },
+                {
+                  "key": "docRepresentante",
+                  "value": "1020304050",
+                  "type": "text",
+                  "description": ""
+                },
+                {
+                  "key": "phone",
+                  "value": "+573001234567",
+                  "type": "text",
+                  "description": "",
+                  "disabled": true
+                },
+                {
+                  "key": "categoriaId",
+                  "value": "cat-1",
+                  "type": "text",
+                  "description": "Id de categoria_servicio opcional."
+                },
+                {
+                  "key": "rut_empresa",
+                  "type": "file",
+                  "description": "Documento KYC opcional (RUT).",
+                  "src": "fixtures/rut-empresa-fake.pdf",
+                  "contentType": "application/pdf"
+                },
+                {
+                  "key": "cedula_representante",
+                  "type": "file",
+                  "description": "Documento KYC opcional (Cédula representante legal).",
+                  "src": "fixtures/cedula-representante-fake.pdf",
+                  "contentType": "application/pdf"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "id": "e738f8f1-840c-32cb-ef90-bd06e28a2374",
+              "name": "Aliado empresa registrado",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "auth",
+                    "register",
+                    "ally",
+                    "company"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
+                    "key": "X-Tenant-Slug",
+                    "value": "plomeria-express"
+                  },
+                  {
+                    "disabled": false,
+                    "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                    "key": "X-Correlation-ID",
+                    "value": "string"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "razonSocial",
+                      "value": "Soluciones Industriales SAS",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "nit",
+                      "value": "900123456-1",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "nombreRepresentante",
+                      "value": "Carlos Gomez",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "email",
+                      "value": "1vQyNOHZ8@TqegLeXNcerQGSfYVvWMjucHqifI.zysf",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "password",
+                      "value": "stringstring",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) Documento KYC obligatorio (Cámara de Comercio).",
+                        "type": "text/plain"
+                      },
+                      "key": "camara_comercio",
+                      "type": "file",
+                      "contentType": "application/pdf, image/png, image/jpeg"
+                    },
+                    {
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "docRepresentante",
+                      "value": "1020304050",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "phone",
+                      "value": "+573001234567",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "Id de categoria_servicio opcional.",
+                        "type": "text/plain"
+                      },
+                      "key": "categoriaId",
+                      "value": "string",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "Documento KYC opcional (RUT).",
+                        "type": "text/plain"
+                      },
+                      "key": "rut_empresa",
+                      "type": "file"
+                    },
+                    {
+                      "description": {
+                        "content": "Documento KYC opcional (Cédula representante legal).",
+                        "type": "text/plain"
+                      },
+                      "key": "cedula_representante",
+                      "type": "file"
+                    }
+                  ]
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"profile\": {\n    \"id\": \"string\",\n    \"tenantId\": \"trama-demo\",\n    \"role\": \"CLIENT\",\n    \"fullName\": \"string\",\n    \"status\": \"REJECTED\"\n  },\n  \"tokens\": {\n    \"accessToken\": \"string\",\n    \"refreshToken\": \"string\",\n    \"expiresIn\": 3600\n  }\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "id": "19f9ac96-0b56-2713-fe6d-3eaa94955c49",
+              "name": "Body inválido (`VALIDATION_ERROR`), tenant inexistente/inactivo (`TENANT_NOT_FOUND`) o categoría inexistente/inactiva (`CATEGORY_NOT_FOUND`)\n",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "auth",
+                    "register",
+                    "ally",
+                    "company"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
+                    "key": "X-Tenant-Slug",
+                    "value": "plomeria-express"
+                  },
+                  {
+                    "disabled": false,
+                    "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                    "key": "X-Correlation-ID",
+                    "value": "string"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "razonSocial",
+                      "value": "Soluciones Industriales SAS",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "nit",
+                      "value": "900123456-1",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "nombreRepresentante",
+                      "value": "Carlos Gomez",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "email",
+                      "value": "1vQyNOHZ8@TqegLeXNcerQGSfYVvWMjucHqifI.zysf",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "password",
+                      "value": "stringstring",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) Documento KYC obligatorio (Cámara de Comercio).",
+                        "type": "text/plain"
+                      },
+                      "key": "camara_comercio",
+                      "type": "file",
+                      "contentType": "application/pdf, image/png, image/jpeg"
+                    },
+                    {
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "docRepresentante",
+                      "value": "1020304050",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "phone",
+                      "value": "+573001234567",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "Id de categoria_servicio opcional.",
+                        "type": "text/plain"
+                      },
+                      "key": "categoriaId",
+                      "value": "string",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "Documento KYC opcional (RUT).",
+                        "type": "text/plain"
+                      },
+                      "key": "rut_empresa",
+                      "type": "file"
+                    },
+                    {
+                      "description": {
+                        "content": "Documento KYC opcional (Cédula representante legal).",
+                        "type": "text/plain"
+                      },
+                      "key": "cedula_representante",
+                      "type": "file"
+                    }
+                  ]
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-PEN-403\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "id": "db9e0ffb-e08b-b4fb-94ce-aa50a906779b",
+              "name": "Ya existe un usuario con ese email (`EMAIL_ALREADY_REGISTERED`) o la empresa ya está registrada con ese NIT en este tenant (`COMPANY_ALREADY_REGISTERED`)\n",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "auth",
+                    "register",
+                    "ally",
+                    "company"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
+                    "key": "X-Tenant-Slug",
+                    "value": "plomeria-express"
+                  },
+                  {
+                    "disabled": false,
+                    "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                    "key": "X-Correlation-ID",
+                    "value": "string"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "razonSocial",
+                      "value": "Soluciones Industriales SAS",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "nit",
+                      "value": "900123456-1",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "nombreRepresentante",
+                      "value": "Carlos Gomez",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "email",
+                      "value": "1vQyNOHZ8@TqegLeXNcerQGSfYVvWMjucHqifI.zysf",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "password",
+                      "value": "stringstring",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) Documento KYC obligatorio (Cámara de Comercio).",
+                        "type": "text/plain"
+                      },
+                      "key": "camara_comercio",
+                      "type": "file",
+                      "contentType": "application/pdf, image/png, image/jpeg"
+                    },
+                    {
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "docRepresentante",
+                      "value": "1020304050",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "phone",
+                      "value": "+573001234567",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "Id de categoria_servicio opcional.",
+                        "type": "text/plain"
+                      },
+                      "key": "categoriaId",
+                      "value": "string",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "Documento KYC opcional (RUT).",
+                        "type": "text/plain"
+                      },
+                      "key": "rut_empresa",
+                      "type": "file"
+                    },
+                    {
+                      "description": {
+                        "content": "Documento KYC opcional (Cédula representante legal).",
+                        "type": "text/plain"
+                      },
+                      "key": "cedula_representante",
+                      "type": "file"
+                    }
+                  ]
+                }
+              },
+              "status": "Conflict",
+              "code": 409,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-PEN-403\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "id": "5142a2d2-801f-9844-dba9-5fa0f513a000",
+              "name": "Error interno del servicio (`INTERNAL_ERROR`)",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "auth",
+                    "register",
+                    "ally",
+                    "company"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
+                    "key": "X-Tenant-Slug",
+                    "value": "plomeria-express"
+                  },
+                  {
+                    "disabled": false,
+                    "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                    "key": "X-Correlation-ID",
+                    "value": "string"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "razonSocial",
+                      "value": "Soluciones Industriales SAS",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "nit",
+                      "value": "900123456-1",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "nombreRepresentante",
+                      "value": "Carlos Gomez",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "email",
+                      "value": "1vQyNOHZ8@TqegLeXNcerQGSfYVvWMjucHqifI.zysf",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) ",
+                        "type": "text/plain"
+                      },
+                      "key": "password",
+                      "value": "stringstring",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "(Required) Documento KYC obligatorio (Cámara de Comercio).",
+                        "type": "text/plain"
+                      },
+                      "key": "camara_comercio",
+                      "type": "file",
+                      "contentType": "application/pdf, image/png, image/jpeg"
+                    },
+                    {
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "docRepresentante",
+                      "value": "1020304050",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "phone",
+                      "value": "+573001234567",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "Id de categoria_servicio opcional.",
+                        "type": "text/plain"
+                      },
+                      "key": "categoriaId",
+                      "value": "string",
+                      "type": "text"
+                    },
+                    {
+                      "description": {
+                        "content": "Documento KYC opcional (RUT).",
+                        "type": "text/plain"
+                      },
+                      "key": "rut_empresa",
+                      "type": "file"
+                    },
+                    {
+                      "description": {
+                        "content": "Documento KYC opcional (Cédula representante legal).",
+                        "type": "text/plain"
+                      },
+                      "key": "cedula_representante",
+                      "type": "file"
+                    }
+                  ]
+                }
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-PEN-403\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Email y NIT únicos por corrida para no chocar con EMAIL_ALREADY_REGISTERED ni COMPANY_ALREADY_REGISTERED",
+                  "const sufijo = Date.now();",
+                  "pm.collectionVariables.set('companyEmail', `empresa.${sufijo}@mani.test`);",
+                  "pm.collectionVariables.set('companyNit', `9${String(sufijo).slice(-8)}-1`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "function decodeJwtPayload(token) {",
+                  "  try {",
+                  "    const payload = token.split('.')[1];",
+                  "    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');",
+                  "    const padded = base64 + '==='.slice((base64.length + 3) % 4);",
+                  "    return JSON.parse(atob(padded));",
+                  "  } catch (e) {",
+                  "    return null;",
+                  "  }",
+                  "}",
+                  "function tenantIdFromClaims(claims) {",
+                  "  return claims && (claims.app_metadata ? claims.app_metadata.tenant_id : claims.tenant_id);",
+                  "}",
+                  "",
+                  "pm.test('responde 201 Created', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('el body cumple el esquema RegisterAllyResponse', function () {",
+                  "  pm.response.to.have.jsonSchema({\"type\":\"object\",\"required\":[\"profile\",\"tokens\"],\"properties\":{\"profile\":{\"type\":\"object\",\"required\":[\"id\",\"tenantId\",\"role\",\"fullName\",\"status\"],\"properties\":{\"id\":{\"type\":\"string\"},\"tenantId\":{\"type\":\"string\"},\"role\":{\"type\":\"string\",\"enum\":[\"CLIENT\",\"ALLY\",\"ADMIN\"]},\"fullName\":{\"type\":\"string\"},\"status\":{\"type\":\"string\",\"enum\":[\"VERIFIED\",\"PENDING\",\"REJECTED\"]}}},\"tokens\":{\"type\":\"object\",\"required\":[\"accessToken\",\"refreshToken\",\"expiresIn\"],\"properties\":{\"accessToken\":{\"type\":\"string\"},\"refreshToken\":{\"type\":\"string\"},\"expiresIn\":{\"type\":\"integer\"}}}}});",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "  const body = pm.response.json();",
+                  "",
+                  "  pm.test('la empresa queda como aliado en rol ALLY y estado PENDING', function () {",
+                  "    pm.expect(body.profile.role).to.eql('ALLY');",
+                  "    pm.expect(body.profile.status).to.eql('PENDING');",
+                  "  });",
+                  "",
+                  "  pm.test('propagación del claim de tenant: tenant_id del accessToken coincide con expectedTenantId', function () {",
+                  "    const claims = decodeJwtPayload(body.tokens.accessToken);",
+                  "    pm.expect(claims, 'accessToken debe ser un JWT decodificable').to.not.equal(null);",
+                  "    const expectedId = pm.environment.get('expectedTenantId') || pm.collectionVariables.get('expectedTenantId');",
+                  "    pm.expect(tenantIdFromClaims(claims)).to.eql(expectedId);",
+                  "  });",
                   "}"
                 ]
               }
@@ -822,7 +1655,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"7NY@lVHTcjEutFBzNslmDNCKcqILKPxe.nw\",\n  \"password\": \"stringstring\"\n}",
+                  "raw": "{\n  \"email\": \"DF5zCkw@ElmIQuuKdqpwljBtFSQqMRMPwZdCd.sdu\",\n  \"password\": \"stringstring\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -838,7 +1671,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"profile\": {\n    \"id\": \"string\",\n    \"tenantId\": \"trama-demo\",\n    \"role\": \"ALLY\",\n    \"fullName\": \"string\",\n    \"status\": \"PENDING\"\n  },\n  \"tokens\": {\n    \"accessToken\": \"string\",\n    \"refreshToken\": \"string\",\n    \"expiresIn\": 3600\n  }\n}",
+              "body": "{\n  \"profile\": {\n    \"id\": \"string\",\n    \"tenantId\": \"trama-demo\",\n    \"role\": \"CLIENT\",\n    \"fullName\": \"string\",\n    \"status\": \"REJECTED\"\n  },\n  \"tokens\": {\n    \"accessToken\": \"string\",\n    \"refreshToken\": \"string\",\n    \"expiresIn\": 3600\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -878,7 +1711,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"7NY@lVHTcjEutFBzNslmDNCKcqILKPxe.nw\",\n  \"password\": \"stringstring\"\n}",
+                  "raw": "{\n  \"email\": \"DF5zCkw@ElmIQuuKdqpwljBtFSQqMRMPwZdCd.sdu\",\n  \"password\": \"stringstring\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -894,7 +1727,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-PEN-403\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -934,7 +1767,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"7NY@lVHTcjEutFBzNslmDNCKcqILKPxe.nw\",\n  \"password\": \"stringstring\"\n}",
+                  "raw": "{\n  \"email\": \"DF5zCkw@ElmIQuuKdqpwljBtFSQqMRMPwZdCd.sdu\",\n  \"password\": \"stringstring\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -950,7 +1783,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-PEN-403\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -990,7 +1823,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"email\": \"7NY@lVHTcjEutFBzNslmDNCKcqILKPxe.nw\",\n  \"password\": \"stringstring\"\n}",
+                  "raw": "{\n  \"email\": \"DF5zCkw@ElmIQuuKdqpwljBtFSQqMRMPwZdCd.sdu\",\n  \"password\": \"stringstring\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -1006,7 +1839,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-PEN-403\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -1210,7 +2043,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-PEN-403\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -1260,7 +2093,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-PEN-403\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -1310,7 +2143,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-PEN-403\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -1365,11 +2198,11 @@
         },
         {
           "id": "b23ca05e-0951-63a7-ab02-db80ea9a9f5c",
-          "name": "[PENDIENTE] Cierra la sesión actual e invalida el refreshToken asociado",
+          "name": "Registra el cierre de sesión para auditoría",
           "request": {
-            "name": "[PENDIENTE] Cierra la sesión actual e invalida el refreshToken asociado",
+            "name": "Registra el cierre de sesión para auditoría",
             "description": {
-              "content": "[PENDIENTE DE IMPLEMENTACIÓN EN CORE NODE] Especificación del contrato para cuando Core implemente cierre de sesión. El tenant se deriva del claim `tenant_id` del accessToken; no acepta `X-Tenant-Slug` ni `X-Tenant-Id`.\n",
+              "content": "Deja constancia del cierre de sesión (HU-M02-03 / RF-03 / RNF-04): quién cerró sesión, en qué tenant y cuándo, tomados del JWT verificado; el cuerpo se ignora. **No revoca la sesión**: la revoca el cliente con `supabase.auth.signOut()`, porque el proveedor de identidad es el dueño de la sesión. Esta llamada es best-effort: si falla, el cliente cierra la sesión igualmente. Aunque `/auth/` es público en el Gateway, Core exige y verifica el `Authorization: Bearer`.\n",
               "type": "text/plain"
             },
             "url": {
@@ -1409,7 +2242,7 @@
           "response": [
             {
               "id": "2caecf67-34da-41db-f702-89438736e1bf",
-              "name": "Sesión cerrada correctamente",
+              "name": "Cierre de sesión registrado",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -1483,7 +2316,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-PEN-403\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -1525,7 +2358,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"TOKEN_INVALID\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-PEN-403\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -1571,6 +2404,520 @@
           "protocolProfileBehavior": {
             "disableBodyPruning": true
           }
+        },
+        {
+          "id": "3009ddc2-96a5-f2a1-93af-caebba36bcaa",
+          "name": "Solicita el enlace de recuperación de contraseña",
+          "request": {
+            "name": "Solicita el enlace de recuperación de contraseña",
+            "description": {
+              "content": "Pide al proveedor de identidad que envíe al correo un enlace para restablecer la contraseña (HU-M02-10 / RF-04). Es pre-autenticación: el tenant se resuelve por `X-Tenant-Slug` (ADR-0018). **Responde `202` con el mismo mensaje exista o no la cuenta**, para no revelar qué correos están registrados; el enlace solo se envía si la cuenta existe y está activa en ese tenant. Tampoco se devuelve `429` cuando el proveedor limita los envíos de una cuenta, porque ese límite solo ocurre cuando la cuenta existe y delataría qué correos están registrados.\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "auth",
+                "password-recovery"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "disabled": false,
+                "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
+                "key": "X-Tenant-Slug",
+                "value": "plomeria-express"
+              },
+              {
+                "disabled": false,
+                "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                "key": "X-Correlation-ID",
+                "value": "string"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"ana@correo.co\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "id": "3b215ba5-4a5c-5fd2-749d-ede273da4e5a",
+              "name": "Solicitud aceptada (no confirma que la cuenta exista)",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "auth",
+                    "password-recovery"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
+                    "key": "X-Tenant-Slug",
+                    "value": "plomeria-express"
+                  },
+                  {
+                    "disabled": false,
+                    "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                    "key": "X-Correlation-ID",
+                    "value": "string"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"ana@correo.co\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Accepted",
+              "code": 202,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"message\": \"string\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "id": "eb22fd25-894c-f9b5-8757-7dc37830776a",
+              "name": "Correo inválido (`VALIDATION_ERROR`) o tenant inexistente/inactivo (`TENANT_NOT_FOUND`)",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "auth",
+                    "password-recovery"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
+                    "key": "X-Tenant-Slug",
+                    "value": "plomeria-express"
+                  },
+                  {
+                    "disabled": false,
+                    "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                    "key": "X-Correlation-ID",
+                    "value": "string"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"ana@correo.co\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-PEN-403\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "id": "589e33f7-1182-0e78-9ed2-90d703ff83a5",
+              "name": "Error interno del servicio (`INTERNAL_ERROR`)",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "auth",
+                    "password-recovery"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
+                    "key": "X-Tenant-Slug",
+                    "value": "plomeria-express"
+                  },
+                  {
+                    "disabled": false,
+                    "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                    "key": "X-Correlation-ID",
+                    "value": "string"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"ana@correo.co\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-PEN-403\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
+        },
+        {
+          "id": "5d196f0e-2fc1-89e2-32bf-befa8f59b29b",
+          "name": "Fija la contraseña nueva con el token del enlace de recuperación",
+          "request": {
+            "name": "Fija la contraseña nueva con el token del enlace de recuperación",
+            "description": {
+              "content": "Restablece la contraseña con el token que trae el enlace del correo (HU-M02-10 / RF-04). Es pre-autenticación: el tenant se resuelve por `X-Tenant-Slug` y debe ser el de la cuenta dueña del token, de modo que un enlace de un tenant no sirve en otro. Un token de sesión normal (inicio de sesión con contraseña) no es válido. El enlace deja de servir una vez usado: al restablecer la contraseña se revoca la sesión del enlace, sin cerrar las demás sesiones de la persona.\n",
+              "type": "text/plain"
+            },
+            "url": {
+              "path": [
+                "auth",
+                "password-reset"
+              ],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "header": [
+              {
+                "disabled": false,
+                "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
+                "key": "X-Tenant-Slug",
+                "value": "plomeria-express"
+              },
+              {
+                "disabled": false,
+                "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                "key": "X-Correlation-ID",
+                "value": "string"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "auth": null,
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accessToken\": \"string\",\n  \"newPassword\": \"stringstring\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [
+            {
+              "id": "6025a389-6f58-b85c-0ccd-cc4896a46c39",
+              "name": "Contraseña actualizada",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "auth",
+                    "password-reset"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
+                    "key": "X-Tenant-Slug",
+                    "value": "plomeria-express"
+                  },
+                  {
+                    "disabled": false,
+                    "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                    "key": "X-Correlation-ID",
+                    "value": "string"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"accessToken\": \"string\",\n  \"newPassword\": \"stringstring\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"message\": \"string\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "id": "fc7295ee-e8c5-7455-522a-692f52150c81",
+              "name": "Datos inválidos (`VALIDATION_ERROR`: falta el token, o la contraseña tiene menos de 8 caracteres) o contraseña que no cumple la política del proveedor (`WEAK_PASSWORD`)\n",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "auth",
+                    "password-reset"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
+                    "key": "X-Tenant-Slug",
+                    "value": "plomeria-express"
+                  },
+                  {
+                    "disabled": false,
+                    "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                    "key": "X-Correlation-ID",
+                    "value": "string"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"accessToken\": \"string\",\n  \"newPassword\": \"stringstring\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Bad Request",
+              "code": 400,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-PEN-403\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "id": "2af95ef5-a371-2bc1-d752-ce7c3c4198e4",
+              "name": "Token inválido, vencido, ya usado, de una cuenta de otro tenant o de una cuenta inactiva (`INVALID_RECOVERY_TOKEN`); no se distingue entre estos casos\n",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "auth",
+                    "password-reset"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
+                    "key": "X-Tenant-Slug",
+                    "value": "plomeria-express"
+                  },
+                  {
+                    "disabled": false,
+                    "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                    "key": "X-Correlation-ID",
+                    "value": "string"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"accessToken\": \"string\",\n  \"newPassword\": \"stringstring\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Unauthorized",
+              "code": 401,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-PEN-403\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            },
+            {
+              "id": "27795355-1048-fd12-bf00-8672c13e2422",
+              "name": "Error interno del servicio (`INTERNAL_ERROR`)",
+              "originalRequest": {
+                "url": {
+                  "path": [
+                    "auth",
+                    "password-reset"
+                  ],
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "query": [],
+                  "variable": []
+                },
+                "header": [
+                  {
+                    "disabled": false,
+                    "description": "(Required) Slug público del tenant (ADR-0018). Usado en endpoints pre-autenticación para resolver la organización sin confiar en IDs internos.\n",
+                    "key": "X-Tenant-Slug",
+                    "value": "plomeria-express"
+                  },
+                  {
+                    "disabled": false,
+                    "description": "Id de trazabilidad distribuida propagado desde el Gateway. Si no se envía, el Core genera uno (`node-<timestamp>`) y lo devuelve en el header de respuesta y en el body de error.\n",
+                    "key": "X-Correlation-ID",
+                    "value": "string"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "method": "POST",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"accessToken\": \"string\",\n  \"newPassword\": \"stringstring\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "status": "Internal Server Error",
+              "code": 500,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-PEN-403\"\n}",
+              "cookie": [],
+              "_postman_previewlanguage": "json"
+            }
+          ],
+          "event": [],
+          "protocolProfileBehavior": {
+            "disableBodyPruning": true
+          }
         }
       ],
       "event": []
@@ -1606,6 +2953,16 @@
     {
       "key": "allyPassword",
       "value": "Cambiar123!",
+      "type": "string"
+    },
+    {
+      "key": "companyEmail",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "companyNit",
+      "value": "",
       "type": "string"
     },
     {
