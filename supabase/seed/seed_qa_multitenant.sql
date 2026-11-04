@@ -166,7 +166,8 @@ DECLARE
   r record;
 BEGIN
   FOR r IN SELECT * FROM (VALUES
-      ('tarifa_referencia', 'trg_tarifa_referencia_inmutable')
+      ('tarifa_referencia', 'trg_tarifa_referencia_inmutable'),
+      ('regla_tenant', 'trg_regla_tenant_inmutable')
     ) AS v(tabla, disparador)
   LOOP
     IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = r.disparador AND tgrelid = to_regclass('public.' || r.tabla)) THEN
@@ -190,6 +191,14 @@ DELETE FROM categoria_servicio WHERE tenant_id IN ('10000000-0000-4000-8000-0000
 DELETE FROM aliado            WHERE tenant_id IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
 DELETE FROM cliente           WHERE tenant_id IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
 DELETE FROM usuario           WHERE tenant_id IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
+-- regla_tenant (MANI-Node 0031) apunta a tenant con ON DELETE RESTRICT: se borra antes. En una base sin esa
+-- migración no se toca.
+DO $$
+BEGIN
+  IF to_regclass('public.regla_tenant') IS NOT NULL THEN
+    DELETE FROM regla_tenant WHERE tenant_id IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
+  END IF;
+END $$;
 DELETE FROM tenant            WHERE id        IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
 
 -- Se reactivan los disparadores de inmutabilidad desactivados arriba.
@@ -198,7 +207,8 @@ DECLARE
   r record;
 BEGIN
   FOR r IN SELECT * FROM (VALUES
-      ('tarifa_referencia', 'trg_tarifa_referencia_inmutable')
+      ('tarifa_referencia', 'trg_tarifa_referencia_inmutable'),
+      ('regla_tenant', 'trg_regla_tenant_inmutable')
     ) AS v(tabla, disparador)
   LOOP
     IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = r.disparador AND tgrelid = to_regclass('public.' || r.tabla)) THEN

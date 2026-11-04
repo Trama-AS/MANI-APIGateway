@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.24.0
+  version: 0.25.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -43,6 +43,11 @@ servers:
     description: Gateway local (docker compose up -d gateway core-service)
 
 tags:
+  - name: Tenant Rules
+    description: >
+      Reglas operativas propias del tenant (HU-M01-03 / SCRUM-1366, RF-02 / RF-13 / RNF-10): orden del listado de
+      aliados, tolerancia de la alerta de tarifa, comisión, ventana y penalización de cancelación y minutos para aceptar
+      la oferta. Versionadas e inmutables; Core valida la forma y Rules la coherencia. Tenant y actor salen del JWT.
   - name: Tariffs
     description: >
       Tarifario de referencia por categoría y tenant (M-10: HU-M10-01 / SCRUM-885, HU-M10-02 / SCRUM-886, HU-M10-03 /
@@ -4554,6 +4559,151 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /tenant/rules:
+    get:
+      tags: [Tenant Rules]
+      operationId: getTenantRules
+      summary: Reglas operativas vigentes del tenant de la sesión
+      description: >
+        HU-M01-03 (SCRUM-1366) C1. Cualquier rol del tenant (Dispatch las lee para ordenar el listado). Sin configuración
+        propia responde `version: 0`, `origen: POR_OMISION` y las reglas por omisión, con
+        `ordenListado.criterio = CALIFICACION`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Versión vigente o la configuración por omisión
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantRulesResponse'
+              example:
+                version: 0
+                origen: POR_OMISION
+                reglas:
+                  ordenListado: { criterio: CALIFICACION }
+                  alertaTarifa: { toleranciaPorcentaje: 10 }
+                  comision: { porcentaje: 15 }
+                  cancelacion: { ventanaHoras: 2, penalizacionPorcentaje: 20 }
+                  oferta: { minutosParaAceptar: 15 }
+                correlationId: node-1791318617328
+        '401':
+          description: 'Sin token, token inválido o expirado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 'La base de datos no está configurada o no responde (`MANI-SRV-503`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      tags: [Tenant Rules]
+      operationId: updateTenantRules
+      summary: Guarda una versión nueva de las reglas (administrador del tenant)
+      description: >
+        HU-M01-03 (SCRUM-1366) C1/C2. `expectedVersion` debe ser la versión vigente (0 si no hay): la vigente pasa a
+        HISTORICA y se crea la siguiente en una transacción. Antes de guardar, Rules valida la coherencia
+        (`POST /tenant-rules/validate` de rules.yaml). Cualquier rechazo deja intacta la versión vigente.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTenantRulesRequest'
+      responses:
+        '200':
+          description: Versión nueva vigente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantRulesResponse'
+        '400':
+          description: 'Falta expectedVersion o una regla está fuera de rango (`MANI-RGL-400`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 'Sin token, token inválido o expirado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 'El rol no es administrador del tenant'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: 'expectedVersion no es la versión vigente (`MANI-RGL-409C`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: 'Rules declaró las reglas incoherentes (`RULES_VALIDATION_ERROR`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: 'Rules respondió fuera de contrato (`RULES_SERVICE_ERROR`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 'Rules o la base de datos no están disponibles (`RULES_SERVICE_UNAVAILABLE`, `MANI-SRV-503`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tenant/rules/history:
+    get:
+      tags: [Tenant Rules]
+      operationId: getTenantRulesHistory
+      summary: Historial de versiones de las reglas (administrador)
+      description: HU-M01-03 (SCRUM-1366) T10. Todas las versiones del tenant, de la más reciente a la más antigua.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Versiones (lista vacía si no hay configuración propia)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantRulesHistoryResponse'
+        '401':
+          description: 'Sin token, token inválido o expirado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 'El rol no es administrador'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -4899,6 +5049,11 @@ components:
         - MANI-TAR-409V
         - RULES_SERVICE_UNAVAILABLE
         - RULES_SERVICE_ERROR
+        - MANI-RGL-400
+        - MANI-RGL-401
+        - MANI-RGL-403
+        - MANI-RGL-409C
+        - RULES_VALIDATION_ERROR
       x-code-meanings:
         VALIDATION_ERROR: 'HTTP 400 — el body no cumple el esquema (campo faltante/formato inválido).'
         INVALID_CREDENTIALS: 'HTTP 401 — email y/o password no coinciden con ningún usuario del tenant.'
@@ -7547,5 +7702,125 @@ components:
       properties:
         trabajo:
           $ref: '#/components/schemas/AllyJobHistoryItem'
+        correlationId:
+          type: string
+
+    TenantRulesPayload:
+      type: object
+      required: [ordenListado, alertaTarifa, comision, cancelacion, oferta]
+      properties:
+        ordenListado:
+          type: object
+          required: [criterio]
+          properties:
+            criterio:
+              type: string
+              enum: [CALIFICACION, COBERTURA]
+        alertaTarifa:
+          type: object
+          required: [toleranciaPorcentaje]
+          properties:
+            toleranciaPorcentaje:
+              type: number
+              minimum: 0
+              maximum: 50
+        comision:
+          type: object
+          required: [porcentaje]
+          properties:
+            porcentaje:
+              type: number
+              minimum: 0
+              maximum: 30
+        cancelacion:
+          type: object
+          required: [ventanaHoras, penalizacionPorcentaje]
+          properties:
+            ventanaHoras:
+              type: number
+              minimum: 0
+              maximum: 72
+            penalizacionPorcentaje:
+              type: number
+              minimum: 0
+              maximum: 100
+        oferta:
+          type: object
+          required: [minutosParaAceptar]
+          properties:
+            minutosParaAceptar:
+              type: integer
+              minimum: 1
+              maximum: 1440
+
+    UpdateTenantRulesRequest:
+      type: object
+      required: [expectedVersion, reglas]
+      properties:
+        expectedVersion:
+          type: integer
+          minimum: 0
+        reglas:
+          $ref: '#/components/schemas/TenantRulesPayload'
+
+    TenantRulesResponse:
+      type: object
+      required: [version, origen, reglas, correlationId]
+      properties:
+        id:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          minimum: 0
+        origen:
+          type: string
+          enum: [POR_OMISION, PROPIO]
+        estado:
+          type: string
+          enum: [VIGENTE, HISTORICA]
+        reglas:
+          $ref: '#/components/schemas/TenantRulesPayload'
+        auditoria:
+          type: object
+          properties:
+            creadoPor: { type: string, format: uuid }
+            actorRol: { type: string }
+            correlationId: { type: string }
+            creadaEn: { type: string, format: date-time }
+        correlationId:
+          type: string
+
+    TenantRulesHistoryItem:
+      type: object
+      required: [id, version, estado, reglas]
+      properties:
+        id:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          minimum: 1
+        estado:
+          type: string
+          enum: [VIGENTE, HISTORICA]
+        reglas:
+          $ref: '#/components/schemas/TenantRulesPayload'
+        auditoria:
+          type: object
+          properties:
+            creadoPor: { type: string, format: uuid }
+            actorRol: { type: string }
+            correlationId: { type: string }
+            creadaEn: { type: string, format: date-time }
+
+    TenantRulesHistoryResponse:
+      type: object
+      required: [items, correlationId]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TenantRulesHistoryItem'
         correlationId:
           type: string
