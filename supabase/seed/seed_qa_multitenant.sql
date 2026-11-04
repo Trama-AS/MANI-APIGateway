@@ -156,12 +156,47 @@ END $$;
 -- Barre TODAS las tablas tenant-scoped, no solo las 9 del ticket: si algo
 -- en solicitud/cotizacion/evento apunta a una fila seed, un DELETE parcial
 -- revienta por FK.
+--
+-- Las tablas de Core con versiones inmutables (MANI-Node db/migrations 0030+) rechazan DELETE con un disparador, también
+-- el que llega en cascada al borrar categoria_servicio o tenant. Se desactivan solo durante esta limpieza y se vuelven a
+-- activar antes de sembrar. ALTER TABLE es transaccional: si la semilla falla, el ROLLBACK los deja activos. En una base
+-- sin esas migraciones el bloque no hace nada.
+DO $$
+DECLARE
+  r record;
+BEGIN
+  FOR r IN SELECT * FROM (VALUES
+      ('tarifa_referencia', 'trg_tarifa_referencia_inmutable'),
+      ('regla_tenant', 'trg_regla_tenant_inmutable'),
+      ('queja', 'trg_queja_transicion_valida'),
+      ('queja_transicion', 'trg_queja_transicion_inmutable'),
+      ('tenant_estado_cambio', 'trg_tenant_estado_cambio_inmutable')
+    ) AS v(tabla, disparador)
+  LOOP
+    IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = r.disparador AND tgrelid = to_regclass('public.' || r.tabla)) THEN
+      EXECUTE format('ALTER TABLE %I DISABLE TRIGGER %I', r.tabla, r.disparador);
+    END IF;
+  END LOOP;
+END $$;
 
 DELETE FROM calificacion      WHERE tenant_id IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
 DELETE FROM mensaje           WHERE tenant_id IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
 DELETE FROM notificacion      WHERE tenant_id IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
 DELETE FROM evento_servicio   WHERE tenant_id IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
 DELETE FROM cotizacion        WHERE tenant_id IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
+-- queja y queja_transicion (MANI-Node 0032) apuntan a solicitud, cliente y tenant con ON DELETE RESTRICT, y
+-- tenant_estado_cambio (0033) a tenant: se borran antes. En una base sin esas migraciones no se tocan.
+DO $$
+DECLARE
+  t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['queja_transicion', 'queja', 'tenant_estado_cambio'] LOOP
+    IF to_regclass('public.' || t) IS NOT NULL THEN
+      EXECUTE format('DELETE FROM %I WHERE tenant_id IN (%L, %L)', t,
+        '10000000-0000-4000-8000-000000000011', '10000000-0000-4000-8000-000000000021');
+    END IF;
+  END LOOP;
+END $$;
 DELETE FROM solicitud         WHERE tenant_id IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
 DELETE FROM cobertura_aliado  WHERE tenant_id IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
 DELETE FROM aliado_categoria  WHERE tenant_id IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
@@ -172,7 +207,34 @@ DELETE FROM categoria_servicio WHERE tenant_id IN ('10000000-0000-4000-8000-0000
 DELETE FROM aliado            WHERE tenant_id IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
 DELETE FROM cliente           WHERE tenant_id IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
 DELETE FROM usuario           WHERE tenant_id IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
+-- regla_tenant (MANI-Node 0031) apunta a tenant con ON DELETE RESTRICT: se borra antes. En una base sin esa
+-- migración no se toca.
+DO $$
+BEGIN
+  IF to_regclass('public.regla_tenant') IS NOT NULL THEN
+    DELETE FROM regla_tenant WHERE tenant_id IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
+  END IF;
+END $$;
 DELETE FROM tenant            WHERE id        IN ('10000000-0000-4000-8000-000000000011','10000000-0000-4000-8000-000000000021');
+
+-- Se reactivan los disparadores de inmutabilidad desactivados arriba.
+DO $$
+DECLARE
+  r record;
+BEGIN
+  FOR r IN SELECT * FROM (VALUES
+      ('tarifa_referencia', 'trg_tarifa_referencia_inmutable'),
+      ('regla_tenant', 'trg_regla_tenant_inmutable'),
+      ('queja', 'trg_queja_transicion_valida'),
+      ('queja_transicion', 'trg_queja_transicion_inmutable'),
+      ('tenant_estado_cambio', 'trg_tenant_estado_cambio_inmutable')
+    ) AS v(tabla, disparador)
+  LOOP
+    IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = r.disparador AND tgrelid = to_regclass('public.' || r.tabla)) THEN
+      EXECUTE format('ALTER TABLE %I ENABLE TRIGGER %I', r.tabla, r.disparador);
+    END IF;
+  END LOOP;
+END $$;
 
 -- Usuarios de Auth, por UUID fijo. identities primero (FK a users).
 DELETE FROM auth.identities WHERE user_id IN (
