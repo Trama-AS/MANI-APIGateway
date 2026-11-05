@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.27.0
+  version: 0.28.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -4635,6 +4635,74 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /cotizaciones/{id}/evaluacion-tarifa:
+    get:
+      tags: [Tariffs]
+      operationId: getQuoteRateEvaluation
+      summary: Alerta de tarifa de una cotización (cliente dueño y aliado asignado)
+      description: >
+        HU-M06-02 (SCRUM-866, RF-16). Core toma la cotización con la versión de tarifa que regía al emitirla (la misma
+        que usa el reporte de SCRUM-887) y Rules (`POST /api/v1/rules/rates/evaluate`) decide si está en rango.
+        `alerta: true` cuando el resultado es `POR_DEBAJO` o `POR_ENCIMA`; dentro de banda `alerta: false`. Sin tarifa
+        vigente al emitirla responde `SIN_TARIFA` sin llamar a Rules. Si Rules no responde, 503 sin resultado calculado en
+        Core (T2). Solo lee: nunca modifica la cotización. La ven el cliente dueño, el aliado asignado y el administrador
+        del tenant; para cualquier otro la cotización no existe (404).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Evaluación de la cotización, o que no hay tarifa contra la cual evaluarla
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QuoteRateEvaluation' }
+        '400':
+          description: 'El id no es UUID (`MANI-TAR-400`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 'Sin token, token inválido o expirado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 'El rol no consulta la evaluación de cotizaciones (`MANI-TAR-403`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 'La cotización no existe o la sesión no la puede ver (`MANI-TAR-404Q`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: 'Rules respondió fuera de contrato (`RULES_SERVICE_ERROR`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 'Rules o la base de datos no están disponibles (`RULES_SERVICE_UNAVAILABLE`, `MANI-SRV-503`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /reportes/cotizaciones-fuera-de-rango:
     get:
       tags: [Tariffs]
@@ -5943,6 +6011,36 @@ components:
       required: [tarifa, correlationId]
       properties:
         tarifa: { $ref: '#/components/schemas/Tariff' }
+        correlationId: { type: string }
+
+    QuoteRateEvaluation:
+      type: object
+      description: Resultado de evaluar una cotización contra la tarifa que regía al emitirla (SCRUM-866).
+      required: [cotizacionId, solicitudId, version, total, resultado, alerta, desviacionPorcentaje, tarifa, reglasVersion, correlationId]
+      properties:
+        cotizacionId: { type: string, format: uuid }
+        solicitudId: { type: string, format: uuid }
+        version: { type: integer, description: 'Versión de la cotización evaluada' }
+        total: { type: number, description: 'Mano de obra más materiales, sin modificar' }
+        resultado:
+          type: string
+          enum: [DENTRO_DE_RANGO, POR_DEBAJO, POR_ENCIMA, SIN_TARIFA]
+        alerta: { type: boolean, description: 'true solo con POR_DEBAJO o POR_ENCIMA' }
+        desviacionPorcentaje:
+          type: number
+          nullable: true
+          description: 'Cuánto se sale del límite cruzado, en porcentaje; 0 dentro de banda y null sin tarifa'
+        tarifa:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string, format: uuid }
+            version: { type: integer }
+            valorMin: { type: number }
+            valorTipico: { type: number }
+            valorMax: { type: number }
+            moneda: { type: string }
+        reglasVersion: { type: string, nullable: true, example: rates-v1 }
         correlationId: { type: string }
 
     OutOfRangeQuotesReport:
