@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.29.0
+  version: 0.30.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -191,8 +191,9 @@ paths:
         (HU-M02-10 / RF-04). Es pre-autenticación: el tenant se resuelve por `X-Tenant-Slug` (ADR-0018).
         **Responde `202` con el mismo mensaje exista o no la cuenta**, para no revelar qué correos están
         registrados; el enlace solo se envía si la cuenta existe y está activa en ese tenant. Tampoco se
-        devuelve `429` cuando el proveedor limita los envíos de una cuenta, porque ese límite solo ocurre
-        cuando la cuenta existe y delataría qué correos están registrados.
+        devuelve `429` ni `500` cuando el proveedor de correo limita o rechaza el envío de una cuenta (límite,
+        dominio inválido, SMTP caído), porque el envío solo se intenta cuando la cuenta existe y cualquier
+        respuesta distinta delataría qué correos están registrados; ese fallo se audita internamente.
       parameters:
         - $ref: '#/components/parameters/XTenantSlug'
         - $ref: '#/components/parameters/XCorrelationId'
@@ -2060,7 +2061,8 @@ paths:
       summary: El cliente consulta la retención en garantía de su pago
       description: >
         US-07.1.4 y US-07.1.5 (SCRUM-891, SCRUM-892). Un pago aprobado retiene su monto en garantía (`RETENIDA`) y se
-        libera (`LIBERADA`) cuando el servicio finaliza. Es una simulación, diferenciada de una custodia monetaria real
+        libera (`LIBERADA`) cuando el servicio finaliza; si el pago se aprueba cuando la solicitud ya está finalizada o
+        cerrada, se libera y se liquida en el mismo momento del pago. Es una simulación, diferenciada de una custodia monetaria real
         (`simulada: true`). Un pago rechazado o pendiente no tiene retención. El pago de otro cliente o de otro tenant
         responde `404`, igual que uno inexistente.
       security:
