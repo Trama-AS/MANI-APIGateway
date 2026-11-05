@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.26.0
+  version: 0.30.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -114,6 +114,10 @@ tags:
     description: >
       Zonas donde el aliado atiende (US-02.1.4 / SCRUM-1380). La app ya no llama RPC de Supabase: tenant, usuario y
       rol salen del JWT y las zonas se consultan en `GET /catalog/zones`.
+  - name: Notifications Inbox
+    description: >
+      Bandeja de avisos del usuario autenticado (HU-M09-06 / SCRUM-1428; pantalla de SCRUM-882 y 884): mensajes
+      nuevos del servicio y cambios de estado. Tenant, usuario y rol salen del JWT.
   - name: Ally Categories
     description: Categorías de servicio que el aliado declara atender (US-03.1.3 / SCRUM-1380)
   - name: Geographic Zones
@@ -187,8 +191,9 @@ paths:
         (HU-M02-10 / RF-04). Es pre-autenticación: el tenant se resuelve por `X-Tenant-Slug` (ADR-0018).
         **Responde `202` con el mismo mensaje exista o no la cuenta**, para no revelar qué correos están
         registrados; el enlace solo se envía si la cuenta existe y está activa en ese tenant. Tampoco se
-        devuelve `429` cuando el proveedor limita los envíos de una cuenta, porque ese límite solo ocurre
-        cuando la cuenta existe y delataría qué correos están registrados.
+        devuelve `429` ni `500` cuando el proveedor de correo limita o rechaza el envío de una cuenta (límite,
+        dominio inválido, SMTP caído), porque el envío solo se intenta cuando la cuenta existe y cualquier
+        respuesta distinta delataría qué correos están registrados; ese fallo se audita internamente.
       parameters:
         - $ref: '#/components/parameters/XTenantSlug'
         - $ref: '#/components/parameters/XCorrelationId'
@@ -2012,8 +2017,9 @@ paths:
       operationId: getCommission
       summary: El administrador consulta la comisión de su tenant
       description: >
-        US-07.2.1 (SCRUM-893). Porcentaje que se descuenta al aliado al liquidar. `porDefecto: true` indica que el tenant
-        no la configuró y rige el 10 %, un supuesto que la PO debe confirmar. Solo el administrador del tenant.
+        US-07.2.1 (SCRUM-893). Porcentaje de la regla vigente del tenant (SCRUM-1366) que se descuenta al aliado al
+        liquidar. `porDefecto: true` indica que el tenant no tiene reglas guardadas y rige el 10 %. Se cambia con las
+        reglas del tenant, no por esta ruta. Solo el administrador del tenant.
       security:
         - bearerAuth: []
       parameters:
@@ -2039,51 +2045,6 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
           $ref: '#/components/responses/InternalError'
-    put:
-      tags: [Payments]
-      operationId: setCommission
-      summary: El administrador fija la comisión de su tenant
-      description: >
-        US-07.2.1 (SCRUM-893). Porcentaje de 0 a 100 con hasta dos decimales. Un valor inválido responde `422` y no
-        cambia nada, así una configuración inválida nunca llega a una liquidación. Solo afecta las liquidaciones futuras:
-        las ya generadas conservan el porcentaje con el que se calcularon.
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/XCorrelationId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SetCommissionRequest'
-      responses:
-        '200':
-          description: Comisión fijada
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CommissionResponse'
-        '401':
-          description: Sin token, token inválido o expirado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '403':
-          description: El rol no es administrador del tenant (`MANI-FON-403`)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '422':
-          description: El porcentaje no es un número entre 0 y 100 con hasta dos decimales (`MANI-FON-422`)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/InternalError'
 
   /pagos/{id}/retencion:
     parameters:
@@ -2100,7 +2061,8 @@ paths:
       summary: El cliente consulta la retención en garantía de su pago
       description: >
         US-07.1.4 y US-07.1.5 (SCRUM-891, SCRUM-892). Un pago aprobado retiene su monto en garantía (`RETENIDA`) y se
-        libera (`LIBERADA`) cuando el servicio finaliza. Es una simulación, diferenciada de una custodia monetaria real
+        libera (`LIBERADA`) cuando el servicio finaliza; si el pago se aprueba cuando la solicitud ya está finalizada o
+        cerrada, se libera y se liquida en el mismo momento del pago. Es una simulación, diferenciada de una custodia monetaria real
         (`simulada: true`). Un pago rechazado o pendiente no tiene retención. El pago de otro cliente o de otro tenant
         responde `404`, igual que uno inexistente.
       security:
@@ -2925,6 +2887,52 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /profiles/me/inbox:
+    get:
+      tags: [Notifications Inbox]
+      operationId: listMyInbox
+      summary: Bandeja de avisos del usuario autenticado
+      description: >
+        Devuelve los avisos que el proveedor de notificaciones entregó a la sesión, o le habría entregado si es el
+        simulador (`simulada: true`), del más reciente al más antiguo. Cualquier rol lee solo los suyos; el tenant y el
+        usuario salen del JWT, nunca de la consulta. Un aviso lleva su `tipo` (por ejemplo `MENSAJE_NUEVO`,
+        `SOLICITUD_ASIGNADA`, `EJECUCION_INICIADA`, `EJECUCION_FINALIZADA`) y, en `payload`, la solicitud a la que se
+        refiere (`requestId`). Va bajo `/profiles/me/` y no bajo `/notifications`, que el Gateway cierra al tráfico externo.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: limit
+          in: query
+          required: false
+          description: Máximo de avisos, de 1 a 100 (por omisión 50).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: Avisos de la sesión (lista vacía si no tiene ninguno)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboxResponse'
+        '400':
+          description: El `limit` no es un entero entre 1 y 100 (`MANI-NOT-400`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sin token, token inválido o expirado, o sesión sin usuario o tenant (`MANI-NOT-401`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /profiles/me/categories:
     get:
       tags: [Ally Categories]
@@ -3456,6 +3464,74 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /catalog/geometrias:
+    get:
+      tags: [Geographic Zones]
+      operationId: getZoneGeometries
+      summary: Límites geográficos de las zonas, como GeoJSON (HU-M04-07)
+      description: >
+        Devuelve los límites de las zonas pedidas en `zonaIds` como un
+        `FeatureCollection` de GeoJSON (RFC 7946). Las coordenadas van en
+        **WGS84 (EPSG 4326) y en orden longitud, latitud**, como exige la
+        especificación; invertir el par es el error habitual al consumirla.
+        Se admiten `Polygon` y `MultiPolygon`.
+
+
+        Va en una operación aparte y no dentro de `/catalog/zones` porque la
+        geometría es opcional y pesada: el catálogo se lee en cada listado y
+        formulario, y arrastrarla ahí degradaría respuestas ya validadas. Por
+        la misma razón hay un tope de 20 zonas por petición.
+
+
+        La respuesta distingue tres situaciones y **no inventa ninguna**: la
+        zona con límite cargado va en `features`; la que existe en el catálogo
+        pero todavía no tiene límite va en `sinGeometria`; y el identificador
+        que no corresponde a ninguna zona va en `desconocidas`. Una zona sin
+        límite no se sustituye por un centroide ni por un polígono aproximado.
+
+
+        Las zonas son un catálogo global sin `tenant_id`, así que la respuesta
+        es la misma para cualquier tenant: en un límite de barrio no hay dato
+        privado de ninguna organización. Aun así exige JWT, que es la única
+        forma de no depender de un tenant o un rol enviados por el cliente.
+
+
+        `attribution` no es informativo: la licencia de la fuente obliga a
+        acreditarla en cualquier interfaz que muestre los límites, así que
+        viaja con cada geometría y debe mostrarse.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: zonaIds
+          in: query
+          required: true
+          description: >
+            Identificadores de zona separados por comas. Máximo 20 por
+            petición; pedir más responde 400 `MANI-GEO-400`.
+          schema:
+            type: string
+          example: 20000000-0000-4000-8000-000000000002,20000000-0000-4000-8000-000000005002
+      responses:
+        '200':
+          description: Colección de geometrías, más las zonas sin límite y las desconocidas.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ZoneGeometryCollection'
+        '400':
+          description: >
+            `MANI-GEO-400` si falta `zonaIds` o se piden más de 20 zonas;
+            `MANI-ZON-400` si un identificador no es un UUID válido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token ausente, vencido o con firma inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /catalog/zones:
     get:
       tags: [Geographic Zones]
@@ -4512,6 +4588,74 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '503':
           description: 'La base de datos no está configurada o no responde (`MANI-SRV-503`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /cotizaciones/{id}/evaluacion-tarifa:
+    get:
+      tags: [Tariffs]
+      operationId: getQuoteRateEvaluation
+      summary: Alerta de tarifa de una cotización (cliente dueño y aliado asignado)
+      description: >
+        HU-M06-02 (SCRUM-866, RF-16). Core toma la cotización con la versión de tarifa que regía al emitirla (la misma
+        que usa el reporte de SCRUM-887) y Rules (`POST /api/v1/rules/rates/evaluate`) decide si está en rango.
+        `alerta: true` cuando el resultado es `POR_DEBAJO` o `POR_ENCIMA`; dentro de banda `alerta: false`. Sin tarifa
+        vigente al emitirla responde `SIN_TARIFA` sin llamar a Rules. Si Rules no responde, 503 sin resultado calculado en
+        Core (T2). Solo lee: nunca modifica la cotización. La ven el cliente dueño, el aliado asignado y el administrador
+        del tenant; para cualquier otro la cotización no existe (404).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Evaluación de la cotización, o que no hay tarifa contra la cual evaluarla
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QuoteRateEvaluation' }
+        '400':
+          description: 'El id no es UUID (`MANI-TAR-400`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 'Sin token, token inválido o expirado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 'El rol no consulta la evaluación de cotizaciones (`MANI-TAR-403`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 'La cotización no existe o la sesión no la puede ver (`MANI-TAR-404Q`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: 'Rules respondió fuera de contrato (`RULES_SERVICE_ERROR`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 'Rules o la base de datos no están disponibles (`RULES_SERVICE_UNAVAILABLE`, `MANI-SRV-503`)'
           content:
             application/json:
               schema:
@@ -5825,6 +5969,36 @@ components:
       required: [tarifa, correlationId]
       properties:
         tarifa: { $ref: '#/components/schemas/Tariff' }
+        correlationId: { type: string }
+
+    QuoteRateEvaluation:
+      type: object
+      description: Resultado de evaluar una cotización contra la tarifa que regía al emitirla (SCRUM-866).
+      required: [cotizacionId, solicitudId, version, total, resultado, alerta, desviacionPorcentaje, tarifa, reglasVersion, correlationId]
+      properties:
+        cotizacionId: { type: string, format: uuid }
+        solicitudId: { type: string, format: uuid }
+        version: { type: integer, description: 'Versión de la cotización evaluada' }
+        total: { type: number, description: 'Mano de obra más materiales, sin modificar' }
+        resultado:
+          type: string
+          enum: [DENTRO_DE_RANGO, POR_DEBAJO, POR_ENCIMA, SIN_TARIFA]
+        alerta: { type: boolean, description: 'true solo con POR_DEBAJO o POR_ENCIMA' }
+        desviacionPorcentaje:
+          type: number
+          nullable: true
+          description: 'Cuánto se sale del límite cruzado, en porcentaje; 0 dentro de banda y null sin tarifa'
+        tarifa:
+          type: object
+          nullable: true
+          properties:
+            id: { type: string, format: uuid }
+            version: { type: integer }
+            valorMin: { type: number }
+            valorTipico: { type: number }
+            valorMax: { type: number }
+            moneda: { type: string }
+        reglasVersion: { type: string, nullable: true, example: rates-v1 }
         correlationId: { type: string }
 
     OutOfRangeQuotesReport:
@@ -7237,15 +7411,48 @@ components:
           type: string
       required: [comision]
 
-    SetCommissionRequest:
+
+    InboxItem:
       type: object
       properties:
-        porcentaje:
-          type: number
-          minimum: 0
-          maximum: 100
-          description: Hasta dos decimales. El tenant sale del JWT, nunca del cuerpo.
-      required: [porcentaje]
+        id:
+          type: string
+          format: uuid
+        tipo:
+          type: string
+          description: Tipo de aviso, por ejemplo `MENSAJE_NUEVO` o `EJECUCION_FINALIZADA`.
+          example: MENSAJE_NUEVO
+        canal:
+          type: string
+          example: PUSH
+        payload:
+          type: object
+          additionalProperties: true
+          description: Datos del aviso; trae `requestId` (o `solicitudId`) cuando se refiere a una solicitud.
+        enviadoAt:
+          type: string
+          format: date-time
+          nullable: true
+        leidoAt:
+          type: string
+          format: date-time
+          nullable: true
+      required: [id, tipo, canal, payload]
+
+    InboxResponse:
+      type: object
+      properties:
+        proveedor:
+          type: string
+          example: mock
+        simulada:
+          type: boolean
+          description: true si el proveedor es el simulador y el aviso no salió como push real.
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/InboxItem'
+      required: [proveedor, simulada, items]
 
     SendMessageRequest:
       type: object
@@ -7829,6 +8036,118 @@ components:
             - RELACION_DE_NIVEL_INVERTIDA
             - SALTO_DE_NIVEL
       required: [id, level, parentId, reason]
+
+    ZoneGeometryCollection:
+      type: object
+      description: >
+        `FeatureCollection` de GeoJSON (RFC 7946) con los límites encontrados,
+        más la relación de lo que no se pudo entregar y por qué.
+      required: [type, features, sinGeometria, desconocidas, atribuciones]
+      properties:
+        type:
+          type: string
+          enum: [FeatureCollection]
+        features:
+          type: array
+          items:
+            $ref: '#/components/schemas/ZoneGeometryFeature'
+        sinGeometria:
+          type: array
+          description: >
+            Zonas que existen en el catálogo pero todavía no tienen límite
+            cargado. Se enumeran para que la interfaz pueda decirlo en lugar
+            de dibujar una forma aproximada.
+          items:
+            type: string
+            format: uuid
+        desconocidas:
+          type: array
+          description: Identificadores que no corresponden a ninguna zona del catálogo.
+          items:
+            type: string
+            format: uuid
+        atribuciones:
+          type: array
+          description: >
+            Textos de atribución de las fuentes presentes en la respuesta. La
+            licencia obliga a mostrarlos donde se dibujen los límites.
+          items:
+            type: string
+
+    ZoneGeometryFeature:
+      type: object
+      description: Un `Feature` de GeoJSON con el límite de una zona.
+      required: [type, id, geometry, properties]
+      properties:
+        type:
+          type: string
+          enum: [Feature]
+        id:
+          type: string
+          format: uuid
+        geometry:
+          $ref: '#/components/schemas/GeoJsonGeometry'
+        properties:
+          type: object
+          required: [zoneId, name, level, attribution]
+          properties:
+            zoneId:
+              type: string
+              format: uuid
+            name:
+              type: string
+            level:
+              type: string
+              enum: [CIUDAD, LOCALIDAD, BARRIO]
+            selectable:
+              type: boolean
+              description: >
+                `false` en una zona desactivada. Se devuelve igual, porque un
+                sitio histórico puede apuntar a ella.
+            source:
+              type: string
+              description: Fuente de la que provienen los límites.
+            sourceCode:
+              type: string
+              nullable: true
+              description: Identificador de la entidad en la fuente original.
+            licence:
+              type: string
+            attribution:
+              type: string
+              description: Texto que la interfaz debe mostrar, exigido por la licencia.
+            sourceDate:
+              type: string
+              format: date
+              nullable: true
+              description: Fecha de actualización del dato en la fuente.
+            updatedAt:
+              type: string
+              format: date-time
+
+    GeoJsonGeometry:
+      type: object
+      description: >
+        Geometría GeoJSON conforme a RFC 7946, en WGS84 (EPSG 4326). Las
+        coordenadas van en orden **longitud, latitud**. Para `Polygon`,
+        `coordinates` es una lista de anillos; para `MultiPolygon`, una lista
+        de polígonos. El primer anillo es el contorno exterior y debe estar
+        cerrado: su último punto repite el primero.
+      required: [type, coordinates]
+      properties:
+        type:
+          type: string
+          enum: [Polygon, MultiPolygon]
+        coordinates:
+          type: array
+          items: {}
+      example:
+        type: Polygon
+        coordinates:
+          - - [-74.05045, 4.68132]
+            - [-74.04500, 4.68132]
+            - [-74.04500, 4.67500]
+            - [-74.05045, 4.68132]
 
     ZoneCatalogResponse:
       type: object
