@@ -46,10 +46,10 @@ esperar_igual() {
 }
 
 echo "=== Verificando Criterio C1: 4 MB en foto de perfil pasa el Gateway ==="
-esperar_distinto "POST /profiles/me/photo con 4 MB pasa sin 413" 413 \
+esperar_igual "POST /profiles/me/photo con 4 MB sin token responde 401 (no 500 ni 413)" 401 \
   -X POST -F "photo=@$PAYLOAD_4M;type=image/png" "$BASE/api/v1/core/profiles/me/photo"
 
-esperar_distinto "POST /profiles/me/photo/ (con barra) con 4 MB pasa sin 413" 413 \
+esperar_igual "POST /profiles/me/photo/ (con barra) con 4 MB sin token responde 401 (no 500 ni 413)" 401 \
   -X POST -F "photo=@$PAYLOAD_4M;type=image/png" "$BASE/api/v1/core/profiles/me/photo/"
 
 echo "=== Verificando Criterio C2: > 6 MB en foto de perfil es rechazada con 413 ==="
