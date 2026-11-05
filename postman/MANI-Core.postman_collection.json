@@ -102,7 +102,7 @@
                 },
                 {
                   "key": "documentType",
-                  "value": "CC",
+                  "value": "PASSPORT",
                   "type": "text",
                   "description": "Tipo de documento de identidad (persona natural). Opcional. (This can only be one of CC,CE,PASSPORT)",
                   "disabled": true
@@ -177,7 +177,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "206Z@hSfhnAUIDqszA.sqr",
+                      "value": "EfwI@KoZQOSxqXYKExSLtQBlVLDcsaE.ay",
                       "type": "text"
                     },
                     {
@@ -231,7 +231,7 @@
                         "type": "text/plain"
                       },
                       "key": "documentType",
-                      "value": "CC",
+                      "value": "PASSPORT",
                       "type": "text"
                     },
                     {
@@ -262,7 +262,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"profile\": {\n    \"id\": \"string\",\n    \"tenantId\": \"trama-demo\",\n    \"role\": \"ALLY\",\n    \"fullName\": \"string\",\n    \"status\": \"PENDING\"\n  },\n  \"tokens\": {\n    \"accessToken\": \"string\",\n    \"refreshToken\": \"string\",\n    \"expiresIn\": 3600\n  }\n}",
+              "body": "{\n  \"profile\": {\n    \"id\": \"string\",\n    \"tenantId\": \"trama-demo\",\n    \"role\": \"CLIENT\",\n    \"fullName\": \"string\",\n    \"status\": \"VERIFIED\"\n  },\n  \"tokens\": {\n    \"accessToken\": \"string\",\n    \"refreshToken\": \"string\",\n    \"expiresIn\": 3600\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -319,7 +319,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "206Z@hSfhnAUIDqszA.sqr",
+                      "value": "EfwI@KoZQOSxqXYKExSLtQBlVLDcsaE.ay",
                       "type": "text"
                     },
                     {
@@ -373,7 +373,7 @@
                         "type": "text/plain"
                       },
                       "key": "documentType",
-                      "value": "CC",
+                      "value": "PASSPORT",
                       "type": "text"
                     },
                     {
@@ -404,7 +404,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-COT-403C\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-EJE-404\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -461,7 +461,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "206Z@hSfhnAUIDqszA.sqr",
+                      "value": "EfwI@KoZQOSxqXYKExSLtQBlVLDcsaE.ay",
                       "type": "text"
                     },
                     {
@@ -515,7 +515,7 @@
                         "type": "text/plain"
                       },
                       "key": "documentType",
-                      "value": "CC",
+                      "value": "PASSPORT",
                       "type": "text"
                     },
                     {
@@ -546,7 +546,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-COT-403C\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-EJE-404\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -603,7 +603,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "206Z@hSfhnAUIDqszA.sqr",
+                      "value": "EfwI@KoZQOSxqXYKExSLtQBlVLDcsaE.ay",
                       "type": "text"
                     },
                     {
@@ -657,7 +657,7 @@
                         "type": "text/plain"
                       },
                       "key": "documentType",
-                      "value": "CC",
+                      "value": "PASSPORT",
                       "type": "text"
                     },
                     {
@@ -688,7 +688,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-COT-403C\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-EJE-404\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -957,7 +957,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "5yLp4wmk4C3MN@HWoVnZdjaDz.fu",
+                      "value": "JkrNDbtn0wc@qjaYtJcoTnfqDrkzLJyBNJHDI.coc",
                       "type": "text"
                     },
                     {
@@ -1032,7 +1032,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"profile\": {\n    \"id\": \"string\",\n    \"tenantId\": \"trama-demo\",\n    \"role\": \"ALLY\",\n    \"fullName\": \"string\",\n    \"status\": \"PENDING\"\n  },\n  \"tokens\": {\n    \"accessToken\": \"string\",\n    \"refreshToken\": \"string\",\n    \"expiresIn\": 3600\n  }\n}",
+              "body": "{\n  \"profile\": {\n    \"id\": \"string\",\n    \"tenantId\": \"trama-demo\",\n    \"role\": \"CLIENT\",\n    \"fullName\": \"string\",\n    \"status\": \"VERIFIED\"\n  },\n  \"tokens\": {\n    \"accessToken\": \"string\",\n    \"refreshToken\": \"string\",\n    \"expiresIn\": 3600\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -1108,7 +1108,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "5yLp4wmk4C3MN@HWoVnZdjaDz.fu",
+                      "value": "JkrNDbtn0wc@qjaYtJcoTnfqDrkzLJyBNJHDI.coc",
                       "type": "text"
                     },
                     {
@@ -1183,7 +1183,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-COT-403C\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-EJE-404\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -1259,7 +1259,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "5yLp4wmk4C3MN@HWoVnZdjaDz.fu",
+                      "value": "JkrNDbtn0wc@qjaYtJcoTnfqDrkzLJyBNJHDI.coc",
                       "type": "text"
                     },
                     {
@@ -1334,7 +1334,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-COT-403C\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-EJE-404\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -1410,7 +1410,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "5yLp4wmk4C3MN@HWoVnZdjaDz.fu",
+                      "value": "JkrNDbtn0wc@qjaYtJcoTnfqDrkzLJyBNJHDI.coc",
                       "type": "text"
                     },
                     {
@@ -1485,7 +1485,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-COT-403C\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-EJE-404\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -1684,7 +1684,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-COT-403C\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-EJE-404\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -1726,7 +1726,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-COT-403C\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-EJE-404\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -1936,7 +1936,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-COT-403C\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-EJE-404\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -1992,7 +1992,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-COT-403C\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-EJE-404\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -2165,7 +2165,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-COT-403C\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-EJE-404\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -2221,7 +2221,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-COT-403C\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-EJE-404\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -2277,7 +2277,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-COT-403C\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-EJE-404\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
