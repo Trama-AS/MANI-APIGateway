@@ -1,13 +1,14 @@
 # Geometrías territoriales del catálogo de QA (SCRUM-1396)
 
-Polígonos reales de las dos localidades y los seis barrios del catálogo de QA,
-para la visualización cartográfica de HU-M04-07. **No son aproximaciones ni
-centroides**: son los límites publicados por el Catastro Distrital.
+Polígonos reales de las veinte localidades de Bogotá y de los seis barrios del
+catálogo de QA, para la visualización cartográfica de HU-M04-07. **No son
+aproximaciones ni centroides ni rectángulos**: son los límites publicados por
+el Catastro Distrital.
 
-| Archivo | Contenido |
-|---|---|
-| `localidades_catastro.geojson` | Chapinero y Suba |
-| `barrios_catastro.geojson` | Los seis sectores catastrales de esos barrios |
+| Archivo | Contenido | Peso |
+|---|---|---|
+| `localidades_catastro.geojson` | Las 20 localidades | 2,1 MB |
+| `barrios_catastro.geojson` | Seis sectores catastrales de Chapinero y Suba | 40,5 KB |
 
 ## Procedencia y licencia
 
@@ -42,11 +43,13 @@ curl -s -G "https://serviciosgis.catastrobogota.gov.co/arcgis/rest/services/cata
 El servicio admite hasta 2000 registros por consulta; aquí se piden seis.
 
 Las localidades salen de otra capa del mismo servidor, con los mismos
-parámetros y los campos `LOCCODIGO` y `LOCNOMBRE`:
+parámetros y los campos `LOCCODIGO` y `LOCNOMBRE`. Se piden **las veinte**, no
+un subconjunto: el selector del mapa lista lo que haya en el catálogo, y
+sembrar solo dos obligaba a explicar por qué faltaban las demás.
 
 ```sh
 curl -s -G "https://serviciosgis.catastrobogota.gov.co/arcgis/rest/services/ordenamientoterritorial/localidad/MapServer/0/query" \
-  --data-urlencode "where=LOCNOMBRE IN ('CHAPINERO','SUBA')" \
+  --data-urlencode "where=1=1" \
   --data-urlencode "outFields=LOCCODIGO,LOCNOMBRE" \
   --data-urlencode "returnGeometry=true" \
   --data-urlencode "outSR=4326" \
@@ -54,14 +57,55 @@ curl -s -G "https://serviciosgis.catastrobogota.gov.co/arcgis/rest/services/orde
   -o localidades_catastro.geojson
 ```
 
-| Zona de QA | Localidad | Código | Centroide | Vértices |
-|---|---|---|---|---|
-| `…0002` | CHAPINERO | `02` | -74.02210, 4.63763 | 2293 |
-| `…0003` | SUBA | `11` | -74.08913, 4.77307 | 913 |
+Las veinte localidades, por peso del polígono:
+
+| Localidad | Código | Vértices | Peso |
+|---|---|---|---|
+| Santa Fe | `03` | 16053 | 590,6 KB |
+| Candelaria | `17` | 13201 | 485,7 KB |
+| Usme | `05` | 7059 | 259,9 KB |
+| Ciudad Bolívar | `19` | 6040 | 222,3 KB |
+| San Cristóbal | `04` | 3523 | 129,7 KB |
+| Chapinero | `02` | 2293 | 84,6 KB |
+| Sumapaz | `20` | 2013 | 74,6 KB |
+| Usaquén | `01` | 1822 | 67,2 KB |
+| Rafael Uribe Uribe | `18` | 941 | 34,7 KB |
+| Suba | `11` | 913 | 33,6 KB |
+| Tunjuelito | `06` | 906 | 33,4 KB |
+| Kennedy | `08` | 863 | 31,9 KB |
+| Bosa | `07` | 779 | 28,9 KB |
+| Fontibón | `09` | 593 | 21,9 KB |
+| Engativá | `10` | 467 | 17,3 KB |
+| Los Mártires | `14` | 129 | 4,9 KB |
+| Barrios Unidos | `12` | 71 | 2,7 KB |
+| Antonio Nariño | `15` | 64 | 2,5 KB |
+| Puente Aranda | `16` | 56 | 2,2 KB |
+| Teusaquillo | `13` | 54 | 2,1 KB |
 
 El centroide de Chapinero cae más al oriente de lo que sugiere su parte
 urbana porque la localidad incluye los cerros orientales. No es un error de
-proyección: el polígono es el límite administrativo completo.
+proyección: el polígono es el límite administrativo completo. Por lo mismo,
+las localidades del borde sur y oriental (Santa Fe, Candelaria, Usme, Ciudad
+Bolívar) son las pesadas: su límite recorre el relieve de los cerros.
+
+## Carga
+
+`scripts/cargar-geometrias.js` genera el SQL y no abre ninguna conexión, así
+que las credenciales quedan en manos de quien aplica migraciones en cada
+ambiente (ver «Quién ejecuta las migraciones en cada ambiente» en el README del
+repositorio):
+
+```sh
+node scripts/cargar-geometrias.js | psql "$DATABASE_URL"
+```
+
+Empareja **por nombre y nivel**, sin distinguir tildes ni mayúsculas, porque el
+catastro publica «USAQUEN» y el catálogo guarda «Usaquén». Un nombre que no
+exista en `zona` no se inventa: el script lo reporta al final y su límite no se
+carga. Con `--crear-zonas` da de alta las localidades que falten colgando de la
+zona `CIUDAD`, que es lo que hace falta en una base local recién migrada.
+
+Requiere la migración `0036` de `MANI-Node`, que crea `geometria_territorial`.
 
 ## Correspondencia con el catálogo, y por qué cambia
 
@@ -97,12 +141,12 @@ tres zonas.
 | | Polígonos | Vértices | Peso |
 |---|---|---|---|
 | Barrios | 6 | 42 a 370 | 40,5 KB |
-| Localidades | 2 | 913 y 2293 | 130,8 KB |
+| Localidades | 20 | 54 a 16053 | 2,1 MB |
 
-**No se simplificó ninguno.** El peor caso real de una petición es una
-localidad con sus tres barrios, unos 105 KB, que es razonable para la web.
-Chapinero es la pesada porque su límite administrativo incluye los cerros
-orientales.
+**No se simplificó ninguno.** El archivo pesa 2,1 MB, pero **no es lo que viaja
+por la red**: el mapa pide una localidad y sus barrios, no el conjunto. El caso
+típico (Chapinero con sus tres barrios) son unos 105 KB; el peor caso medido es
+Santa Fe sola, 590 KB, porque su límite recorre los cerros orientales.
 
 Simplificar reduciría el peso, pero el criterio aprobado pide **no fijar
 umbrales arbitrarios**: si QA mide lentitud en el mapa, ahí se decide la
