@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.28.0
+  version: 0.29.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -2016,8 +2016,9 @@ paths:
       operationId: getCommission
       summary: El administrador consulta la comisión de su tenant
       description: >
-        US-07.2.1 (SCRUM-893). Porcentaje que se descuenta al aliado al liquidar. `porDefecto: true` indica que el tenant
-        no la configuró y rige el 10 %, un supuesto que la PO debe confirmar. Solo el administrador del tenant.
+        US-07.2.1 (SCRUM-893). Porcentaje de la regla vigente del tenant (SCRUM-1366) que se descuenta al aliado al
+        liquidar. `porDefecto: true` indica que el tenant no tiene reglas guardadas y rige el 10 %. Se cambia con las
+        reglas del tenant, no por esta ruta. Solo el administrador del tenant.
       security:
         - bearerAuth: []
       parameters:
@@ -2037,51 +2038,6 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '403':
           description: El rol no es administrador del tenant (`MANI-FON-403`)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '500':
-          $ref: '#/components/responses/InternalError'
-    put:
-      tags: [Payments]
-      operationId: setCommission
-      summary: El administrador fija la comisión de su tenant
-      description: >
-        US-07.2.1 (SCRUM-893). Porcentaje de 0 a 100 con hasta dos decimales. Un valor inválido responde `422` y no
-        cambia nada, así una configuración inválida nunca llega a una liquidación. Solo afecta las liquidaciones futuras:
-        las ya generadas conservan el porcentaje con el que se calcularon.
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/XCorrelationId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SetCommissionRequest'
-      responses:
-        '200':
-          description: Comisión fijada
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CommissionResponse'
-        '401':
-          description: Sin token, token inválido o expirado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '403':
-          description: El rol no es administrador del tenant (`MANI-FON-403`)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '422':
-          description: El porcentaje no es un número entre 0 y 100 con hasta dos decimales (`MANI-FON-422`)
           content:
             application/json:
               schema:
@@ -7453,15 +7409,6 @@ components:
           type: string
       required: [comision]
 
-    SetCommissionRequest:
-      type: object
-      properties:
-        porcentaje:
-          type: number
-          minimum: 0
-          maximum: 100
-          description: Hasta dos decimales. El tenant sale del JWT, nunca del cuerpo.
-      required: [porcentaje]
 
     InboxItem:
       type: object
