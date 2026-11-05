@@ -36,7 +36,7 @@ info:
     override por tenant: cambiarlos no requiere desplegar Core. Una regla
     incumplida es `200` con `allowed=false`, no un error HTTP. El nombre único
     por tenant (409) sigue en el índice `ux_categoria_tenant_nombre`.
-  version: 1.0.0
+  version: 1.2.0
 servers:
   - url: https://api.mani.app/api/v1/rules
     description: Producción, a través del Gateway
@@ -47,8 +47,16 @@ servers:
 tags:
   - name: Category Rules
     description: Reglas operativas de la categoría de servicio.
+  - name: Tenant Rules
+    description: >
+      Coherencia de las reglas operativas propias del tenant (SCRUM-1366). Core las guarda versionadas y pregunta aquí
+      antes de cada versión nueva; Rules no guarda nada.
   - name: Health
     description: Estado del servicio.
+  - name: Ranking
+    description: Orden de aliados candidatos (RF-13, SCRUM-1462)
+  - name: Rates
+    description: Importes contra la tarifa de referencia (SCRUM-887)
 security:
   - bearerAuth: []
 paths:
@@ -192,6 +200,180 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+  /rank-allies:
+    post:
+      tags: [Ranking]
+      operationId: rankAllies
+      summary: Ordena aliados candidatos según el criterio del tenant (RF-13, SCRUM-1462)
+      description: >
+        Función pura: Rules no tiene base de datos. Dispatch envía el criterio vigente del tenant y las métricas reales
+        de cada candidato, y Rules devuelve el orden. El mismo conjunto da siempre el mismo orden; el empate se resuelve
+        por `id`. Un aliado sin calificaciones no vale 0: va después de los valorados con cualquier criterio. Sin
+        criterio válido no hay orden por omisión. Máximo 500 candidatos por petición.
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/TenantIdInternal'
+        - $ref: '#/components/parameters/UserRoleInternal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AllyRankingRequest'
+            example:
+              criterio: CALIFICACION
+              candidatos:
+                - { id: aliado-a, calificacionPromedio: 4.5, totalCalificaciones: 12, zonasCobertura: 2 }
+                - { id: aliado-b, calificacionPromedio: null, totalCalificaciones: 0, zonasCobertura: 5 }
+      responses:
+        '200':
+          description: Candidatos en el orden en que se deben presentar
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllyRankingResponse'
+              example:
+                criterio: CALIFICACION
+                tenantId: 10000000-0000-4000-8000-000000000011
+                aliados:
+                  - { id: aliado-a, posicion: 1, puntaje: 0.9, razones: ['Calificación promedio 4.5 de 5 (12 calificaciones)'] }
+                  - { id: aliado-b, posicion: 2, puntaje: null, razones: ['Sin calificaciones todavía: va después de los valorados'] }
+                correlationId: corr-1462
+        '400':
+          description: >
+            `VALIDATION_ERROR`: criterio faltante o desconocido, sin candidatos o más de 500, `id` repetido,
+            `calificacionPromedio` incoherente con `totalCalificaciones`, o `zonasCobertura` faltante con `COBERTURA`.
+            `TENANT_REQUIRED`: sin `X-Tenant-Id`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '401':
+          description: Falta `X-User-Role` (`UNAUTHORIZED`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /rates/evaluate:
+    post:
+      tags: [Rates]
+      operationId: evaluateRates
+      summary: Evalúa importes contra su tarifa de referencia
+      description: >
+        Un importe está dentro del rango si `valorMin × (1 − t) <= total <= valorMax × (1 + t)`, con `t` la tolerancia
+        de Rules (`mani.rules.rates.tolerance-percent`, 0 por omisión). `desviacionPorcentaje` es cuánto se sale respecto
+        al límite cruzado (0 dentro del rango), con dos decimales. Función pura: es seguro reintentarla. Máximo 500
+        importes por petición; Core parte la lista en lotes. Un importe fuera de rango es `200` con su resultado.
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/TenantIdInternal'
+        - $ref: '#/components/parameters/UserRoleInternal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RateEvaluationRequest'
+            example:
+              items:
+                - { id: 9b2f6a1e-0000-4000-8000-000000000001, total: 80000, valorMin: 100000, valorTipico: 150000, valorMax: 200000 }
+                - { id: 9b2f6a1e-0000-4000-8000-000000000002, total: 150000, valorMin: 100000, valorTipico: 150000, valorMax: 200000 }
+      responses:
+        '200':
+          description: Un resultado por importe, en el orden de la petición
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateEvaluationResponse'
+              example:
+                version: rates-v1
+                toleranciaPorcentaje: 0
+                tenantId: 10000000-0000-4000-8000-000000000011
+                resultados:
+                  - { id: 9b2f6a1e-0000-4000-8000-000000000001, resultado: POR_DEBAJO, desviacionPorcentaje: 20.00 }
+                  - { id: 9b2f6a1e-0000-4000-8000-000000000002, resultado: DENTRO_DE_RANGO, desviacionPorcentaje: 0.00 }
+                correlationId: corr-887
+        '400':
+          description: >
+            Cuerpo inválido (sin importes, más de 500, valores negativos o faltantes, o tarifa sin `valorMin <= valorTipico
+            <= valorMax` con `valorMin < valorMax`): `VALIDATION_ERROR`. Sin `X-Tenant-Id`: `TENANT_REQUIRED`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '401':
+          description: Falta `X-User-Role` (`UNAUTHORIZED`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /tenant-rules/validate:
+    post:
+      tags: [Tenant Rules]
+      operationId: validateTenantRules
+      summary: Valida la coherencia de las reglas operativas de un tenant
+      description: >
+        Límites (versión de política `tenant-rules-v1`): `ordenListado.criterio` CALIFICACION o COBERTURA (los de
+        `/rank-allies`); `alertaTarifa.toleranciaPorcentaje` 0-50; `comision.porcentaje` 0-30;
+        `cancelacion.ventanaHoras` 0-72 y `penalizacionPorcentaje` 0-100, con penalización mayor que 0 solo si la
+        ventana es mayor que 0; `oferta.minutosParaAceptar` entero 1-1440. Unas reglas incoherentes son `200` con
+        `valid: false` y sus violaciones. Función pura: es seguro reintentarla.
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/TenantIdInternal'
+        - $ref: '#/components/parameters/UserRoleInternal'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rules]
+              properties:
+                rules:
+                  type: object
+                  description: Mismo objeto `TenantRulesPayload` de core.yaml.
+            example:
+              rules:
+                ordenListado: { criterio: COBERTURA }
+                alertaTarifa: { toleranciaPorcentaje: 15 }
+                comision: { porcentaje: 10 }
+                cancelacion: { ventanaHoras: 4, penalizacionPorcentaje: 25 }
+                oferta: { minutosParaAceptar: 30 }
+      responses:
+        '200':
+          description: Resultado de la validación
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [valid, version, violations, tenantId, correlationId]
+                properties:
+                  valid: { type: boolean }
+                  version: { type: string, example: tenant-rules-v1 }
+                  violations:
+                    type: array
+                    items: { type: string }
+                  tenantId: { type: string }
+                  correlationId: { type: string }
+        '400':
+          description: 'Falta `rules` (`VALIDATION_ERROR`) o `X-Tenant-Id` (`TENANT_REQUIRED`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '401':
+          description: 'Falta `X-User-Role` (`UNAUTHORIZED`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
 components:
   securitySchemes:
     bearerAuth:
@@ -232,6 +414,107 @@ components:
       schema:
         type: string
   schemas:
+    AllyRankingRequest:
+      type: object
+      required: [criterio, candidatos]
+      properties:
+        criterio:
+          type: string
+          enum: [CALIFICACION, COBERTURA]
+        candidatos:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/AllyRankingCandidate'
+    AllyRankingCandidate:
+      type: object
+      required: [id, totalCalificaciones]
+      properties:
+        id:
+          type: string
+        calificacionPromedio:
+          type: number
+          minimum: 1
+          maximum: 5
+          nullable: true
+          description: '`null` si y solo si `totalCalificaciones` es 0.'
+        totalCalificaciones:
+          type: integer
+          minimum: 0
+        zonasCobertura:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: Obligatorio solo con el criterio `COBERTURA`.
+    AllyRankingResponse:
+      type: object
+      required: [criterio, tenantId, aliados, correlationId]
+      properties:
+        criterio:
+          type: string
+          enum: [CALIFICACION, COBERTURA]
+        tenantId:
+          type: string
+        aliados:
+          type: array
+          items:
+            $ref: '#/components/schemas/RankedAlly'
+        correlationId:
+          type: string
+    RankedAlly:
+      type: object
+      required: [id, posicion, razones]
+      properties:
+        id:
+          type: string
+        posicion:
+          type: integer
+          minimum: 1
+        puntaje:
+          type: number
+          minimum: 0
+          maximum: 1
+          nullable: true
+          description: Informativo; `null` si el aliado no tiene dato para el criterio. No sirve para reordenar.
+        razones:
+          type: array
+          items:
+            type: string
+    RateEvaluationRequest:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            type: object
+            required: [id, total, valorMin, valorTipico, valorMax]
+            properties:
+              id: { type: string, description: Identificador del importe para quien llama (p. ej. la cotización) }
+              total: { type: number, minimum: 0 }
+              valorMin: { type: number, minimum: 0 }
+              valorTipico: { type: number, minimum: 0 }
+              valorMax: { type: number, minimum: 0 }
+    RateEvaluationResponse:
+      type: object
+      required: [version, toleranciaPorcentaje, tenantId, resultados, correlationId]
+      properties:
+        version: { type: string, example: rates-v1 }
+        toleranciaPorcentaje: { type: number }
+        tenantId: { type: string }
+        resultados:
+          type: array
+          items:
+            type: object
+            required: [id, resultado, desviacionPorcentaje]
+            properties:
+              id: { type: string }
+              resultado: { type: string, enum: [DENTRO_DE_RANGO, POR_DEBAJO, POR_ENCIMA] }
+              desviacionPorcentaje: { type: number }
+        correlationId: { type: string }
     CategoryEvaluationRequest:
       type: object
       required: [context]

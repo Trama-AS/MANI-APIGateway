@@ -24,6 +24,11 @@ services:
       SUPABASE_URL: ${SUPABASE_URL:-}
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
       SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      # Conexión directa a PostgreSQL con el rol de servicio de Core (ADR-0032). Sin ella, todo lo que usa
+      # repositorios pg (solicitudes, cotización, ejecución, pagos, calificación, tarifario, quejas...) responde
+      # 503 MANI-SRV-503. Debe ser la base del mismo proyecto Supabase con el que inicia sesión la app.
+      DATABASE_URL: ${DATABASE_URL:-}
       # Reglas de categoría en MANI-Java (US-03.1.1-M6). Sin el perfil "full"
       # rules-service no existe y crear/editar categorías responde 503.
       RULES_SERVICE_URL: ${RULES_SERVICE_URL:-http://rules-service:8080}
@@ -56,6 +61,16 @@ services:
     container_name: mani-dispatch-service
     restart: unless-stopped
     profiles: ["full"]
+    environment:
+      # Orden de los elegibles (SCRUM-1462): sin Rules, eligible-allies responde 503.
+      RULES_SERVICE_URL: ${RULES_SERVICE_URL:-http://rules-service:8080}
+      # Dispatch valida el mismo JWT que Core (TEC-07) y llama a Core por la red interna.
+      CORE_SERVICE_URL: ${CORE_SERVICE_URL:-http://core-service:3000}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
+      # Conexión con el rol de servicio de Dispatch (mani_dispatch_svc).
+      DATABASE_URL: ${DISPATCH_DATABASE_URL:-}
+      ASPNETCORE_ENVIRONMENT: ${DISPATCH_ENVIRONMENT:-Development}
     expose:
       - "5000"
     networks:

@@ -1,7 +1,7 @@
 const path = require('node:path');
 const SwaggerParser = require('@apidevtools/swagger-parser');
 
-const SPECS = ['core.yaml', 'rules.yaml'].map((file) => path.join(__dirname, '..', 'docs', 'openapi', file));
+const SPECS = ['core.yaml', 'core-internal.yaml', 'dispatch.yaml', 'rules.yaml'].map((file) => path.join(__dirname, '..', 'docs', 'openapi', file));
 
 Promise.all(
   SPECS.map((specPath) =>

@@ -44,12 +44,6 @@ const AUTH_RESPONSE_SCHEMA = {
   properties: { profile: PROFILE_SUMMARY_SCHEMA, tokens: AUTH_TOKENS_SCHEMA },
 };
 
-const REFRESH_RESPONSE_SCHEMA = {
-  type: 'object',
-  required: ['accessToken', 'expiresIn'],
-  properties: { accessToken: { type: 'string' }, expiresIn: { type: 'integer' } },
-};
-
 // Decodifica el payload de un JWT en el sandbox de Postman (solo atob/JSON, sin libs externas).
 const DECODE_JWT_HELPER = [
   'function decodeJwtPayload(token) {',
@@ -150,10 +144,14 @@ function registroAliadoTests({ nombreTestRol, antesDelToken = [], despuesDelToke
 /**
  * La conversión automática desde OpenAPI solo produce paths/métodos/esquemas con
  * valores de ejemplo estáticos. Para que la colección "recorra en secuencia" el
- * flujo de identidad (registrar → login → refresh → logout) hace falta encadenar
- * variables entre requests, y para que cada paso se valide a sí mismo se le agregan
- * asserts de: (1) código de estado, (2) esquema de respuesta, (3) propagación del
- * claim `tenant_id` (del header `X-Tenant-Id` al JWT, y del JWT al siguiente JWT).
+ * flujo de identidad (registrar → logout) hace falta encadenar variables entre
+ * requests, y para que cada paso se valide a sí mismo se le agregan asserts de:
+ * (1) código de estado, (2) esquema de respuesta, (3) propagación del claim
+ * `tenant_id`, del header `X-Tenant-Slug` al JWT que devuelve el registro.
+ *
+ * El token sale del registro, no de un login: por ADR-0031 el emisor es Supabase
+ * Auth y Core no expone `/auth/login` ni `/auth/refresh` (SCRUM-1627). El registro
+ * ya responde con `tokens.accessToken`, que es lo que encadena el flujo.
  */
 function wireUpIdentityFlow(collection) {
   collection.variable.push(
@@ -169,7 +167,7 @@ function wireUpIdentityFlow(collection) {
   );
 
   // Reordena los folders generados por tag para que el registro ocurra antes
-  // del login: el login usa las credenciales que acabamos de crear.
+  // del resto: de su respuesta sale el accessToken que usan los pasos siguientes.
   const allyFolder = collection.item.find((f) => f.name === 'Ally Registration');
   const authFolder = collection.item.find((f) => f.name === 'Auth');
   collection.item = [allyFolder, authFolder];
@@ -180,7 +178,7 @@ function wireUpIdentityFlow(collection) {
   setFormDataValue(register.request.body, 'fullName', 'María Fernanda Rojas');
   setFormDataValue(register.request.body, 'email', '{{allyEmail}}');
   setFormDataValue(register.request.body, 'password', '{{allyPassword}}');
-  setFormDataValue(register.request.body, 'categoriaId', 'cat-1');
+  setFormDataValue(register.request.body, 'categoriaId', 'd0eebc99-9c0b-4ef8-bb6d-6bb9bd380a18');
   // SCRUM-856: Core exige la aceptación expresa de términos (acceptsTerms=true).
   setFormDataValue(register.request.body, 'acceptsTerms', 'true');
   // src relativo al --working-dir con el que se invoca Newman (ver package.json: postman/).
@@ -230,7 +228,7 @@ function wireUpIdentityFlow(collection) {
   setFormDataValue(company.request.body, 'docRepresentante', '1020304050');
   setFormDataValue(company.request.body, 'email', '{{companyEmail}}');
   setFormDataValue(company.request.body, 'password', '{{allyPassword}}');
-  setFormDataValue(company.request.body, 'categoriaId', 'cat-1');
+  setFormDataValue(company.request.body, 'categoriaId', 'd0eebc99-9c0b-4ef8-bb6d-6bb9bd380a18');
   disableFormDataField(company.request.body, 'phone');
   setFormDataFile(company.request.body, 'camara_comercio', 'fixtures/camara-comercio-fake.pdf');
   setFormDataFile(company.request.body, 'rut_empresa', 'fixtures/rut-empresa-fake.pdf');
@@ -250,73 +248,6 @@ function wireUpIdentityFlow(collection) {
       },
     },
     registroAliadoTests({ nombreTestRol: 'la empresa queda como aliado en rol ALLY y estado PENDING' })
-  );
-
-  // --- POST /auth/login ---
-  const login = findItemByPath(collection, ['auth', 'login']);
-  setHeaderValue(login.request.header, 'X-Tenant-Slug', '{{tenantSlug}}');
-  login.request.body.raw = JSON.stringify({ email: '{{allyEmail}}', password: '{{allyPassword}}' }, null, 2);
-  login.event.push(
-    testScript([
-      ...DECODE_JWT_HELPER,
-      '',
-      "pm.test('responde 200 OK', function () {",
-      '  pm.response.to.have.status(200);',
-      '});',
-      '',
-      "pm.test('el body cumple el esquema LoginResponse', function () {",
-      `  pm.response.to.have.jsonSchema(${JSON.stringify(AUTH_RESPONSE_SCHEMA)});`,
-      '});',
-      '',
-      'if (pm.response.code === 200) {',
-      '  const body = pm.response.json();',
-      '',
-      "  pm.test('propagación del claim de tenant: profile.tenantId coincide con expectedTenantId', function () {",
-      "    const expectedId = pm.environment.get('expectedTenantId') || pm.collectionVariables.get('expectedTenantId');",
-      "    pm.expect(body.profile.tenantId).to.eql(expectedId);",
-      '  });',
-      '',
-      "  pm.test('propagación del claim de tenant: tenant_id del accessToken coincide con expectedTenantId', function () {",
-      '    const claims = decodeJwtPayload(body.tokens.accessToken);',
-      "    pm.expect(claims, 'accessToken debe ser un JWT decodificable').to.not.equal(null);",
-      "    const expectedId = pm.environment.get('expectedTenantId') || pm.collectionVariables.get('expectedTenantId');",
-      "    pm.expect(tenantIdFromClaims(claims)).to.eql(expectedId);",
-      '  });',
-      '',
-      "  pm.collectionVariables.set('accessToken', body.tokens.accessToken);",
-      "  pm.collectionVariables.set('refreshToken', body.tokens.refreshToken);",
-      '}',
-    ])
-  );
-
-  // --- POST /auth/refresh ---
-  const refresh = findItemByPath(collection, ['auth', 'refresh']);
-  refresh.request.body.raw = JSON.stringify({ refreshToken: '{{refreshToken}}' }, null, 2);
-  refresh.event.push(
-    testScript([
-      ...DECODE_JWT_HELPER,
-      '',
-      "pm.test('responde 200 OK', function () {",
-      '  pm.response.to.have.status(200);',
-      '});',
-      '',
-      "pm.test('el body cumple el esquema RefreshResponse', function () {",
-      `  pm.response.to.have.jsonSchema(${JSON.stringify(REFRESH_RESPONSE_SCHEMA)});`,
-      '});',
-      '',
-      'if (pm.response.code === 200) {',
-      '  const body = pm.response.json();',
-      '',
-      "  pm.test('propagación del claim de tenant: el refresh preserva tenant_id del token original', function () {",
-      '    const claims = decodeJwtPayload(body.accessToken);',
-      "    pm.expect(claims, 'accessToken debe ser un JWT decodificable').to.not.equal(null);",
-      "    const expectedId = pm.environment.get('expectedTenantId') || pm.collectionVariables.get('expectedTenantId');",
-      "    pm.expect(tenantIdFromClaims(claims)).to.eql(expectedId);",
-      '  });',
-      '',
-      "  pm.collectionVariables.set('accessToken', body.accessToken);",
-      '}',
-    ])
   );
 
   // --- POST /auth/logout ---

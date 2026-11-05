@@ -25,6 +25,10 @@ main() {
   fi
 
   echo "== 1. Tokens de prueba (15 min, no se imprimen)"
+  # SIN_TOKENS=1 (smoke de PROD): no hay secreto de QA; solo corren casos sin tokens sinteticos.
+  if [ "${SIN_TOKENS:-0}" = "1" ]; then
+    : > "$dir/tokens.env"; echo "OK: sin tokens sinteticos"
+  else
   ENV_QA="$env_qa" SALIDA="$dir/tokens.env" python3 - <<'PY'
 import base64, hashlib, hmac, json, os, time
 secreto = next(l.split('=', 1)[1].strip().strip("'\"") for l in open(os.environ['ENV_QA'], encoding='utf8') if l.startswith('SUPABASE_JWT_SECRET='))
@@ -49,6 +53,7 @@ with open(os.environ['SALIDA'], 'w', encoding='utf8') as f:
 os.chmod(os.environ['SALIDA'], 0o600)
 print(f'OK: {len(usuarios)} tokens')
 PY
+  fi
 
   # En la VM de QA las URLs son localhost; desde el runner de Calidad llegan por el entorno (workflow qa-regresion.yml).
   local url_gateway="${URL_GATEWAY:-http://localhost}"
@@ -58,8 +63,9 @@ PY
   set +e
   docker run --rm --network host --ipc=host --env-file "$dir/tokens.env" \
     -e URL_GATEWAY="$url_gateway" -e URL_FLUTTER="$url_flutter" -e URL_LANDING="$url_landing" \
+    -e SMOKE_EMAIL -e SMOKE_PASSWORD -e SMOKE_TENANT_ID -e ARCHIVOS \
     -v "$dir":/suite -w /suite "$imagen" \
-    bash -c 'npm ci --no-audit --no-fund --silent >/dev/null 2>&1 && npx playwright test'
+    bash -c 'npm ci --no-audit --no-fund --silent >/dev/null 2>&1 && npx playwright test ${ARCHIVOS:-}'
   local codigo=$?
   set -e
   rm -f "$dir/tokens.env"

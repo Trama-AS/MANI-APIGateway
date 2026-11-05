@@ -1,5 +1,14 @@
 # 📜 Convención y Guía de Migraciones de Base de Datos — MANI
 
+> [!WARNING]
+> ### ⚠️ Migraciones Congeladas — Serie Histórica (ADR-0030 §1 / HU-M01-05)
+> De acuerdo con **[ADR-0030 §1](https://github.com/Trama-AS/MANI-docs/blob/main/wiki/02-arquitectura/adr/ADR-0030-propiedad-esquema-y-frontera-de-datos.md)**, las migraciones de este directorio `database/migrations/` (serie `001`–`008`) se encuentran **congeladas como histórico** y no reciben nuevos cambios.
+> 
+> La **serie viva canónica** de migraciones versionadas (`0001_` en adelante) es propiedad exclusiva de **`MANI-Node`** y reside en:
+> 👉 [`MANI-Node/db/migrations/`](https://github.com/Trama-AS/MANI-Node/tree/develop/db/migrations)
+> 
+> No agregue archivos a esta carpeta. Toda migración o cambio de esquema debe someterse vía PR a `MANI-Node`.
+
 Este directorio contiene las **migraciones versionadas e incrementales** de la base de datos de MANI. Cada archivo representa un cambio de esquema ordenado cronológicamente que se ejecuta de forma secuencial en todos los ambientes (**DEV**, **QA** y **PROD**).
 
 ---
