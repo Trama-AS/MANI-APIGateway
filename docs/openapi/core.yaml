@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.30.0
+  version: 0.31.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -3800,8 +3800,11 @@ paths:
       operationId: getServiceRequestRatings
       summary: Consulta las calificaciones y el estado de cierre de una solicitud
       description: >
-        SCRUM-1418, SCRUM-874 y SCRUM-875. Devuelve las calificaciones registradas (cliente -> aliado y aliado ->
-        cliente) y el bloque `cierre` indicando si la solicitud ya está `CERRADA` o qué calificación sigue pendiente.
+        SCRUM-1418, SCRUM-874 y SCRUM-875. Devuelve las calificaciones registradas y el bloque `cierre` indicando
+        si la solicitud ya está `CERRADA` o qué calificación sigue pendiente. Las calificaciones son privadas entre
+        los participantes: el cliente y el aliado solo reciben la que ellos emitieron; de la otra solo saben si
+        existe (`calificacionRecibidaRegistrada` y el bloque `cierre`). El administrador del tenant recibe ambas.
+        El aliado no recibe `reputacionAliado` en esta respuesta.
       security:
         - bearerAuth: []
       parameters:
@@ -5360,6 +5363,140 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /plataforma/contexto:
+    get:
+      tags: [Tenants]
+      operationId: getEffectivePlatformContext
+      summary: Contexto efectivo de la sesión (tenant, usuario y rol con que se atiende la petición)
+      description: >-
+        SCRUM-901. El administrador de plataforma puede administrar otro tenant (`X-Mani-Tenant`) y actuar como un
+        usuario de ese tenant (`X-Mani-Actuar-Como`); para los demás roles el contexto es el del JWT y enviar esas
+        cabeceras responde 403 `MANI-PLA-403`. Dispatch lo consulta para atender con el mismo contexto que Core.
+        Cada petición con otro tenant o actuando como otro usuario queda en el log `PLATAFORMA_CONTEXTO`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - $ref: '#/components/parameters/XManiTenant'
+        - $ref: '#/components/parameters/XManiActuarComo'
+      responses:
+        '200':
+          description: Contexto efectivo
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tenantId, userId, role, permisoPlataforma, correlationId]
+                properties:
+                  tenantId: { type: string, format: uuid }
+                  userId: { type: string, format: uuid }
+                  role:
+                    type: string
+                    description: Vocabulario del claim
+                    enum: [aliado, cliente, admin_tenant, admin_plataforma]
+                  permisoPlataforma:
+                    type: boolean
+                    description: Verdadero si la sesión es de un administrador de plataforma, actúe o no como otro usuario.
+                  actor:
+                    type: object
+                    nullable: true
+                    description: Quién está detrás de la sesión cuando el administrador de plataforma actúa como otro usuario.
+                    properties:
+                      userId: { type: string, format: uuid }
+                      tenantId: { type: string, format: uuid }
+                      role: { type: string }
+                  correlationId: { type: string }
+        '400':
+          description: '`X-Mani-Tenant` o `X-Mani-Actuar-Como` no es un UUID (`MANI-PLA-400`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 'Sin token, token inválido o expirado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 'Un rol sin permiso de plataforma envió las cabeceras de contexto (`MANI-PLA-403`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: 'El tenant o el usuario elegido no existe (`MANI-PLA-404`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /tenants/{id}/usuarios:
+    get:
+      tags: [Tenants]
+      operationId: listTenantUsers
+      summary: Usuarios de un tenant para «Actuar como» (administrador de plataforma)
+      description: >-
+        SCRUM-901. Lista clientes, aliados y administradores del tenant (sin otros administradores de plataforma),
+        para que el administrador de plataforma elija con quién actuar. Hasta 500, ordenados por rol y correo.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Usuarios del tenant
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [usuarios, correlationId]
+                properties:
+                  usuarios:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, email, rol, estado]
+                      properties:
+                        id: { type: string, format: uuid }
+                        email: { type: string }
+                        rol: { type: string, enum: [CLIENTE, ALIADO, ADMIN_TENANT] }
+                        estado: { type: string }
+                  correlationId: { type: string }
+        '400':
+          description: 'El id no es un UUID (`MANI-PLA-400`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: 'Sin token, token inválido o expirado'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: 'El rol no es PLATFORM_ADMIN'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: 'Sin base de datos configurada (`SERVICE_UNAVAILABLE`)'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   securitySchemes:
     bearerAuth:
@@ -5371,6 +5508,22 @@ components:
         `app_metadata`, `tenant_id` y `user_role`. Ver `TokenClaims`.
 
   parameters:
+    XManiTenant:
+      name: X-Mani-Tenant
+      in: header
+      required: false
+      description: >-
+        SCRUM-901. Solo el administrador de plataforma: tenant que administra en esta petición. Otro rol que la envíe
+        recibe 403 `MANI-PLA-403`.
+      schema: { type: string, format: uuid }
+    XManiActuarComo:
+      name: X-Mani-Actuar-Como
+      in: header
+      required: false
+      description: >-
+        SCRUM-901. Solo el administrador de plataforma, junto con `X-Mani-Tenant`: usuario de ese tenant con el que
+        actúa. La sesión efectiva toma su tenant, usuario y rol, y RLS aísla igual que para ese usuario (SCRUM-1468).
+      schema: { type: string, format: uuid }
     XTenantSlug:
       name: X-Tenant-Slug
       in: header
@@ -8336,12 +8489,7 @@ components:
         cierre:
           $ref: '#/components/schemas/ClosureStatus'
         calificaciones:
-          type: object
-          properties:
-            clienteAAliado:
-              $ref: '#/components/schemas/RatingRecord'
-            aliadoACliente:
-              $ref: '#/components/schemas/RatingRecord'
+          $ref: '#/components/schemas/RatingPairForViewer'
         correlationId:
           type: string
 
@@ -8518,6 +8666,27 @@ components:
         correlationId:
           type: string
 
+    RatingPairForViewer:
+      type: object
+      description: >
+        Calificaciones del servicio según quién consulta. Son privadas entre los participantes: al cliente se le
+        devuelve `aliadoAlCliente` en null y al aliado `clienteAlAliado` en null, aunque existan; el administrador
+        del tenant recibe ambas. `calificacionRecibidaRegistrada` indica si la calificación oculta ya existe.
+      properties:
+        clienteAlAliado:
+          allOf:
+            - $ref: '#/components/schemas/RatingRecord'
+          nullable: true
+        aliadoAlCliente:
+          allOf:
+            - $ref: '#/components/schemas/RatingRecord'
+          nullable: true
+        calificacionRecibidaRegistrada:
+          type: boolean
+          description: Solo para cliente y aliado. true si el otro participante ya calificó.
+        cierreCompleto:
+          type: boolean
+
     ClientServiceHistoryItem:
       type: object
       required: [id, estado, categoriaId, categoria, descripcion, direccion, zona, penalizacion, calificaciones, creadaEn]
@@ -8568,12 +8737,7 @@ components:
               type: string
               nullable: true
         calificaciones:
-          type: object
-          properties:
-            emitidaAlAliado:
-              $ref: '#/components/schemas/RatingRecord'
-            recibidaDelAliado:
-              $ref: '#/components/schemas/RatingRecord'
+          $ref: '#/components/schemas/RatingPairForViewer'
         creadaEn:
           type: string
           format: date-time
@@ -8638,12 +8802,7 @@ components:
           type: number
           nullable: true
         calificaciones:
-          type: object
-          properties:
-            recibidaDelCliente:
-              $ref: '#/components/schemas/RatingRecord'
-            emitidaAlCliente:
-              $ref: '#/components/schemas/RatingRecord'
+          $ref: '#/components/schemas/RatingPairForViewer'
         creadaEn:
           type: string
           format: date-time
