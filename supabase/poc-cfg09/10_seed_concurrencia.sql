@@ -136,7 +136,14 @@ BEGIN
   DELETE FROM calificacion      WHERE tenant_id = v_tenant;
   DELETE FROM mensaje           WHERE tenant_id = v_tenant;
   DELETE FROM notificacion      WHERE tenant_id = v_tenant;
+  -- evento_servicio es inmutable desde la 0042 (SCRUM-1656): el disparador se desactiva solo durante esta limpieza.
+  IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_evento_servicio_inmutable' AND tgrelid = to_regclass('public.evento_servicio')) THEN
+    ALTER TABLE evento_servicio DISABLE TRIGGER trg_evento_servicio_inmutable;
+  END IF;
   DELETE FROM evento_servicio   WHERE tenant_id = v_tenant;
+  IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_evento_servicio_inmutable' AND tgrelid = to_regclass('public.evento_servicio')) THEN
+    ALTER TABLE evento_servicio ENABLE TRIGGER trg_evento_servicio_inmutable;
+  END IF;
   DELETE FROM cotizacion        WHERE tenant_id = v_tenant;
   DELETE FROM solicitud         WHERE tenant_id = v_tenant;
   DELETE FROM cobertura_aliado  WHERE tenant_id = v_tenant;
