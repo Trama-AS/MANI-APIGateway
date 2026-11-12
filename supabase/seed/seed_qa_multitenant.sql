@@ -157,7 +157,7 @@ END $$;
 -- en solicitud/cotizacion/evento apunta a una fila seed, un DELETE parcial
 -- revienta por FK.
 --
--- Las tablas de Core con versiones inmutables (MANI-Node db/migrations 0030+) rechazan DELETE con un disparador, también
+-- Las tablas de Core con versiones inmutables (MANI-Node db/migrations 0030+, y evento_servicio desde la 0042) rechazan DELETE con un disparador, también
 -- el que llega en cascada al borrar categoria_servicio o tenant. Se desactivan solo durante esta limpieza y se vuelven a
 -- activar antes de sembrar. ALTER TABLE es transaccional: si la semilla falla, el ROLLBACK los deja activos. En una base
 -- sin esas migraciones el bloque no hace nada.
@@ -170,7 +170,8 @@ BEGIN
       ('regla_tenant', 'trg_regla_tenant_inmutable'),
       ('queja', 'trg_queja_transicion_valida'),
       ('queja_transicion', 'trg_queja_transicion_inmutable'),
-      ('tenant_estado_cambio', 'trg_tenant_estado_cambio_inmutable')
+      ('tenant_estado_cambio', 'trg_tenant_estado_cambio_inmutable'),
+      ('evento_servicio', 'trg_evento_servicio_inmutable')
     ) AS v(tabla, disparador)
   LOOP
     IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = r.disparador AND tgrelid = to_regclass('public.' || r.tabla)) THEN
@@ -227,7 +228,8 @@ BEGIN
       ('regla_tenant', 'trg_regla_tenant_inmutable'),
       ('queja', 'trg_queja_transicion_valida'),
       ('queja_transicion', 'trg_queja_transicion_inmutable'),
-      ('tenant_estado_cambio', 'trg_tenant_estado_cambio_inmutable')
+      ('tenant_estado_cambio', 'trg_tenant_estado_cambio_inmutable'),
+      ('evento_servicio', 'trg_evento_servicio_inmutable')
     ) AS v(tabla, disparador)
   LOOP
     IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = r.disparador AND tgrelid = to_regclass('public.' || r.tabla)) THEN
