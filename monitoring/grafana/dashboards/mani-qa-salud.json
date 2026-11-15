@@ -71,7 +71,7 @@
       },
       "targets": [
         {
-          "expr": "probe_success{instance=\"http://10.43.100.141/health\"}",
+          "expr": "probe_success{instance=\"https://10.43.100.141/health\"}",
           "legendFormat": "Gateway",
           "refId": "A"
         }
@@ -135,7 +135,7 @@
       },
       "targets": [
         {
-          "expr": "probe_success{instance=\"http://10.43.100.141/api/v1/core/health\"}",
+          "expr": "probe_success{instance=\"https://10.43.100.141/api/v1/core/health\"}",
           "legendFormat": "Core",
           "refId": "A"
         }
@@ -199,7 +199,7 @@
       },
       "targets": [
         {
-          "expr": "probe_success{instance=\"http://10.43.100.141/api/v1/dispatch/health\"}",
+          "expr": "probe_success{instance=\"https://10.43.100.141/api/v1/dispatch/health\"}",
           "legendFormat": "Dispatch",
           "refId": "A"
         }
@@ -263,7 +263,7 @@
       },
       "targets": [
         {
-          "expr": "probe_success{instance=\"http://10.43.100.141/api/v1/rules/health\"}",
+          "expr": "probe_success{instance=\"https://10.43.100.141/api/v1/rules/health\"}",
           "legendFormat": "Rules",
           "refId": "A"
         }

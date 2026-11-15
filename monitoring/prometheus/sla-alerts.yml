@@ -1,0 +1,47 @@
+groups:
+  - name: mani_sla_operaciones_alerts
+    rules:
+      - alert: ServiceDown
+        expr: probe_success == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: availability
+        annotations:
+          summary: "Servicio caido en {{ $labels.ambiente }}: {{ $labels.instance }}"
+          description: "Blackbox Exporter reporta probe_success == 0 durante al menos 2 minutos para {{ $labels.instance }} ({{ $labels.job }})."
+
+      - alert: High5xxRate
+        expr: (sum by (ambiente, job) (rate(http_requests_total{status_code=~"5.."}[5m])) / clamp_min(sum by (ambiente, job) (rate(http_requests_total[5m])), 0.001)) > 0.01
+        for: 2m
+        labels:
+          severity: warning
+          component: core-api
+        annotations:
+          summary: "Tasa de errores 5xx > 1% en {{ $labels.ambiente }} ({{ $labels.job }})"
+          description: "La proporcion de respuestas HTTP 5xx supera el 1% en los ultimos 5 minutos."
+
+      - alert: HighLatencyP95
+        expr: |
+          (
+            histogram_quantile(0.95, sum by (le, ambiente, job) (rate(http_request_duration_seconds_bucket{route!~"/health|/metrics"}[5m]))) > 0.5
+          ) and (
+            sum by (ambiente, job) (rate(http_requests_total{route!~"/health|/metrics"}[5m])) > 0.02
+          )
+        for: 2m
+        labels:
+          severity: warning
+          component: latency
+        annotations:
+          summary: "Latencia P95 > 0.5s en {{ $labels.ambiente }} ({{ $labels.job }})"
+          description: "El percentil 95 de duracion de solicitudes HTTP supera los 500 ms."
+
+      - alert: HighCpuUsage
+        expr: (1 - avg by (ambiente, instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))) > 0.70
+        for: 5m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "Uso de CPU de VM > 70% en {{ $labels.ambiente }} ({{ $labels.instance }})"
+          description: "El consumo sostenido de CPU supera el umbral del 70% durante 5 minutos."
