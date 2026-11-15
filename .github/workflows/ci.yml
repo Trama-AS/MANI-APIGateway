@@ -15,7 +15,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Validar sintaxis de NGINX
-        run: docker run --rm -v "${{ github.workspace }}/nginx.conf:/etc/nginx/nginx.conf" -v "${{ github.workspace }}/ssl:/etc/nginx/ssl" nginx:alpine nginx -t
+        run: docker run --rm -v "${{ github.workspace }}/nginx.conf:/etc/nginx/nginx.conf" -v "${{ github.workspace }}/ssl:/etc/nginx/ssl" nginx:alpine sh -c "mkdir -p /var/log/nginx-metrics && nginx -t"
 
       - name: Configurar Node.js
         uses: actions/setup-node@v4
@@ -123,6 +123,9 @@ jobs:
 
       - name: Verificar rate limiting del Gateway (SCRUM-1655 / QAS-14)
         run: bash gateway/tests/gateway/rate-limit.sh http://localhost
+
+      - name: Verificar TLS 1.2+ y encabezados de seguridad del Gateway (SCRUM-1665 / T-28)
+        run: bash gateway/tests/gateway/tls-security-headers.sh https://localhost
 
       - name: Logs de los contenedores (si algo falló)
         if: failure()
