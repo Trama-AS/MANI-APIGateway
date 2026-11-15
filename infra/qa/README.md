@@ -17,13 +17,24 @@ Versionado oficial de `/opt/mani/docker-compose.qa.yml` para la VM de QA (`10.43
 - Suma de techos de memoria: `3200M` (~`3.13 GiB`), acotando la contención sobre la VM compartida.
 - Reserva mínima agregada: `1.20` vCPU y `992M` RAM.
 
-## Despliegue y verificación en QA
+## Despliegue, scripts cronometrados (`SCRUM-1674`, `SCRUM-1675`) y verificación en QA
 
 Los secretos reales viven únicamente en `/opt/mani/.env.qa` en la VM (nunca en este repositorio).
 
+| Script | Propósito | Objetivo de tiempo |
+|---|---|---:|
+| `desplegar_release_qa.sh` | Descarga `:staging`, registra digests previos, recrea Compose QA y valida 6 endpoints `200 OK` | `≤ 10 min` (`600s`) |
+| `rollback_qa.sh` | Aplica override temporal por digest sobre un servicio, recrea con `--no-deps` y valida `check-qa.sh` | `≤ 5 min` (`300s`) |
+
 ```bash
 cd /opt/mani
-docker compose -f docker-compose.qa.yml --env-file .env.qa up -d
+# Despliegue completo cronometrado de :staging
+bash desplegar_release_qa.sh
+
+# Rollback cronometrado por digest previo de un servicio
+bash rollback_qa.sh gateway ghcr.io/trama-as/mani-apigateway@sha256:<DIGEST_ANTERIOR>
+
+# Verificación de límites y salud
 /opt/mani/check-qa.sh
 docker stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}'
 docker inspect --format '{{.Name}} mem={{.HostConfig.Memory}} nanocpus={{.HostConfig.NanoCpus}}' \
