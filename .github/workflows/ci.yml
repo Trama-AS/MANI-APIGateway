@@ -15,7 +15,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Validar sintaxis de NGINX
-        run: docker run --rm -v "${{ github.workspace }}/nginx.conf:/etc/nginx/nginx.conf" -v "${{ github.workspace }}/ssl:/etc/nginx/ssl" nginx:alpine nginx -t
+        run: docker run --rm -v "${{ github.workspace }}/nginx.conf:/etc/nginx/nginx.conf" -v "${{ github.workspace }}/ssl:/etc/nginx/ssl" nginx:alpine sh -c "mkdir -p /var/log/nginx-metrics && nginx -t"
 
       - name: Configurar Node.js
         uses: actions/setup-node@v4
