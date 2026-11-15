@@ -35,6 +35,9 @@ jobs:
       - name: Validar generación de colección Postman desde OpenAPI (core.yaml)
         run: npm run postman:generate
 
+      - name: Validar sintaxis y cifrado de scripts de respaldo (SCRUM-1666)
+        run: bash infra/backups/tests/verify_backup_scripts.sh
+
   contract-gate-newman:
     name: Gate de Contrato Postman/Newman (QA-03) — vía el Gateway real
     # NOTA DE ARQUITECTURA: Este gate ejecuta Core en modo in-memory (NODE_ENV=development)
