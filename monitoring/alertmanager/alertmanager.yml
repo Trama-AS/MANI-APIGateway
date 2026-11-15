@@ -1,0 +1,22 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  group_by: ['alertname', 'ambiente', 'severity']
+  group_wait: 10s
+  group_interval: 1m
+  repeat_interval: 1h
+  receiver: 'email-operaciones'
+
+receivers:
+  - name: 'email-operaciones'
+    email_configs:
+      - to: 'operaciones-qa@mani.local'
+        from: 'alertmanager@mani.local'
+        smarthost: 'mailpit:1025'
+        require_tls: false
+        send_resolved: true
+        headers:
+          Subject: '[MANI {{ .Status | toUpper }}] {{ .CommonLabels.severity | toUpper }} — {{ .CommonLabels.alertname }} ({{ .CommonLabels.ambiente }})'
+    # Para conectar un webhook externo (Slack/Teams/Discord) sin exponer credenciales en Git,
+    # inyectar la URL por variable o archivo fuera de control de versiones y agregar webhook_configs.

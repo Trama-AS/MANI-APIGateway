@@ -6,13 +6,16 @@ Stack versionado de observabilidad para QA (`10.43.100.141`), ejecutado en la VM
 
 | Archivo / Carpeta | Rol | Contenedor / Puerto |
 |---|---|---|
-| `docker-compose.yml` | Orquestación de Prometheus, Blackbox Exporter y Grafana con retención de `35d` | `mani-mon-*` (`127.0.0.1:9090`, `9115`, `3000`) |
-| `prometheus/prometheus.yml` | Scrape de métricas `/metrics` (`mani_core_qa`) y sondas HTTP (`mani_salud_qa`) cada `30s` | `mani-mon-prometheus` (`prom/prometheus:v2.53.0`) |
+| `docker-compose.yml` | Orquestación de Prometheus (`35d`), Blackbox, Alertmanager, Mailpit, Loki (`840h`) y Grafana | `mani-mon-*` (`9090`, `9115`, `9093`, `8025`/`1025`, `3100`, `3000`) |
+| `prometheus/prometheus.yml` | Scrape QA HTTPS (`mani_core_qa`, `mani_salud_qa`), Exporters QA (`9100`, `8081`, `9187`, `9113`, `4040`) y PROD (`mani_core_prod`, `mani_salud_prod`) | `mani-mon-prometheus` (`prom/prometheus:v2.53.0`) |
 | `prometheus/auth-alerts.yml` | Reglas de alerta `HighAuth401Rate` y `IncompleteClaimsAttemptsDetected` | Cargado vía `rule_files` |
-| `blackbox/blackbox.yml` | Sonda `http_2xx` con timeout `10s` | `mani-mon-blackbox` (`prom/blackbox-exporter:v0.25.0`) |
-| `grafana/datasources/prometheus.yml` | Provisionamiento automático del datasource `Prometheus` | `mani-mon-grafana` (`grafana/grafana:11.1.0`) |
+| `prometheus/sla-alerts.yml` | Reglas SLA QA/PROD: `ServiceDown` (`2m`), `High5xxRate` (`>1%`), `HighLatencyP95` (`>0.5s`), `HighCpuUsage` (`>70%`) | Cargado vía `rule_files` |
+| `alertmanager/alertmanager.yml` | Enrutamiento de alertas hacia canal SMTP `Mailpit` (`send_resolved: true`) | `mani-mon-alertmanager` (`prom/alertmanager:v0.27.0`) |
+| `loki/loki-config.yml` | Almacenamiento centralizado TSDB `v13` de logs con retención `840h` (`35d`) (`ADR-0038`) | `mani-mon-loki` (`grafana/loki:3.1.1`) |
+| `blackbox/blackbox.yml` | Sonda `http_2xx` con timeout `10s`, `follow_redirects: true` y soporte TLS | `mani-mon-blackbox` (`prom/blackbox-exporter:v0.25.0`) |
+| `grafana/datasources/` | Provisionamiento automático de `Prometheus` y `Loki` (`uid: loki`) | `mani-mon-grafana` (`grafana/grafana:11.1.0`) |
 | `grafana/provisioning/dashboards/dashboards.yml` | Provisionamiento automático de dashboards | `mani-mon-grafana` |
-| `grafana/dashboards/mani-qa-salud.json` | Dashboard **`MANI QA: salud y trafico`** (`uid: mani-qa-salud`, 19 paneles) | Auto-cargado al iniciar Grafana |
+| `grafana/dashboards/` | `mani-qa-salud.json` (QA salud) + `mani-prod-exporters-y-logs.json` (PROD, Exporters QA, Loki) | Auto-cargado al iniciar Grafana |
 | `.env.example` | Plantilla de credenciales locales para `.env` (sin secretos reales) | — |
 
 ## Reconstrucción en una VM limpia

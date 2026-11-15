@@ -1,25 +1,86 @@
 global:
   scrape_interval: 30s
   evaluation_interval: 30s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
 rule_files:
   - /etc/prometheus/auth-alerts.yml
+  - /etc/prometheus/sla-alerts.yml
+
 scrape_configs:
   - job_name: mani_core_qa
     metrics_path: /metrics
+    scheme: https
+    tls_config:
+      insecure_skip_verify: true
     static_configs:
-      - targets: ['10.43.100.141:80']
+      - targets: ['10.43.100.141:443']
         labels: { ambiente: qa }
+
   - job_name: mani_salud_qa
     metrics_path: /probe
     params: { module: [http_2xx] }
     static_configs:
       - targets:
-          - http://10.43.100.141/health
-          - http://10.43.100.141/api/v1/core/health
-          - http://10.43.100.141/api/v1/dispatch/health
-          - http://10.43.100.141/api/v1/rules/health
+          - https://10.43.100.141/health
+          - https://10.43.100.141/api/v1/core/health
+          - https://10.43.100.141/api/v1/dispatch/health
+          - https://10.43.100.141/api/v1/rules/health
           - http://10.43.100.141:8080/
+          - http://10.43.100.141:3001/
         labels: { ambiente: qa }
+    relabel_configs:
+      - { source_labels: [__address__], target_label: __param_target }
+      - { source_labels: [__param_target], target_label: instance }
+      - { target_label: __address__, replacement: 'blackbox:9115' }
+
+  - job_name: mani_qa_node
+    static_configs:
+      - targets: ['10.43.100.141:9100']
+        labels: { ambiente: qa }
+
+  - job_name: mani_qa_cadvisor
+    static_configs:
+      - targets: ['10.43.100.141:8081']
+        labels: { ambiente: qa }
+
+  - job_name: mani_qa_postgres
+    static_configs:
+      - targets: ['10.43.100.141:9187']
+        labels: { ambiente: qa }
+
+  - job_name: mani_qa_nginx
+    static_configs:
+      - targets: ['10.43.100.141:9113']
+        labels: { ambiente: qa }
+
+  - job_name: mani_qa_nginxlog
+    static_configs:
+      - targets: ['10.43.100.141:4040']
+        labels: { ambiente: qa }
+
+  - job_name: mani_core_prod
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['10.43.98.203:80']
+        labels: { ambiente: prod }
+
+  - job_name: mani_salud_prod
+    metrics_path: /probe
+    params: { module: [http_2xx] }
+    static_configs:
+      - targets:
+          - http://10.43.98.203/health
+          - http://10.43.98.203/api/v1/core/health
+          - http://10.43.98.203/api/v1/dispatch/health
+          - http://10.43.98.203/api/v1/rules/health
+          - http://10.43.98.203:8080/
+          - http://10.43.98.203:3001/
+        labels: { ambiente: prod }
     relabel_configs:
       - { source_labels: [__address__], target_label: __param_target }
       - { source_labels: [__param_target], target_label: instance }

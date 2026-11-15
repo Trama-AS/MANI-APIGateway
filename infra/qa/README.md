@@ -40,3 +40,21 @@ docker stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\
 docker inspect --format '{{.Name}} mem={{.HostConfig.Memory}} nanocpus={{.HostConfig.NanoCpus}}' \
   mani-api-gateway mani-core-service mani-rules-service mani-dispatch-service mani-flutter-web mani-landing-web mani-kafka
 ```
+
+## Exporters y Promtail en QA (`SCRUM-1671`, `SCRUM-1676` / `ADR-0038`)
+
+Para evitar conflictos con `--remove-orphans` de `desplegar_release_qa.sh`, los exporters ligeros y el agente de logs viven en `docker-compose.exporters.yml` (`name: mani-qa-exporters`), compartiendo la red `mani-network` y el volumen `mani-nginx-metrics-logs`:
+
+| Servicio | Contenedor | Puerto | Rol |
+|---|---|---:|---|
+| `node-exporter` | `mani-qa-node-exporter` | `9100` | CPU, RAM, disco y red de la VM QA |
+| `cadvisor` | `mani-qa-cadvisor` | `8081` | Consumo CPU/RAM por contenedor Docker |
+| `postgres-exporter` | `mani-qa-postgres-exporter` | `9187` | Conexiones activas y estadísticas PostgreSQL (`DATABASE_URL` de `.env.qa`) |
+| `nginx-exporter` | `mani-qa-nginx-exporter` | `9113` | Métricas de conexiones NGINX (`/nginx_status`) |
+| `nginxlog-exporter` | `mani-qa-nginxlog-exporter` | `4040` | Códigos HTTP (`401`, `403`, `429`, `5xx`) desde `/var/log/nginx-metrics/metrics.log` |
+| `promtail` | `mani-qa-promtail` | `9080` | Recolección de logs Docker hacia Loki en Calidad (`10.43.98.196:3100`) |
+
+```bash
+cd /opt/mani
+docker compose -f docker-compose.exporters.yml --env-file .env.qa up -d
+```

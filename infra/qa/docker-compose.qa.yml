@@ -6,6 +6,8 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    volumes:
+      - nginx-metrics-logs:/var/log/nginx-metrics
     deploy:
       resources:
         limits:
@@ -188,3 +190,6 @@ networks:
 volumes:
   kafka-data:
     driver: local
+  nginx-metrics-logs:
+    driver: local
+    name: mani-nginx-metrics-logs
