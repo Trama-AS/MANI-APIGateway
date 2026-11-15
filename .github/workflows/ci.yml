@@ -121,6 +121,9 @@ jobs:
         working-directory: gateway
         run: npm run postman:run:ally -- --reporters cli,junit --reporter-junit-export newman/report.xml
 
+      - name: Verificar rate limiting del Gateway (SCRUM-1655 / QAS-14)
+        run: bash gateway/tests/gateway/rate-limit.sh http://localhost
+
       - name: Logs de los contenedores (si algo falló)
         if: failure()
         run: |
