@@ -1,0 +1,41 @@
+name: mani-monitoreo
+services:
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: mani-mon-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=35d'
+    ports:
+      - '127.0.0.1:9090:9090'
+    volumes:
+      - ./prometheus:/etc/prometheus:ro
+      - prometheus_datos:/prometheus
+
+  blackbox:
+    image: prom/blackbox-exporter:v0.25.0
+    container_name: mani-mon-blackbox
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:9115:9115'
+    volumes:
+      - ./blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: mani-mon-grafana
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:3000:3000'
+    env_file: .env
+    volumes:
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_datos:/var/lib/grafana
+
+volumes:
+  prometheus_datos:
+  grafana_datos:
