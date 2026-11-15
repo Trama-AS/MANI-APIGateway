@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.31.0
+  version: 0.32.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -1892,7 +1892,9 @@ paths:
         simulado. El monto es mano de obra + materiales de la cotización y nunca viene del cuerpo; tenant, cliente y
         rol salen del JWT. `escenario` elige el desenlace del mock (por omisión `APROBADO`). Una cotización no se cobra
         dos veces: con un pago aprobado, un nuevo intento responde `409`. Con `claveIdempotencia`, un reintento
-        devuelve el pago ya registrado con `200` en lugar de `201`. Si el proveedor no da un desenlace (timeout,
+        con el mismo cuerpo (misma cotización y mismo escenario) devuelve el pago ya registrado con `200` en lugar de
+        `201`; la misma clave con otra cotización u otro escenario no es un reintento y responde `409`
+        (`MANI-PAG-409K`) sin llamar al proveedor (SCRUM-1653). Si el proveedor no da un desenlace (timeout,
         respuesta inválida) **no se registra ningún pago** y la respuesta es `504` o `502`. El cuerpo no admite datos
         de tarjeta.
       security:
@@ -1943,7 +1945,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: La cotización no está aceptada (`MANI-PAG-409E`) o ya tiene un pago aprobado (`MANI-PAG-409A`)
+          description: La cotización no está aceptada (`MANI-PAG-409E`), ya tiene un pago aprobado (`MANI-PAG-409A`) o la clave de idempotencia ya se usó con otra cotización u otro escenario (`MANI-PAG-409K`)
           content:
             application/json:
               schema:
