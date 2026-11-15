@@ -45,3 +45,33 @@ groups:
         annotations:
           summary: "Uso de CPU de VM > 70% en {{ $labels.ambiente }} ({{ $labels.instance }})"
           description: "El consumo sostenido de CPU supera el umbral del 70% durante 5 minutos."
+
+      - alert: BackupFailed
+        expr: mani_backup_last_status == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: backups
+        annotations:
+          summary: "Fallo respaldo automatico de base de datos ({{ $labels.env }})"
+          description: "backup_databases.sh reporto error en el ultimo intento de respaldo para {{ $labels.env }}."
+
+      - alert: BackupStale
+        expr: (time() - mani_backup_last_success_timestamp_seconds) > 93600
+        for: 5m
+        labels:
+          severity: warning
+          component: backups
+        annotations:
+          summary: "Respaldo diario atrasado > 26h ({{ $labels.env }})"
+          description: "Han transcurrido mas de 26 horas desde el ultimo respaldo exitoso de {{ $labels.env }}."
+
+      - alert: BackupOffsiteSyncFailed
+        expr: mani_backup_offsite_sync_status == 0
+        for: 2m
+        labels:
+          severity: warning
+          component: backups
+        annotations:
+          summary: "Fallo replica cifrada off-host ({{ $labels.env }})"
+          description: "No se pudo sincronizar la copia cifrada de {{ $labels.env }} hacia el almacenamiento externo en Calidad."

@@ -1,0 +1,12 @@
+[Unit]
+Description=MANI Timer Diario de Respaldo Automatico (02:00 COT / 07:00 UTC) - SCRUM-1666
+
+[Timer]
+# 07:00:00 UTC equivale exactamente a las 02:00:00 COT (America/Bogota, UTC-5 todo el ano)
+OnCalendar=*-*-* 07:00:00 UTC
+Persistent=true
+RandomizedDelaySec=60
+Unit=mani-backup.service
+
+[Install]
+WantedBy=timers.target
