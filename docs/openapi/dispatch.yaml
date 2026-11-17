@@ -53,6 +53,77 @@ tags:
     description: Bandeja, aceptación y rechazo de ofertas (aliado)
 
 paths:
+  /health:
+    get:
+      tags: [Despacho]
+      operationId: dispatchHealth
+      summary: Estado del servicio de despacho (SCRUM-1661)
+      description: Ruta pública del Gateway (`location = /api/v1/dispatch/health`), sin JWT.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Servicio arriba
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, service]
+                properties:
+                  status: { type: string, enum: [UP] }
+                  service: { type: string, example: MANI-Dispatch-DotNet }
+                  timestamp: { type: string, format: date-time }
+
+  /match:
+    post:
+      tags: [Despacho]
+      operationId: matchEligibleAllies
+      summary: Consulta aliados elegibles por zona y categoría declaradas en el cuerpo (SCRUM-1661)
+      description: >
+        Consulta interna/compatible de elegibilidad recibiendo `zonaId` y `categoriaId` en el cuerpo y el tenant
+        verificado en el JWT. No aplica ranking de Rules (`GET /requests/{requestId}/eligible-allies` es la ruta
+        canónica para una solicitud publicada).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [zonaId, categoriaId]
+              properties:
+                tenantId: { type: string, format: uuid }
+                zonaId: { type: string, format: uuid }
+                categoriaId: { type: string, format: uuid }
+                requestId: { type: string, format: uuid, nullable: true }
+                tipo: { $ref: '#/components/schemas/TipoAliado' }
+                page: { type: integer, minimum: 1, default: 1 }
+                pageSize: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: Página de aliados elegibles
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MatchResponse' }
+        '400':
+          description: Parámetros inválidos (`MANI-DSP-400`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Rol no autorizado o `tenantId` distinto al del JWT (`MANI-DSP-403`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503':
+          $ref: '#/components/responses/Unavailable'
+
   /requests/{requestId}/eligible-allies:
     get:
       tags: [Despacho]
