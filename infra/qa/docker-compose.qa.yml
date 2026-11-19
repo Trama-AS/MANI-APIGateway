@@ -36,6 +36,10 @@ services:
       SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET}
       SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
       DATABASE_URL: ${DATABASE_URL}
+      # SCRUM-1652: con 5 (el valor por omisión de Core) la carga nominal de QAS-03 (50 req/s) hace cola en el pool
+      # y vence el timeout de 3 s de Dispatch. 30 sostiene 50 req/s con p95 < 500 ms y, sumado a las 10 de Dispatch,
+      # deja 20 de las 60 conexiones de la base de QA para Supabase y lo demás (docs/arquitectura/POOL_DE_CONEXIONES.md).
+      DATABASE_POOL_MAX: ${CORE_DATABASE_POOL_MAX:-30}
       GATEWAY_URL: http://gateway:80
       RULES_SERVICE_URL: http://rules-service:8080
       DISPATCH_SERVICE_URL: http://dispatch-service:5000
