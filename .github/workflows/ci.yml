@@ -2,9 +2,9 @@ name: CI — Gateway Contract & Quality Gate
 
 on:
   push:
-    branches: [main, develop, CFG-16]
+    branches: [main, develop, release, CFG-16]
   pull_request:
-    branches: [main, develop]
+    branches: [main, develop, release]
 
 jobs:
   contract-validation:

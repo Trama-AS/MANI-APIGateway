@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.32.0
+  version: 0.33.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -152,8 +152,57 @@ tags:
   - name: Service History
     description: >
       Historial cronológico de servicios del cliente (SCRUM-879) y de trabajos del aliado (SCRUM-880).
+  - name: Health and Metrics
+    description: >
+      Salud del servicio Core y métricas Prometheus (SCRUM-1461, SCRUM-1661).
+  - name: User Profile
+    description: >
+      Consulta y edición del perfil propio y foto de perfil (SCRUM-1377, SCRUM-1629).
+  - name: Ally Verification
+    description: >
+      Bandeja de verificación de aliados pendientes, detalle, aprobación/rechazo y URL firmada de documentos KYC
+      para el administrador del tenant (US-02.1.3-M2 / SCRUM-1066).
 
 paths:
+  /health:
+    get:
+      tags: [Health and Metrics]
+      operationId: getCoreHealth
+      summary: Estado de salud de MANI-Core-Node (SCRUM-1661)
+      description: Ruta pública del Gateway (`location = /api/v1/core/health`), sin JWT.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Servicio operativo
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, service]
+                properties:
+                  status: { type: string, enum: [UP] }
+                  service: { type: string, example: MANI-Core-Node }
+                  timestamp: { type: string, format: date-time }
+
+  /metrics:
+    get:
+      tags: [Health and Metrics]
+      operationId: getCorePrometheusMetrics
+      summary: Métricas Prometheus de MANI-Core-Node (SCRUM-1461)
+      description: Expone contadores e histogramas en formato texto de Prometheus. Bloqueada en el borde público del Gateway.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Métricas en formato Prometheus
+          content:
+            text/plain:
+              schema:
+                type: string
+
   /auth/logout:
     post:
       tags: [Auth]
@@ -2999,6 +3048,38 @@ paths:
           $ref: '#/components/responses/AllyCategoriesError'
         '500':
           $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Ally Categories]
+      operationId: declareAllyCategoriesPost
+      summary: Reemplaza el conjunto de categorías que atiende el aliado (alias POST)
+      description: >
+        Alias compatible con `PUT /profiles/me/categories` (SCRUM-1380): reemplazo total y atómico del conjunto de
+        categorías del aliado autenticado dentro de su tenant.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeclareAllyCategoriesRequest'
+      responses:
+        '200':
+          description: Conjunto final de categorías del aliado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllyCategoriesResponse'
+        '401':
+          $ref: '#/components/responses/AllyCategoriesError'
+        '403':
+          $ref: '#/components/responses/AllyCategoriesError'
+        '422':
+          $ref: '#/components/responses/AllyCategoriesError'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /profiles/me/categories/available:
     get:
@@ -3967,6 +4048,7 @@ paths:
       tags: [Ratings and Closure]
       operationId: getAllyAggregatedRating
       summary: Calificación agregada de un aliado del tenant (SCRUM-876)
+      description: Devuelve la calificación promedio, total de calificaciones y etiqueta de reputación de un aliado del tenant.
       security:
         - bearerAuth: []
       parameters:
@@ -4008,6 +4090,7 @@ paths:
       tags: [Cancellation Penalty]
       operationId: getTenantCancellationPolicy
       summary: Consulta la política vigente de penalización por cancelación tardía del tenant (SCRUM-878)
+      description: Devuelve la configuración vigente de ventana gratuita y porcentaje o monto de penalización del tenant autenticado.
       security:
         - bearerAuth: []
       parameters:
@@ -4229,6 +4312,7 @@ paths:
       tags: [Service History]
       operationId: getAllyJobHistoryDetail
       summary: Detalle de un trabajo en el historial del aliado autenticado (SCRUM-880)
+      description: Devuelve el detalle del servicio asignado al aliado autenticado dentro de su tenant.
       security:
         - bearerAuth: []
       parameters:
@@ -5499,6 +5583,729 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+
+  /profiles/me:
+    get:
+      tags: [User Profile]
+      operationId: getOwnProfile
+      summary: Consulta el perfil propio del usuario autenticado (SCRUM-1377)
+      description: >
+        Devuelve los datos del perfil propio (cliente, aliado o administrador) dentro del tenant del JWT verificado.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Perfil del usuario autenticado
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [profile]
+                properties:
+                  profile:
+                    type: object
+                    additionalProperties: true
+                  correlationId: { type: string }
+        '401':
+          description: Sin sesión válida
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Perfil no encontrado en el tenant
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    patch:
+      tags: [User Profile]
+      operationId: updateOwnProfile
+      summary: Actualiza los datos editables del perfil propio (SCRUM-1377)
+      description: >
+        Permite actualizar nombre, teléfono o dirección del usuario autenticado. Rol, correo, documento y estado de
+        verificación no son editables por esta vía.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fullName: { type: string }
+                phone: { type: string }
+                address: { type: string, nullable: true }
+      responses:
+        '200':
+          description: Perfil actualizado
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [profile]
+                properties:
+                  profile:
+                    type: object
+                    additionalProperties: true
+                  correlationId: { type: string }
+        '400':
+          description: Datos inválidos o campos no editables (`MANI-PRF-422`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Sin sesión válida
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /profiles/me/photo:
+    post:
+      tags: [User Profile]
+      operationId: updateOwnProfilePhoto
+      summary: Sube o actualiza la foto del perfil propio (SCRUM-1629)
+      description: Recibe una imagen JPG o PNG de hasta 2 MB en el campo `photo` (`multipart/form-data`).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [photo]
+              properties:
+                photo:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Foto de perfil actualizada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  photoUrl: { type: string }
+                  correlationId: { type: string }
+        '400':
+          description: Archivo ausente o formato no permitido
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Sin sesión válida
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '413':
+          description: La imagen supera el tamaño máximo permitido (2 MB)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /aliados/verificacion:
+    get:
+      tags: [Ally Verification]
+      operationId: listAlliesVerification
+      summary: Bandeja de verificación de aliados del tenant (US-02.1.3-M2 / SCRUM-1066)
+      description: Lista los aliados del tenant autenticados para el administrador del tenant en orden FIFO.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: estado
+          in: query
+          required: false
+          schema: { type: string, enum: [PENDIENTE, VERIFICADO, RECHAZADO] }
+      responses:
+        '200':
+          description: Lista de aliados en bandeja de verificación
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [aliados]
+                properties:
+                  aliados:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                  correlationId: { type: string }
+        '401':
+          description: Sin sesión válida
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Rol distinto a administrador del tenant (`MANI-VER-403`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /aliados/{id}/verificacion:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Ally Verification]
+      operationId: getAllyVerificationDetail
+      summary: Detalle de verificación y metadatos KYC de un aliado del tenant (SCRUM-1066)
+      description: Consulta el expediente de verificación y los documentos KYC del aliado dentro del tenant del administrador.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Detalle del aliado y sus documentos KYC
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Sin sesión válida
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Rol no autorizado (`MANI-VER-403`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Aliado no encontrado en el tenant (`MANI-VER-404`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+    patch:
+      tags: [Ally Verification]
+      operationId: resolveAllyVerification
+      summary: Aprueba o rechaza el registro de un aliado pendiente (SCRUM-1066)
+      description: >
+        Cambia el estado de verificación a `VERIFICADO` o `RECHAZADO` (exigiendo `motivo` de 10 a 500 caracteres al
+        rechazar) y registra auditoría con `correlationId`. Bloquea doble decisión concurrente con `409 MANI-VER-409`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [VERIFICADO, RECHAZADO] }
+                motivo: { type: string, minLength: 10, maxLength: 500, nullable: true }
+      responses:
+        '200':
+          description: Decisión registrada
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Sin sesión válida
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Rol no autorizado (`MANI-VER-403`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Aliado no encontrado en el tenant (`MANI-VER-404`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409':
+          description: El aliado ya fue verificado o rechazado (`MANI-VER-409`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: Sin documentos KYC o motivo inválido (`MANI-VER-422K`, `MANI-VER-422M`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /aliados/{id}/documentos/{documentoId}/url:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: documentoId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Ally Verification]
+      operationId: getKycDocumentSignedUrl
+      summary: Genera URL firmada temporal para visualizar un documento KYC del aliado (SCRUM-1066)
+      description: Emite una URL firmada de corta duración para que el administrador del tenant revise el documento KYC.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: URL firmada temporal
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [signedUrl]
+                properties:
+                  signedUrl: { type: string, format: uri }
+                  expiresIn: { type: integer }
+                  correlationId: { type: string }
+        '401':
+          description: Sin sesión válida
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Rol no autorizado (`MANI-VER-403`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: Aliado o documento no encontrado en el tenant (`MANI-VER-404`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /allies/me/historial:
+    get:
+      tags: [Service History]
+      operationId: listAllyJobHistoryEs
+      summary: Historial cronológico de trabajos del aliado autenticado (alias en español, SCRUM-880)
+      description: Alias en español de `GET /allies/me/history` para consultar el historial cronológico de trabajos del aliado.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Historial de trabajos del aliado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllyJobHistoryResponse'
+        '401':
+          description: Sin sesión válida (`MANI-HIS-401`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Solo un aliado activo puede consultar su historial (`MANI-HIS-403A`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /allies/me/historial/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Service History]
+      operationId: getAllyJobHistoryDetailEs
+      summary: Detalle de un trabajo en el historial del aliado autenticado (alias en español, SCRUM-880)
+      description: Alias en español de `GET /allies/me/history/{id}` para consultar el detalle de un trabajo del aliado.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Trabajo del historial del aliado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllyJobHistoryDetailResponse'
+        '401':
+          description: Sin sesión válida (`MANI-HIS-401`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: El trabajo no existe o fue asignado a otro aliado (`MANI-HIS-404`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /sites/{id}/rules:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Client Sites]
+      operationId: getSiteRules
+      summary: Consulta las reglas contextuales de acceso de una sede (SCRUM-853)
+      description: Devuelve los requisitos de horario, elementos de protección, permisos e instrucciones de ingreso de la sede.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Reglas de acceso de la sede
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          $ref: '#/components/responses/SiteUnauthorized'
+        '403':
+          $ref: '#/components/responses/SiteForbidden'
+        '404':
+          $ref: '#/components/responses/SiteNotFound'
+    patch:
+      tags: [Client Sites]
+      operationId: patchSiteRules
+      summary: Configura o actualiza las reglas contextuales de una sede (SCRUM-853)
+      description: Actualiza las reglas contextuales de acceso de una sede perteneciente al cliente empresa o administrada por el tenant.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Reglas de la sede actualizadas
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          $ref: '#/components/responses/SiteValidationError'
+        '401':
+          $ref: '#/components/responses/SiteUnauthorized'
+        '403':
+          $ref: '#/components/responses/SiteForbidden'
+        '404':
+          $ref: '#/components/responses/SiteNotFound'
+    put:
+      tags: [Client Sites]
+      operationId: putSiteRules
+      summary: Reemplaza las reglas contextuales de una sede (SCRUM-853)
+      description: Reemplaza por completo las reglas contextuales de acceso configuradas en la sede.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Reglas de la sede actualizadas
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          $ref: '#/components/responses/SiteValidationError'
+        '401':
+          $ref: '#/components/responses/SiteUnauthorized'
+        '403':
+          $ref: '#/components/responses/SiteForbidden'
+        '404':
+          $ref: '#/components/responses/SiteNotFound'
+
+  /sites/{id}/reglas:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [Client Sites]
+      operationId: getSiteRulesEs
+      summary: Consulta las reglas contextuales de una sede (alias en español, SCRUM-853)
+      description: Alias en español de `GET /sites/{id}/rules` para consultar las reglas contextuales de la sede.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      responses:
+        '200':
+          description: Reglas de acceso de la sede
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          $ref: '#/components/responses/SiteUnauthorized'
+        '403':
+          $ref: '#/components/responses/SiteForbidden'
+        '404':
+          $ref: '#/components/responses/SiteNotFound'
+    patch:
+      tags: [Client Sites]
+      operationId: patchSiteRulesEs
+      summary: Configura las reglas contextuales de una sede (alias en español, SCRUM-853)
+      description: Alias en español de `PATCH /sites/{id}/rules` para configurar las reglas contextuales de la sede.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Reglas de la sede actualizadas
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          $ref: '#/components/responses/SiteValidationError'
+        '401':
+          $ref: '#/components/responses/SiteUnauthorized'
+        '403':
+          $ref: '#/components/responses/SiteForbidden'
+        '404':
+          $ref: '#/components/responses/SiteNotFound'
+    put:
+      tags: [Client Sites]
+      operationId: putSiteRulesEs
+      summary: Reemplaza las reglas contextuales de una sede (alias en español, SCRUM-853)
+      description: Alias en español de `PUT /sites/{id}/rules` para reemplazar las reglas contextuales de la sede.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Reglas de la sede actualizadas
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          $ref: '#/components/responses/SiteValidationError'
+        '401':
+          $ref: '#/components/responses/SiteUnauthorized'
+        '403':
+          $ref: '#/components/responses/SiteForbidden'
+        '404':
+          $ref: '#/components/responses/SiteNotFound'
+
+  /sites/{id}/validate-schedule:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Client Sites]
+      operationId: validateSiteSchedule
+      summary: Valida si un horario propuesto cumple las reglas de acceso de la sede (SCRUM-853)
+      description: Comprueba si el día y la hora indicados cumplen la ventana horaria y días permitidos de la sede.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Resultado de validación del horario frente a las reglas de la sede
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          $ref: '#/components/responses/SiteValidationError'
+        '401':
+          $ref: '#/components/responses/SiteUnauthorized'
+        '404':
+          $ref: '#/components/responses/SiteNotFound'
+
+  /legal/consents:
+    post:
+      tags: [Legal]
+      operationId: registerUserConsent
+      summary: Registra el consentimiento de Habeas Data de un usuario autenticado (US-02.3.2 / SCRUM-856)
+      description: Guarda la aceptación expresa de un documento legal activo del tenant por parte del usuario de la sesión.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [documentId]
+              properties:
+                documentId: { type: string, format: uuid }
+                accepted: { type: boolean, default: true }
+      responses:
+        '201':
+          description: Consentimiento registrado
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Datos inválidos o documento legal inactivo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Sin sesión válida
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /clients/company:
+    post:
+      tags: [Client Sites]
+      operationId: registerCompanyClientWithSites
+      summary: Registra un perfil de cliente empresa con sus sedes iniciales (US-02.2.2 / SCRUM-852)
+      description: Crea el perfil de cliente jurídico dentro del tenant autenticado junto con sus sedes iniciales.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '201':
+          description: Cliente empresa y sedes registrados
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          $ref: '#/components/responses/SiteValidationError'
+        '401':
+          $ref: '#/components/responses/SiteUnauthorized'
+        '409':
+          description: NIT o correo ya registrado en el tenant
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /allies/direct-employees:
+    post:
+      tags: [Direct Employees]
+      operationId: registerDirectEmployeeAliasDirect
+      summary: Registra a un empleado directo del tenant (alias /allies/direct-employees, SCRUM-850)
+      description: Alias compatible con `POST /allies/employees` para el alta de empleados directos verificados por el administrador del tenant.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RegisterDirectEmployeeRequest'
+      responses:
+        '201':
+          description: Empleado directo registrado y verificado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterDirectEmployeeResponse'
+        '400':
+          description: Datos inválidos (`VALIDATION_ERROR`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Sin sesión válida
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Rol no autorizado (`FORBIDDEN`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /admin/employees:
+    post:
+      tags: [Direct Employees]
+      operationId: registerDirectEmployeeAliasAdmin
+      summary: Registra a un empleado directo del tenant (alias /admin/employees, SCRUM-850)
+      description: Alias compatible con `POST /allies/employees` para el alta de empleados directos desde el panel de administración.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RegisterDirectEmployeeRequest'
+      responses:
+        '201':
+          description: Empleado directo registrado y verificado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterDirectEmployeeResponse'
+        '400':
+          description: Datos inválidos (`VALIDATION_ERROR`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          description: Sin sesión válida
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: Rol no autorizado (`FORBIDDEN`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
 components:
   securitySchemes:
     bearerAuth:

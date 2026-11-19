@@ -102,7 +102,7 @@
                 },
                 {
                   "key": "documentType",
-                  "value": "PASSPORT",
+                  "value": "CC",
                   "type": "text",
                   "description": "Tipo de documento de identidad (persona natural). Opcional. (This can only be one of CC,CE,PASSPORT)",
                   "disabled": true
@@ -177,7 +177,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "EfwI@KoZQOSxqXYKExSLtQBlVLDcsaE.ay",
+                      "value": "FhOvhzTozJz3I@fbwUnOwCgWUrCMndSPYoLhhXQUvB.iwnc",
                       "type": "text"
                     },
                     {
@@ -231,7 +231,7 @@
                         "type": "text/plain"
                       },
                       "key": "documentType",
-                      "value": "PASSPORT",
+                      "value": "CC",
                       "type": "text"
                     },
                     {
@@ -319,7 +319,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "EfwI@KoZQOSxqXYKExSLtQBlVLDcsaE.ay",
+                      "value": "FhOvhzTozJz3I@fbwUnOwCgWUrCMndSPYoLhhXQUvB.iwnc",
                       "type": "text"
                     },
                     {
@@ -373,7 +373,7 @@
                         "type": "text/plain"
                       },
                       "key": "documentType",
-                      "value": "PASSPORT",
+                      "value": "CC",
                       "type": "text"
                     },
                     {
@@ -404,7 +404,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-EJE-404\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-HIS-401\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -461,7 +461,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "EfwI@KoZQOSxqXYKExSLtQBlVLDcsaE.ay",
+                      "value": "FhOvhzTozJz3I@fbwUnOwCgWUrCMndSPYoLhhXQUvB.iwnc",
                       "type": "text"
                     },
                     {
@@ -515,7 +515,7 @@
                         "type": "text/plain"
                       },
                       "key": "documentType",
-                      "value": "PASSPORT",
+                      "value": "CC",
                       "type": "text"
                     },
                     {
@@ -546,7 +546,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-EJE-404\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-HIS-401\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -603,7 +603,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "EfwI@KoZQOSxqXYKExSLtQBlVLDcsaE.ay",
+                      "value": "FhOvhzTozJz3I@fbwUnOwCgWUrCMndSPYoLhhXQUvB.iwnc",
                       "type": "text"
                     },
                     {
@@ -657,7 +657,7 @@
                         "type": "text/plain"
                       },
                       "key": "documentType",
-                      "value": "PASSPORT",
+                      "value": "CC",
                       "type": "text"
                     },
                     {
@@ -688,7 +688,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-EJE-404\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-HIS-401\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -957,7 +957,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "JkrNDbtn0wc@qjaYtJcoTnfqDrkzLJyBNJHDI.coc",
+                      "value": "mtPOYYlzxl@UIYqcpWSeYpSVMuTjFCMLlIfWmlEf.rkn",
                       "type": "text"
                     },
                     {
@@ -1108,7 +1108,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "JkrNDbtn0wc@qjaYtJcoTnfqDrkzLJyBNJHDI.coc",
+                      "value": "mtPOYYlzxl@UIYqcpWSeYpSVMuTjFCMLlIfWmlEf.rkn",
                       "type": "text"
                     },
                     {
@@ -1183,7 +1183,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-EJE-404\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-HIS-401\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -1259,7 +1259,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "JkrNDbtn0wc@qjaYtJcoTnfqDrkzLJyBNJHDI.coc",
+                      "value": "mtPOYYlzxl@UIYqcpWSeYpSVMuTjFCMLlIfWmlEf.rkn",
                       "type": "text"
                     },
                     {
@@ -1334,7 +1334,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-EJE-404\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-HIS-401\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -1410,7 +1410,7 @@
                         "type": "text/plain"
                       },
                       "key": "email",
-                      "value": "JkrNDbtn0wc@qjaYtJcoTnfqDrkzLJyBNJHDI.coc",
+                      "value": "mtPOYYlzxl@UIYqcpWSeYpSVMuTjFCMLlIfWmlEf.rkn",
                       "type": "text"
                     },
                     {
@@ -1485,7 +1485,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-EJE-404\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-HIS-401\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -1684,7 +1684,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-EJE-404\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-HIS-401\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -1726,7 +1726,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-EJE-404\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-HIS-401\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -1779,7 +1779,7 @@
           "request": {
             "name": "Solicita el enlace de recuperación de contraseña",
             "description": {
-              "content": "Pide al proveedor de identidad que envíe al correo un enlace para restablecer la contraseña (HU-M02-10 / RF-04). Es pre-autenticación: el tenant se resuelve por `X-Tenant-Slug` (ADR-0018). **Responde `202` con el mismo mensaje exista o no la cuenta**, para no revelar qué correos están registrados; el enlace solo se envía si la cuenta existe y está activa en ese tenant. Tampoco se devuelve `429` cuando el proveedor limita los envíos de una cuenta, porque ese límite solo ocurre cuando la cuenta existe y delataría qué correos están registrados.\n",
+              "content": "Pide al proveedor de identidad que envíe al correo un enlace para restablecer la contraseña (HU-M02-10 / RF-04). Es pre-autenticación: el tenant se resuelve por `X-Tenant-Slug` (ADR-0018). **Responde `202` con el mismo mensaje exista o no la cuenta**, para no revelar qué correos están registrados; el enlace solo se envía si la cuenta existe y está activa en ese tenant. Tampoco se devuelve `429` ni `500` cuando el proveedor de correo limita o rechaza el envío de una cuenta (límite, dominio inválido, SMTP caído), porque el envío solo se intenta cuando la cuenta existe y cualquier respuesta distinta delataría qué correos están registrados; ese fallo se audita internamente.\n",
               "type": "text/plain"
             },
             "url": {
@@ -1936,7 +1936,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-EJE-404\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-HIS-401\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -1992,7 +1992,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-EJE-404\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-HIS-401\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -2165,7 +2165,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-EJE-404\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-HIS-401\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -2221,7 +2221,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-EJE-404\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-HIS-401\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
@@ -2277,7 +2277,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-EJE-404\"\n}",
+              "body": "{\n  \"error\": \"Credenciales inválidas\",\n  \"correlationId\": \"node-1791318617328\",\n  \"code\": \"MANI-HIS-401\"\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
