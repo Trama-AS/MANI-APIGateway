@@ -14,6 +14,43 @@ services:
       - ./prometheus:/etc/prometheus:ro
       - prometheus_datos:/prometheus
 
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: mani-mon-alertmanager
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    ports:
+      - '127.0.0.1:9093:9093'
+    volumes:
+      - ./alertmanager:/etc/alertmanager:ro
+      - alertmanager_datos:/alertmanager
+
+  mailpit:
+    image: axllent/mailpit:v1.21
+    container_name: mani-mon-mailpit
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:8025:8025'
+      - '127.0.0.1:1025:1025'
+    environment:
+      MP_DATABASE: /data/mailpit.db
+    volumes:
+      - mailpit_datos:/data
+
+  loki:
+    image: grafana/loki:3.1.1
+    container_name: mani-mon-loki
+    restart: unless-stopped
+    command:
+      - '-config.file=/etc/loki/local-config.yaml'
+    ports:
+      - '3100:3100'
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_datos:/loki
+
   blackbox:
     image: prom/blackbox-exporter:v0.25.0
     container_name: mani-mon-blackbox
@@ -39,3 +76,6 @@ services:
 volumes:
   prometheus_datos:
   grafana_datos:
+  alertmanager_datos:
+  mailpit_datos:
+  loki_datos:

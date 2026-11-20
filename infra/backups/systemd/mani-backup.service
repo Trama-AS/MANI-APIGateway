@@ -1,0 +1,17 @@
+[Unit]
+Description=MANI Respaldo Automatico Cifrado de Bases PostgreSQL (QA y PROD) - SCRUM-1666
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=estudiante
+Group=estudiante
+UMask=0077
+WorkingDirectory=/opt/mani-backups
+ExecStart=/opt/mani-backups/bin/backup_databases.sh
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
