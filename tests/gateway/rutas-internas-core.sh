@@ -23,6 +23,9 @@ for metodo in GET POST; do
   esperar "$metodo" /api/v1/core/Allies/Eligible 404
   esperar "$metodo" /api/v1/core/api/v1/allies/eligible 404
   esperar "$metodo" '/api/v1/core/allies/eligible?categoriaId=x' 404
+  # SCRUM-1652: elegibles por solicitud, también interna.
+  esperar "$metodo" /api/v1/core/allies/eligible/by-request/0a1b2c3d-0000-4000-8000-000000000001 404
+  esperar "$metodo" /api/v1/core/api/v1/Allies/Eligible/By-Request/abc 404
   esperar "$metodo" /api/v1/core/solicitudes/0a1b2c3d-0000-4000-8000-000000000001/context 404
   esperar "$metodo" /api/v1/core/api/v1/solicitudes/abc/CONTEXT 404
   esperar "$metodo" /api/v1/core/notifications 404

@@ -1,0 +1,130 @@
+groups:
+  - name: mani_sla_operaciones_alerts
+    rules:
+      - alert: ServiceDown
+        expr: probe_success == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: availability
+        annotations:
+          summary: "Servicio caido en {{ $labels.ambiente }}: {{ $labels.instance }}"
+          description: "Blackbox Exporter reporta probe_success == 0 durante al menos 2 minutos para {{ $labels.instance }} ({{ $labels.job }})."
+
+      - alert: High5xxRate
+        expr: (sum by (ambiente, job) (rate(http_requests_total{status_code=~"5.."}[5m])) / clamp_min(sum by (ambiente, job) (rate(http_requests_total[5m])), 0.001)) > 0.01
+        for: 2m
+        labels:
+          severity: warning
+          component: core-api
+        annotations:
+          summary: "Tasa de errores 5xx > 1% en {{ $labels.ambiente }} ({{ $labels.job }})"
+          description: "La proporcion de respuestas HTTP 5xx supera el 1% en los ultimos 5 minutos."
+
+      - alert: HighLatencyP95
+        expr: |
+          (
+            histogram_quantile(0.95, sum by (le, ambiente, job) (rate(http_request_duration_seconds_bucket{route!~"/health|/metrics"}[5m]))) > 0.5
+          ) and (
+            sum by (ambiente, job) (rate(http_requests_total{route!~"/health|/metrics"}[5m])) > 0.02
+          )
+        for: 2m
+        labels:
+          severity: warning
+          component: latency
+        annotations:
+          summary: "Latencia P95 > 0.5s en {{ $labels.ambiente }} ({{ $labels.job }})"
+          description: "El percentil 95 de duracion de solicitudes HTTP supera los 500 ms."
+
+      - alert: HighCpuUsage
+        expr: (1 - avg by (ambiente, instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))) > 0.70
+        for: 5m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "Uso de CPU de VM > 70% en {{ $labels.ambiente }} ({{ $labels.instance }})"
+          description: "El consumo sostenido de CPU supera el umbral del 70% durante 5 minutos."
+
+      - alert: BackupFailed
+        expr: mani_backup_last_status == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: backups
+        annotations:
+          summary: "Fallo respaldo automatico de base de datos ({{ $labels.env }})"
+          description: "backup_databases.sh reporto error en el ultimo intento de respaldo para {{ $labels.env }}."
+
+      - alert: BackupStale
+        expr: (time() - mani_backup_last_success_timestamp_seconds) > 93600
+        for: 5m
+        labels:
+          severity: warning
+          component: backups
+        annotations:
+          summary: "Respaldo diario atrasado > 26h ({{ $labels.env }})"
+          description: "Han transcurrido mas de 26 horas desde el ultimo respaldo exitoso de {{ $labels.env }}."
+
+      - alert: BackupOffsiteSyncFailed
+        expr: mani_backup_offsite_sync_status == 0
+        for: 2m
+        labels:
+          severity: warning
+          component: backups
+        annotations:
+          summary: "Fallo replica cifrada off-host ({{ $labels.env }})"
+          description: "No se pudo sincronizar la copia cifrada de {{ $labels.env }} hacia el almacenamiento externo en Calidad."
+
+  # SCRUM-1670: alertas medidas en el Gateway (nginxlog-exporter), iguales para QA y PROD.
+  # Cubren Rules y Dispatch, que no exponen /metrics propias.
+  - name: mani_gateway_y_contenedores_alerts
+    rules:
+      - alert: TargetDown
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: warning
+          component: monitoring
+        annotations:
+          summary: "Prometheus no puede leer {{ $labels.job }} en {{ $labels.ambiente }}"
+          description: "El target {{ $labels.instance }} lleva 5 minutos sin responder al scrape. Sin el, los paneles de ese ambiente quedan vacios."
+
+      - alert: High5xxRateGateway
+        expr: |
+          (
+            sum by (ambiente, route) (rate(nginx_http_response_count_total{route=~"core|core-auth|rules|dispatch", status=~"5.."}[5m]))
+            / clamp_min(sum by (ambiente, route) (rate(nginx_http_response_count_total{route=~"core|core-auth|rules|dispatch"}[5m])), 0.001)
+          ) > 0.01
+          and sum by (ambiente, route) (rate(nginx_http_response_count_total{route=~"core|core-auth|rules|dispatch"}[5m])) > 0.02
+        for: 2m
+        labels:
+          severity: warning
+          component: gateway
+        annotations:
+          summary: "5xx > 1% en {{ $labels.route }} ({{ $labels.ambiente }}), medido en el Gateway"
+          description: "La proporcion de respuestas 5xx del Gateway hacia {{ $labels.route }} supera el 1% en 5 minutos."
+
+      - alert: HighLatencyP95Gateway
+        expr: |
+          histogram_quantile(0.95, sum by (le, ambiente, route) (rate(nginx_http_response_time_seconds_hist_bucket{route=~"core|core-auth|rules|dispatch"}[5m]))) > 0.5
+          and sum by (ambiente, route) (rate(nginx_http_response_count_total{route=~"core|core-auth|rules|dispatch"}[5m])) > 0.02
+        for: 5m
+        labels:
+          severity: warning
+          component: latency
+        annotations:
+          summary: "p95 > 0.5s en {{ $labels.route }} ({{ $labels.ambiente }}), medido en el Gateway"
+          description: "El percentil 95 del tiempo de respuesta del Gateway hacia {{ $labels.route }} supera 500 ms durante 5 minutos."
+
+      - alert: ContainerMemoryNearLimit
+        expr: |
+          max by (ambiente, name) (container_memory_working_set_bytes{name=~"mani-.*"})
+          / max by (ambiente, name) (container_spec_memory_limit_bytes{name=~"mani-.*"} > 0) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "{{ $labels.name }} usa mas del 90% de su memoria ({{ $labels.ambiente }})"
+          description: "El contenedor esta cerca de su limite de memoria; si lo alcanza, Docker lo reinicia (OOM)."

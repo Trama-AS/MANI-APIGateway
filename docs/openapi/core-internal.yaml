@@ -29,7 +29,7 @@ info:
     el aliado no haya rechazado la oferta) y le pide a Core que registre la asignación con
     `POST /solicitudes/{id}/asignacion`. La migración 0019 de Core le quita a `mani_dispatch_svc` el `UPDATE`
     sobre `solicitud`.
-  version: 0.4.0
+  version: 0.5.0
   x-internal: true
 servers:
   - url: http://core-service:3000/api/v1
@@ -114,6 +114,69 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           description: La sesión no es de un cliente ni de un admin del tenant (`MANI-DSP-403`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+
+  /allies/eligible/by-request/{id}:
+    get:
+      tags: [Dispatch Internal]
+      operationId: listEligibleAlliesForRequest
+      summary: Contexto, elegibles y criterio de orden de una solicitud en una sola lectura (SCRUM-1652)
+      description: >
+        Reemplaza, para el listado de elegibles de una solicitud, las tres llamadas que Dispatch hacía en serie
+        (`/solicitudes/{id}/context`, `/allies/eligible` y `/tenant/rules`): Core las resuelve en una sola
+        sentencia y una sola transacción. Solo el admin del tenant y el cliente dueño ven la solicitud, igual que en
+        `/solicitudes/{id}/context`; inexistente, de otro tenant o ajena responden `404` sin revelar cuál. Zona y
+        categoría salen de la solicitud, nunca de la consulta. Los elegibles siguen las mismas reglas que
+        `/allies/eligible`, **sin** excluir rechazos: `solicitud_rechazo` es de Dispatch (ADR-0030, T1), que los
+        descuenta. `criterioOrdenListado` es el de la regla `VIGENTE` del tenant, `CALIFICACION` si no tiene regla
+        propia (igual que `GET /tenant/rules`), o `null` si la regla propia no lo trae.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/XCorrelationId'
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: tipo
+          in: query
+          required: false
+          description: Filtro por tipo de aliado (sin distinguir mayúsculas). Vacío equivale a sin filtro.
+          schema:
+            $ref: '#/components/schemas/TipoAliado'
+        - name: page
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: Contexto de la solicitud, criterio de orden y una página de elegibles (ordenados por id)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EligibleAlliesForRequest'
+        '400':
+          description: El id no es UUID, `tipo` fuera del catálogo o `page`/`pageSize` inválidos (`MANI-DSP-400`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: La sesión no es de un cliente ni de un admin del tenant (`MANI-DSP-403`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '404':
+          description: La sesión no puede ver la solicitud o no existe (`MANI-DSP-404`)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -529,6 +592,33 @@ components:
           type: integer
           minimum: 0
           description: Total de elegibles con los filtros aplicados (incluida la exclusión), sin paginar.
+
+    EligibleAlliesForRequest:
+      type: object
+      required: [solicitud, criterioOrdenListado, allies, totalCount, page, pageSize]
+      properties:
+        solicitud:
+          type: object
+          required: [id, zonaId, categoriaId, estado]
+          properties:
+            id: { type: string, format: uuid }
+            zonaId: { type: string, format: uuid }
+            categoriaId: { type: string, format: uuid }
+            estado: { type: string, example: PENDIENTE }
+        criterioOrdenListado:
+          type: string
+          nullable: true
+          enum: [CALIFICACION, COBERTURA, null]
+          description: Criterio de orden de la regla VIGENTE del tenant; null si la regla propia no lo trae.
+        allies:
+          type: array
+          items: { $ref: '#/components/schemas/EligibleAlly' }
+        totalCount:
+          type: integer
+          minimum: 0
+          description: Total de elegibles con los filtros aplicados, sin paginar y sin descontar rechazos.
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 100 }
 
     OwnAllyProfile:
       type: object

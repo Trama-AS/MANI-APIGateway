@@ -1,0 +1,156 @@
+name: mani-qa-exporters
+
+services:
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: mani-qa-node-exporter
+    restart: unless-stopped
+    pid: host
+    ports:
+      - "9100:9100"
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 64M
+        reservations:
+          cpus: "0.05"
+          memory: 24M
+
+  cadvisor:
+    # SCRUM-1670: v0.49.1 solo exportaba la serie del host (id="/") porque Docker 29
+    # usa el almacen de imagenes de containerd (driver "overlayfs") y esa version no
+    # sabe resolver esos contenedores. v0.55.1 los resuelve consultando containerd
+    # (espacio "moby"), por eso se monta su socket. privileged y /dev/kmsg son los
+    # requisitos de cAdvisor con cgroup v2 (Ubuntu 22.04).
+    image: gcr.io/cadvisor/cadvisor:v0.55.1
+    container_name: mani-qa-cadvisor
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg
+    ports:
+      - "8081:8080"
+    command:
+      - "--docker_only=true"
+      - "--housekeeping_interval=30s"
+      - "--store_container_labels=false"
+      - "--whitelisted_container_labels=com.docker.compose.service,com.docker.compose.project"
+      - "--disable_metrics=advtcp,cpu_topology,cpuset,hugetlb,memory_numa,percpu,process,referenced_memory,resctrl,sched,tcp,udp"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /run/containerd/containerd.sock:/run/containerd/containerd.sock:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "0.30"
+          memory: 192M
+        reservations:
+          cpus: "0.10"
+          memory: 64M
+
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: mani-qa-postgres-exporter
+    restart: unless-stopped
+    ports:
+      - "9187:9187"
+    environment:
+      DATA_SOURCE_NAME: ${DATABASE_URL}
+    deploy:
+      resources:
+        limits:
+          cpus: "0.20"
+          memory: 64M
+        reservations:
+          cpus: "0.05"
+          memory: 24M
+
+  nginx-exporter:
+    image: nginx/nginx-prometheus-exporter:1.3.0
+    container_name: mani-qa-nginx-exporter
+    restart: unless-stopped
+    ports:
+      - "9113:9113"
+    command:
+      - "--nginx.scrape-uri=http://gateway:80/nginx_status"
+    networks:
+      - mani-network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.15"
+          memory: 48M
+        reservations:
+          cpus: "0.05"
+          memory: 16M
+
+  nginxlog-exporter:
+    image: quay.io/martinhelmich/prometheus-nginxlog-exporter:v1.11.0
+    container_name: mani-qa-nginxlog-exporter
+    restart: unless-stopped
+    ports:
+      - "4040:4040"
+    command:
+      - "-config-file"
+      - "/etc/nginxlog-exporter.hcl"
+    volumes:
+      - ./nginxlog-exporter.hcl:/etc/nginxlog-exporter.hcl:ro
+      - nginx-metrics-logs:/var/log/nginx-metrics:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "0.15"
+          memory: 48M
+        reservations:
+          cpus: "0.05"
+          memory: 16M
+
+  promtail:
+    image: grafana/promtail:3.1.1
+    container_name: mani-qa-promtail
+    restart: unless-stopped
+    ports:
+      - "9080:9080"
+    command:
+      - "-config.file=/etc/promtail/config.yml"
+    volumes:
+      - ./promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - promtail-positions:/var/lib/promtail
+    networks:
+      - mani-network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+        reservations:
+          cpus: "0.05"
+          memory: 32M
+
+networks:
+  mani-network:
+    external: true
+    name: mani-network
+
+volumes:
+  nginx-metrics-logs:
+    external: true
+    name: mani-nginx-metrics-logs
+  promtail-positions:
+    driver: local

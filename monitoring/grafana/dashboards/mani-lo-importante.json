@@ -1,0 +1,1026 @@
+{
+  "uid": "mani-lo-importante",
+  "title": "MANI: lo importante (QA y PROD)",
+  "tags": [
+    "mani",
+    "SCRUM-1670"
+  ],
+  "timezone": "America/Bogota",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": true,
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "description": "Disponibilidad, tráfico, errores, latencia, recursos por contenedor, base de datos y respaldos de QA y PROD (SCRUM-1670).",
+  "templating": {
+    "list": [
+      {
+        "name": "ambiente",
+        "label": "Ambiente",
+        "type": "custom",
+        "query": "qa,prod",
+        "multi": true,
+        "includeAll": true,
+        "allValue": "qa|prod",
+        "current": {
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "All",
+            "value": "$__all"
+          },
+          {
+            "selected": false,
+            "text": "qa",
+            "value": "qa"
+          },
+          {
+            "selected": false,
+            "text": "prod",
+            "value": "prod"
+          }
+        ]
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "1. Disponibilidad (Blackbox)",
+      "collapsed": false,
+      "id": 1,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Endpoints ahora",
+      "id": 2,
+      "gridPos": {
+        "h": 6,
+        "w": 16,
+        "x": 0,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "CAIDO",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "ARRIBA",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "probe_success{ambiente=~\"$ambiente\"}",
+          "legendFormat": "{{ambiente}} {{instance}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "description": "Sonda HTTP cada 30 s a /health de Gateway, Core, Dispatch, Rules, Flutter (:8080) y Landing (:3001). Alerta ServiceDown a los 2 min."
+    },
+    {
+      "type": "stat",
+      "title": "Disponibilidad 24 h",
+      "id": 3,
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.99
+              },
+              {
+                "color": "green",
+                "value": 0.999
+              }
+            ]
+          },
+          "unit": "percentunit",
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "avg by (ambiente) (avg_over_time(probe_success{ambiente=~\"$ambiente\"}[24h]))",
+          "legendFormat": "{{ambiente}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "description": "Promedio de las sondas en 24 h. Objetivo >= 99,9 %."
+    },
+    {
+      "type": "stat",
+      "title": "Alertas disparadas",
+      "id": 4,
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "count by (ambiente) (ALERTS{alertstate=\"firing\",ambiente=~\"$ambiente\"}) or vector(0)",
+          "legendFormat": "{{ambiente}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "description": "Alertas en estado firing. El detalle llega por correo a Mailpit (http://127.0.0.1:8025 en Calidad)."
+    },
+    {
+      "type": "row",
+      "title": "2. Tráfico y errores por servicio (medido en el Gateway)",
+      "collapsed": false,
+      "id": 5,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 7
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Peticiones por segundo",
+      "id": 6,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (ambiente, route) (rate(nginx_http_response_count_total{ambiente=~\"$ambiente\",route=~\"core|core-auth|rules|dispatch\"}[5m]))",
+          "legendFormat": "{{ambiente}} {{route}}",
+          "refId": "A"
+        }
+      ],
+      "description": "Todas las peticiones que pasan por el Gateway, agrupadas por servicio de destino."
+    },
+    {
+      "type": "timeseries",
+      "title": "% de 5xx",
+      "id": 7,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.01
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (ambiente, route) (rate(nginx_http_response_count_total{ambiente=~\"$ambiente\",route=~\"core|core-auth|rules|dispatch\",status=~\"5..\"}[5m])) / clamp_min(sum by (ambiente, route) (rate(nginx_http_response_count_total{ambiente=~\"$ambiente\",route=~\"core|core-auth|rules|dispatch\"}[5m])), 0.001)",
+          "legendFormat": "{{ambiente}} {{route}}",
+          "refId": "A"
+        }
+      ],
+      "description": "Errores del servidor. Umbral de la alerta High5xxRateGateway: 1 %."
+    },
+    {
+      "type": "timeseries",
+      "title": "Rechazos 401 / 403 / 429",
+      "id": 8,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (ambiente, route, status) (rate(nginx_http_response_count_total{ambiente=~\"$ambiente\",route=~\"core|core-auth|rules|dispatch\",status=~\"401|403|429\"}[5m]))",
+          "legendFormat": "{{ambiente}} {{route}} {{status}}",
+          "refId": "A"
+        }
+      ],
+      "description": "401: sin token o vencido. 403: rol o tenant sin permiso. 429: límite de tasa del Gateway."
+    },
+    {
+      "type": "row",
+      "title": "3. Latencia",
+      "collapsed": false,
+      "id": 9,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "p95 por servicio (Gateway)",
+      "id": 10,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 17
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, ambiente, route) (rate(nginx_http_response_time_seconds_hist_bucket{ambiente=~\"$ambiente\",route=~\"core|core-auth|rules|dispatch\"}[5m])))",
+          "legendFormat": "{{ambiente}} {{route}}",
+          "refId": "A"
+        }
+      ],
+      "description": "Tiempo total de respuesta visto por el Gateway ($request_time). Es la única latencia disponible para Rules y Dispatch. Umbral QAS: 500 ms."
+    },
+    {
+      "type": "timeseries",
+      "title": "p95 de Core por ruta (prom-client)",
+      "id": 11,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 17
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "topk(10, histogram_quantile(0.95, sum by (le, ambiente, route) (rate(http_request_duration_seconds_bucket{ambiente=~\"$ambiente\",route!~\"/health|/metrics\"}[5m]))))",
+          "legendFormat": "{{ambiente}} {{route}}",
+          "refId": "A"
+        }
+      ],
+      "description": "Medido dentro de Core (/metrics). Muestra las 10 rutas más lentas."
+    },
+    {
+      "type": "row",
+      "title": "4. Recursos por contenedor (cAdvisor) y VM (node-exporter)",
+      "collapsed": false,
+      "id": 12,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 25
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU por contenedor (% de su límite)",
+      "id": 13,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 26
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.7
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (ambiente, name) (rate(container_cpu_usage_seconds_total{name=~\"mani-.*\",ambiente=~\"$ambiente\"}[2m])) / on (ambiente, name) max by (ambiente, name) (container_spec_cpu_quota{name=~\"mani-.*\",ambiente=~\"$ambiente\"} / container_spec_cpu_period{name=~\"mani-.*\",ambiente=~\"$ambiente\"})",
+          "legendFormat": "{{ambiente}} {{name}}",
+          "refId": "A"
+        }
+      ],
+      "description": "QAS-18: uso de CPU frente al límite deploy.resources de cada contenedor."
+    },
+    {
+      "type": "timeseries",
+      "title": "Memoria por contenedor (% de su límite)",
+      "id": 14,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 26
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.9
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "max by (ambiente, name) (container_memory_working_set_bytes{name=~\"mani-.*\",ambiente=~\"$ambiente\"}) / max by (ambiente, name) (container_spec_memory_limit_bytes{name=~\"mani-.*\",ambiente=~\"$ambiente\"} > 0)",
+          "legendFormat": "{{ambiente}} {{name}}",
+          "refId": "A"
+        }
+      ],
+      "description": "QAS-27: memoria en uso (working set) frente al límite. Alerta ContainerMemoryNearLimit al 90 %."
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU de la VM",
+      "id": 15,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 34
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "unit": "percentunit",
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.7
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "1 - avg by (ambiente) (rate(node_cpu_seconds_total{mode=\"idle\",ambiente=~\"$ambiente\"}[5m]))",
+          "legendFormat": "{{ambiente}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Memoria de la VM",
+      "id": 16,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 34
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "unit": "percentunit",
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.85
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "1 - avg by (ambiente) (node_memory_MemAvailable_bytes{ambiente=~\"$ambiente\"} / node_memory_MemTotal_bytes{ambiente=~\"$ambiente\"})",
+          "legendFormat": "{{ambiente}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Disco raíz de la VM",
+      "id": 17,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 34
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "unit": "percentunit",
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.85
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "1 - max by (ambiente) (node_filesystem_avail_bytes{mountpoint=\"/\",fstype!=\"rootfs\",ambiente=~\"$ambiente\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!=\"rootfs\",ambiente=~\"$ambiente\"})",
+          "legendFormat": "{{ambiente}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "5. Base de datos y respaldos",
+      "collapsed": false,
+      "id": 18,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 42
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Conexiones a PostgreSQL por estado",
+      "id": 19,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 43
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (ambiente, state) (pg_stat_activity_count{ambiente=~\"$ambiente\"})",
+          "legendFormat": "{{ambiente}} {{state}}",
+          "refId": "A"
+        }
+      ],
+      "description": "QAS-03/19: el pool de la base es el cuello de botella de eligible-allies. Vigilar 'active' e 'idle in transaction' durante las cargas."
+    },
+    {
+      "type": "stat",
+      "title": "Último respaldo",
+      "id": 20,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 43
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "FALLÓ",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "OK",
+                  "color": "green"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "max by (env) (mani_backup_last_status)",
+          "legendFormat": "{{env}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "description": "Resultado del último backup_databases.sh en la VM de Respaldos (10.43.98.197)."
+    },
+    {
+      "type": "stat",
+      "title": "Horas desde el último respaldo exitoso",
+      "id": 21,
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 43
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 26
+              }
+            ]
+          },
+          "unit": "h",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "expr": "(time() - max by (env) (mani_backup_last_success_timestamp_seconds)) / 3600",
+          "legendFormat": "{{env}}",
+          "refId": "A",
+          "instant": true
+        }
+      ],
+      "description": "Alerta BackupStale a las 26 h."
+    }
+  ]
+}
