@@ -48,13 +48,23 @@ Para evitar conflictos con `--remove-orphans` de `desplegar_release_qa.sh`, los 
 | Servicio | Contenedor | Puerto | Rol |
 |---|---|---:|---|
 | `node-exporter` | `mani-qa-node-exporter` | `9100` | CPU, RAM, disco y red de la VM QA |
-| `cadvisor` | `mani-qa-cadvisor` | `8081` | Consumo CPU/RAM por contenedor Docker |
+| `cadvisor` | `mani-qa-cadvisor` | `8081` | Consumo CPU/RAM por contenedor Docker (`v0.55.1` con socket de containerd desde `SCRUM-1670`; `v0.49.1` solo exportaba la serie del host con Docker 29) |
 | `postgres-exporter` | `mani-qa-postgres-exporter` | `9187` | Conexiones activas y estadísticas PostgreSQL (`DATABASE_URL` de `.env.qa`) |
 | `nginx-exporter` | `mani-qa-nginx-exporter` | `9113` | Métricas de conexiones NGINX (`/nginx_status`) |
-| `nginxlog-exporter` | `mani-qa-nginxlog-exporter` | `4040` | Códigos HTTP (`401`, `403`, `429`, `5xx`) desde `/var/log/nginx-metrics/metrics.log` |
+| `nginxlog-exporter` | `mani-qa-nginxlog-exporter` | `4040` | Códigos HTTP (`401`, `403`, `429`, `5xx`) y latencia (`$request_time`, histograma) por servicio (`route`) desde `/var/log/nginx-metrics/metrics.log` |
 | `promtail` | `mani-qa-promtail` | `9080` | Recolección de logs Docker hacia Loki en Calidad (`10.43.98.196:3100`) |
 
 ```bash
 cd /opt/mani
 docker compose -f docker-compose.exporters.yml --env-file .env.qa up -d
+```
+
+Tras `SCRUM-1670`, actualizar `cadvisor` y `nginxlog-exporter` **después** de que QA corra el Gateway `:staging` con el nuevo `metrics_kv`:
+
+```bash
+cd /opt/mani
+cp <clon>/infra/qa/docker-compose.exporters.yml <clon>/infra/qa/nginxlog-exporter.hcl .
+docker compose -f docker-compose.exporters.yml --env-file .env.qa up -d cadvisor nginxlog-exporter
+curl -s localhost:8081/metrics | grep 'container_cpu_usage_seconds_total{' | grep -o 'name="mani-[^"]*"' | sort -u
+curl -s localhost:4040/metrics | grep nginx_http_response_count_total | grep -o 'route="[^"]*"' | sort -u
 ```

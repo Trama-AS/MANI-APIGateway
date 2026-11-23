@@ -27,19 +27,32 @@ services:
           memory: 24M
 
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    # SCRUM-1670: v0.49.1 solo exportaba la serie del host (id="/") porque Docker 29
+    # usa el almacen de imagenes de containerd (driver "overlayfs") y esa version no
+    # sabe resolver esos contenedores. v0.55.1 los resuelve consultando containerd
+    # (espacio "moby"), por eso se monta su socket. privileged y /dev/kmsg son los
+    # requisitos de cAdvisor con cgroup v2 (Ubuntu 22.04).
+    image: gcr.io/cadvisor/cadvisor:v0.55.1
     container_name: mani-qa-cadvisor
     restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg
     ports:
       - "8081:8080"
     command:
       - "--docker_only=true"
       - "--housekeeping_interval=30s"
+      - "--store_container_labels=false"
+      - "--whitelisted_container_labels=com.docker.compose.service,com.docker.compose.project"
+      - "--disable_metrics=advtcp,cpu_topology,cpuset,hugetlb,memory_numa,percpu,process,referenced_memory,resctrl,sched,tcp,udp"
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
+      - /run/containerd/containerd.sock:/run/containerd/containerd.sock:ro
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
     deploy:
       resources:
         limits:

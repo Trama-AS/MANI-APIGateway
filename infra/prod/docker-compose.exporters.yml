@@ -1,0 +1,109 @@
+# Exporters de PROD (10.43.98.203) para el Prometheus de Calidad (10.43.98.196) — SCRUM-1670.
+# Proyecto Compose aparte para que el despliegue de la aplicación (--remove-orphans) no los borre.
+# Mismas imágenes y límites que infra/qa/docker-compose.exporters.yml.
+# Los puertos publicados se restringen a la VM de Calidad con la regla DOCKER-USER del README.
+name: mani-prod-exporters
+
+services:
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: mani-prod-node-exporter
+    restart: unless-stopped
+    pid: host
+    ports:
+      - "9100:9100"
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 64M
+        reservations:
+          cpus: "0.05"
+          memory: 24M
+
+  cadvisor:
+    # Ver la nota de infra/qa/docker-compose.exporters.yml (Docker 29 + containerd, cgroup v2).
+    image: gcr.io/cadvisor/cadvisor:v0.55.1
+    container_name: mani-prod-cadvisor
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg
+    ports:
+      - "8081:8080"
+    command:
+      - "--docker_only=true"
+      - "--housekeeping_interval=30s"
+      - "--store_container_labels=false"
+      - "--whitelisted_container_labels=com.docker.compose.service,com.docker.compose.project"
+      - "--disable_metrics=advtcp,cpu_topology,cpuset,hugetlb,memory_numa,percpu,process,referenced_memory,resctrl,sched,tcp,udp"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /run/containerd/containerd.sock:/run/containerd/containerd.sock:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "0.30"
+          memory: 192M
+        reservations:
+          cpus: "0.10"
+          memory: 64M
+
+  postgres-exporter:
+    # DATABASE_URL de /opt/mani/.env.prod (nunca en Git). Solo lee pg_stat_*.
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: mani-prod-postgres-exporter
+    restart: unless-stopped
+    ports:
+      - "9187:9187"
+    environment:
+      DATA_SOURCE_NAME: ${DATABASE_URL}
+    deploy:
+      resources:
+        limits:
+          cpus: "0.20"
+          memory: 64M
+        reservations:
+          cpus: "0.05"
+          memory: 24M
+
+  nginxlog-exporter:
+    # Requiere que el Gateway de PROD escriba /var/log/nginx-metrics en el volumen
+    # mani-nginx-metrics-logs (paso 2 del README).
+    image: quay.io/martinhelmich/prometheus-nginxlog-exporter:v1.11.0
+    container_name: mani-prod-nginxlog-exporter
+    restart: unless-stopped
+    ports:
+      - "4040:4040"
+    command:
+      - "-config-file"
+      - "/etc/nginxlog-exporter.hcl"
+    volumes:
+      - ./nginxlog-exporter.hcl:/etc/nginxlog-exporter.hcl:ro
+      - nginx-metrics-logs:/var/log/nginx-metrics:ro
+    deploy:
+      resources:
+        limits:
+          cpus: "0.15"
+          memory: 48M
+        reservations:
+          cpus: "0.05"
+          memory: 16M
+
+volumes:
+  nginx-metrics-logs:
+    external: true
+    name: mani-nginx-metrics-logs

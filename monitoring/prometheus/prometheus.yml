@@ -86,6 +86,27 @@ scrape_configs:
       - { source_labels: [__param_target], target_label: instance }
       - { target_label: __address__, replacement: 'blackbox:9115' }
 
+  # Exporters de PROD (SCRUM-1670): infra/prod/docker-compose.exporters.yml
+  - job_name: mani_prod_node
+    static_configs:
+      - targets: ['10.43.98.203:9100']
+        labels: { ambiente: prod }
+
+  - job_name: mani_prod_cadvisor
+    static_configs:
+      - targets: ['10.43.98.203:8081']
+        labels: { ambiente: prod }
+
+  - job_name: mani_prod_postgres
+    static_configs:
+      - targets: ['10.43.98.203:9187']
+        labels: { ambiente: prod }
+
+  - job_name: mani_prod_nginxlog
+    static_configs:
+      - targets: ['10.43.98.203:4040']
+        labels: { ambiente: prod }
+
   - job_name: mani_backups_node
     static_configs:
       - targets: ['10.43.98.197:9100']
