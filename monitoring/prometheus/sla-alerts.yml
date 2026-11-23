@@ -75,3 +75,56 @@ groups:
         annotations:
           summary: "Fallo replica cifrada off-host ({{ $labels.env }})"
           description: "No se pudo sincronizar la copia cifrada de {{ $labels.env }} hacia el almacenamiento externo en Calidad."
+
+  # SCRUM-1670: alertas medidas en el Gateway (nginxlog-exporter), iguales para QA y PROD.
+  # Cubren Rules y Dispatch, que no exponen /metrics propias.
+  - name: mani_gateway_y_contenedores_alerts
+    rules:
+      - alert: TargetDown
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: warning
+          component: monitoring
+        annotations:
+          summary: "Prometheus no puede leer {{ $labels.job }} en {{ $labels.ambiente }}"
+          description: "El target {{ $labels.instance }} lleva 5 minutos sin responder al scrape. Sin el, los paneles de ese ambiente quedan vacios."
+
+      - alert: High5xxRateGateway
+        expr: |
+          (
+            sum by (ambiente, route) (rate(nginx_http_response_count_total{route=~"core|core-auth|rules|dispatch", status=~"5.."}[5m]))
+            / clamp_min(sum by (ambiente, route) (rate(nginx_http_response_count_total{route=~"core|core-auth|rules|dispatch"}[5m])), 0.001)
+          ) > 0.01
+          and sum by (ambiente, route) (rate(nginx_http_response_count_total{route=~"core|core-auth|rules|dispatch"}[5m])) > 0.02
+        for: 2m
+        labels:
+          severity: warning
+          component: gateway
+        annotations:
+          summary: "5xx > 1% en {{ $labels.route }} ({{ $labels.ambiente }}), medido en el Gateway"
+          description: "La proporcion de respuestas 5xx del Gateway hacia {{ $labels.route }} supera el 1% en 5 minutos."
+
+      - alert: HighLatencyP95Gateway
+        expr: |
+          histogram_quantile(0.95, sum by (le, ambiente, route) (rate(nginx_http_response_time_seconds_hist_bucket{route=~"core|core-auth|rules|dispatch"}[5m]))) > 0.5
+          and sum by (ambiente, route) (rate(nginx_http_response_count_total{route=~"core|core-auth|rules|dispatch"}[5m])) > 0.02
+        for: 5m
+        labels:
+          severity: warning
+          component: latency
+        annotations:
+          summary: "p95 > 0.5s en {{ $labels.route }} ({{ $labels.ambiente }}), medido en el Gateway"
+          description: "El percentil 95 del tiempo de respuesta del Gateway hacia {{ $labels.route }} supera 500 ms durante 5 minutos."
+
+      - alert: ContainerMemoryNearLimit
+        expr: |
+          max by (ambiente, name) (container_memory_working_set_bytes{name=~"mani-.*"})
+          / max by (ambiente, name) (container_spec_memory_limit_bytes{name=~"mani-.*"} > 0) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "{{ $labels.name }} usa mas del 90% de su memoria ({{ $labels.ambiente }})"
+          description: "El contenedor esta cerca de su limite de memoria; si lo alcanza, Docker lo reinicia (OOM)."
