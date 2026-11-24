@@ -21,6 +21,25 @@ scrape_configs:
       - targets: ['10.43.100.141:443']
         labels: { ambiente: qa }
 
+  # SCRUM-1714: métricas medidas dentro de Dispatch y Rules, a través del Gateway.
+  - job_name: mani_dispatch_qa
+    metrics_path: /api/v1/dispatch/metrics
+    scheme: https
+    tls_config:
+      insecure_skip_verify: true
+    static_configs:
+      - targets: ['10.43.100.141:443']
+        labels: { ambiente: qa, servicio: dispatch }
+
+  - job_name: mani_rules_qa
+    metrics_path: /api/v1/rules/metrics
+    scheme: https
+    tls_config:
+      insecure_skip_verify: true
+    static_configs:
+      - targets: ['10.43.100.141:443']
+        labels: { ambiente: qa, servicio: rules }
+
   - job_name: mani_salud_qa
     metrics_path: /probe
     params: { module: [http_2xx] }
@@ -68,6 +87,19 @@ scrape_configs:
     static_configs:
       - targets: ['10.43.98.203:80']
         labels: { ambiente: prod }
+
+  # SCRUM-1714: métricas medidas dentro de Dispatch y Rules, a través del Gateway.
+  - job_name: mani_dispatch_prod
+    metrics_path: /api/v1/dispatch/metrics
+    static_configs:
+      - targets: ['10.43.98.203:80']
+        labels: { ambiente: prod, servicio: dispatch }
+
+  - job_name: mani_rules_prod
+    metrics_path: /api/v1/rules/metrics
+    static_configs:
+      - targets: ['10.43.98.203:80']
+        labels: { ambiente: prod, servicio: rules }
 
   - job_name: mani_salud_prod
     metrics_path: /probe
