@@ -6,6 +6,9 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      # SCRUM-1718 / QAS-43: único puerto que la red deja pasar hacia la VM. El Gateway lo atiende con TLS y
+      # reenvía a flutter-web:80 por la red interna; HTTP plano al 8080 recibe 301 a https://<host>:8080.
+      - "8080:8080"
     volumes:
       - nginx-metrics-logs:/var/log/nginx-metrics
     deploy:
@@ -108,12 +111,15 @@ services:
     image: ghcr.io/trama-as/mani-flutter:staging
     container_name: mani-flutter-web
     restart: unless-stopped
-    ports:
-      - "8080:80"
+    hostname: flutter-web
+    # SCRUM-1718: ya no se publica en el host (antes "8080:80", app y API por HTTP sin cifrar). Solo la alcanza el
+    # Gateway por la red interna; desde fuera se entra por https://10.43.100.141:8080.
+    expose:
+      - "80"
     environment:
       SUPABASE_URL: ${SUPABASE_URL}
       SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
-      API_GATEWAY_URL: http://10.43.100.141:8080
+      API_GATEWAY_URL: https://10.43.100.141:8080
       TENANT_SLUG: acme-servicios
     deploy:
       resources:

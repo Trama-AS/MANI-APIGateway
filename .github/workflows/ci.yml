@@ -83,8 +83,12 @@ jobs:
             --network-alias core-service \
             -e NODE_ENV=development \
             mani-core-node:ci
+          # Sustituto de mani-flutter-web para el 8080 (SCRUM-1718): un nginx que responde 200 en /.
+          docker run -d --name flutter-web --network mani-ci-network \
+            --network-alias flutter-web \
+            nginx:alpine
           docker run -d --name gateway --network mani-ci-network \
-            -p 80:80 -p 443:443 \
+            -p 80:80 -p 443:443 -p 8080:8080 \
             mani-api-gateway:ci
 
       # El Gateway resuelve "core-service" vía el DNS embebido de Docker
@@ -130,11 +134,15 @@ jobs:
       - name: Verificar TLS 1.2+ y encabezados de seguridad del Gateway (SCRUM-1665 / T-28)
         run: bash gateway/tests/gateway/tls-security-headers.sh https://localhost
 
+      - name: Verificar que el 8080 solo sirve la app por HTTPS (SCRUM-1718 / QAS-43)
+        run: bash gateway/tests/gateway/puerto-8080-https.sh localhost
+
       - name: Logs de los contenedores (si algo falló)
         if: failure()
         run: |
           echo "--- gateway ---"; docker logs gateway || true
           echo "--- core-service ---"; docker logs core-service || true
+          echo "--- flutter-web (sustituto) ---"; docker logs flutter-web || true
 
       - name: Publicar reporte de Newman
         if: always()

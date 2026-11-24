@@ -35,7 +35,7 @@ info:
 
     Esta regla (tenant por header solo pre-auth; tenant por claim de JWT ya
     autenticado) es la que deben implementar tanto el Gateway como el Core.
-  version: 0.33.0
+  version: 0.34.0
 servers:
   - url: https://api.mani.app/api/v1/core
     description: Producción, vía MANI-APIGateway
@@ -2096,6 +2096,11 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
 
   /pagos/{id}/retencion:
     parameters:
@@ -2153,6 +2158,11 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
 
   /pagos/{id}:
     parameters:
@@ -2983,6 +2993,11 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
 
   /profiles/me/categories:
     get:
@@ -3137,6 +3152,11 @@ paths:
           $ref: '#/components/responses/AllyCoverageError'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
     put:
       tags: [Ally Coverage]
       operationId: declareAllyCoverage
@@ -3179,6 +3199,11 @@ paths:
           $ref: '#/components/responses/AllyCoverageError'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
 
   /legal/documents/active:
     get:
@@ -3327,6 +3352,11 @@ paths:
           $ref: '#/components/responses/CategoryNameConflict'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          description: Rules no está disponible; la categoría no se guarda sin evaluar sus reglas (`RULES_SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
 
   /catalog/categories/{id}:
     parameters:
@@ -3355,6 +3385,11 @@ paths:
           $ref: '#/components/responses/CategoryNotFound'
         '500':
           $ref: '#/components/responses/InternalError'
+        '400':
+          description: El id no es un UUID (`MANI-CAT-400`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
     put:
       tags: [Service Categories]
       operationId: updateCategory
@@ -3415,6 +3450,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CategoryResponse'
+        '400':
+          description: El id no es un UUID (`MANI-CAT-400`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
         '401':
           $ref: '#/components/responses/CategoryUnauthorized'
         '403':
@@ -4952,6 +4992,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
 
   /solicitudes/{id}/quejas:
     post:
@@ -5720,7 +5765,7 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/XCorrelationId'
-        - name: estado
+        - name: estado_verificacion
           in: query
           required: false
           schema: { type: string, enum: [PENDIENTE, VERIFICADO, RECHAZADO] }
@@ -5730,15 +5775,10 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required: [aliados]
-                properties:
-                  aliados:
-                    type: array
-                    items:
-                      type: object
-                      additionalProperties: true
-                  correlationId: { type: string }
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
         '401':
           description: Sin sesión válida
           content:
@@ -5908,6 +5948,11 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
 
   /allies/me/historial/{id}:
     parameters:
@@ -5935,6 +5980,16 @@ paths:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
         '404':
           description: El trabajo no existe o fue asignado a otro aliado (`MANI-HIS-404`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: El rol no es aliado o la cuenta no es un aliado activo (`MANI-HIS-403A`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503':
+          description: La base de datos no está disponible; no hay respaldo (`SERVICE_UNAVAILABLE`)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -6225,6 +6280,11 @@ paths:
           $ref: '#/components/responses/SiteUnauthorized'
         '409':
           description: NIT o correo ya registrado en el tenant
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '403':
+          description: El rol no puede registrar empresas (`FORBIDDEN`)
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -6689,6 +6749,73 @@ components:
         - MANI-TEN-403
         - MANI-TEN-404
         - MANI-TEN-409
+        - NOT_FOUND
+        - MANI-ADI-400
+        - MANI-ADI-400T
+        - MANI-ADI-401
+        - MANI-ADI-403
+        - MANI-ADI-403A
+        - MANI-ADI-403C
+        - MANI-ADI-404
+        - MANI-ADI-409C
+        - MANI-ADI-409E
+        - MANI-ADI-409P
+        - MANI-ADI-409R
+        - MANI-AUS-401
+        - MANI-AUS-403
+        - MANI-AUS-404
+        - MANI-AUS-409
+        - MANI-AUS-422H
+        - MANI-AUS-422V
+        - MANI-CAL-409A
+        - MANI-CAT-400
+        - MANI-CAT-401
+        - MANI-CAT-403
+        - MANI-CAT-422C
+        - MANI-CAT-422V
+        - MANI-COB-401
+        - MANI-COB-403
+        - MANI-COB-403R
+        - MANI-COB-422L
+        - MANI-COB-422V
+        - MANI-COB-422Z
+        - MANI-FON-401
+        - MANI-FON-403
+        - MANI-FON-403A
+        - MANI-FON-404
+        - MANI-GEO-400
+        - MANI-NOT-400
+        - MANI-NOT-401
+        - MANI-PAG-400
+        - MANI-PAG-401
+        - MANI-PAG-403
+        - MANI-PAG-403C
+        - MANI-PAG-404
+        - MANI-PAG-409A
+        - MANI-PAG-409C
+        - MANI-PAG-409E
+        - MANI-PAG-409K
+        - MANI-PAG-502
+        - MANI-PAG-504
+        - MANI-PLA-400
+        - MANI-PLA-403
+        - MANI-PLA-404
+        - MANI-PRF-401
+        - MANI-PRF-403
+        - MANI-PRF-404
+        - MANI-PRF-413
+        - MANI-PRF-422
+        - MANI-PRF-422F
+        - MANI-RGL-502
+        - MANI-RGL-503
+        - MANI-TAR-404Q
+        - MANI-VER-401
+        - MANI-VER-403
+        - MANI-VER-404
+        - MANI-VER-409
+        - MANI-VER-422D
+        - MANI-VER-422K
+        - MANI-VER-422M
       x-code-meanings:
         VALIDATION_ERROR: 'HTTP 400 — el body no cumple el esquema (campo faltante/formato inválido).'
         INVALID_CREDENTIALS: 'HTTP 401 — email y/o password no coinciden con ningún usuario del tenant.'
