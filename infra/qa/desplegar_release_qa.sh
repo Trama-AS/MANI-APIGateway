@@ -51,7 +51,7 @@ endpoints=(
   "http://127.0.0.1/api/v1/core/health"
   "http://127.0.0.1/api/v1/rules/health"
   "http://127.0.0.1/api/v1/dispatch/health"
-  "http://127.0.0.1:8080/"
+  "https://127.0.0.1:8080/"
   "http://127.0.0.1:3001/"
 )
 
@@ -59,7 +59,8 @@ deadline=$(( $(date +%s) + 180 ))
 while true; do
   all_ok=1
   for url in "${endpoints[@]}"; do
-    code=$(curl -s -o /dev/null -w "%{http_code}" -m 3 "$url" || echo "000")
+    # -k: el 8080 usa el certificado autofirmado del Gateway (SCRUM-1718)
+    code=$(curl -sk -o /dev/null -w "%{http_code}" -m 3 "$url" || echo "000")
     if [ "$code" != "200" ]; then
       all_ok=0
       break

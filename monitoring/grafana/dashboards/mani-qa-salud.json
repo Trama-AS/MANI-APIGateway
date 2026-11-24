@@ -272,7 +272,7 @@
       "type": "stat"
     },
     {
-      "description": "Sonda HTTP al bundle web en el puerto 8080.",
+      "description": "Sonda HTTPS al bundle web en el puerto 8080 (TLS en el Gateway, SCRUM-1718).",
       "fieldConfig": {
         "defaults": {
           "mappings": [
@@ -327,7 +327,7 @@
       },
       "targets": [
         {
-          "expr": "probe_success{instance=\"http://10.43.100.141:8080/\"}",
+          "expr": "probe_success{instance=\"https://10.43.100.141:8080/\"}",
           "legendFormat": "App",
           "refId": "A"
         }
