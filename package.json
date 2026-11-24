@@ -13,7 +13,7 @@
     "postman:run:ally": "npm run postman:run:dev -- --folder \"Ally Registration\"",
     "postman:generate:rules": "node scripts/generate-rules-collection.js",
     "test:coverage": "node -e \"require('node:fs').mkdirSync('coverage',{recursive:true})\" && node --test --experimental-test-coverage --test-coverage-exclude=\"tests/**\" --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=coverage/lcov.info tests/unidad/*.test.js",
-    "verificar:contrato": "node scripts/verificar-contrato.js",
+    "verificar:contrato": "node scripts/verificar_contrato.js",
     "postman:run:rules": "newman run postman/MANI-Rules.postman_collection.json"
   },
   "devDependencies": {

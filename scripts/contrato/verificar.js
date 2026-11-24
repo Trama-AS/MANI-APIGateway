@@ -59,13 +59,13 @@ function encabezadosDeSesion(rol, secreto) {
 }
 
 async function enviar({ url, metodo, encabezados = {}, cuerpo }) {
-  const conCuerpo = cuerpo !== undefined && metodo !== 'GET';
+  const con_cuerpo = cuerpo !== undefined && metodo !== 'GET';
   const respuesta = await fetch(url, {
     method: metodo,
     redirect: 'manual',
     signal: AbortSignal.timeout(TIEMPO_MAXIMO_MS),
-    headers: { ...encabezados, ...(conCuerpo && { 'Content-Type': 'application/json' }) },
-    body: conCuerpo ? JSON.stringify(cuerpo) : undefined,
+    headers: { ...encabezados, ...(con_cuerpo && { 'Content-Type': 'application/json' }) },
+    body: con_cuerpo ? JSON.stringify(cuerpo) : undefined,
   });
   return { estado: respuesta.status, tipo: respuesta.headers.get('content-type') || '', texto: await respuesta.text() };
 }
@@ -92,8 +92,8 @@ function revisarCuerpo({ contrato, operacion, clave, respuesta, validar }) {
   const contenido = operacion.respuestas[clave].content || {};
   if (!contenido[TIPO_JSON]?.schema) return [];
   if (!respuesta.tipo.includes('json')) {
-    const otroTipo = Object.keys(contenido).some((tipo) => tipo !== TIPO_JSON && respuesta.tipo.includes(tipo));
-    return otroTipo ? [] : [`content-type "${respuesta.tipo}" en vez de ${TIPO_JSON}`];
+    const otro_tipo = Object.keys(contenido).some((tipo) => tipo !== TIPO_JSON && respuesta.tipo.includes(tipo));
+    return otro_tipo ? [] : [`content-type "${respuesta.tipo}" en vez de ${TIPO_JSON}`];
   }
   return validar(punteroDeEsquema(contrato, operacion, clave), JSON.parse(respuesta.texto));
 }
@@ -107,12 +107,12 @@ function revisarRespuesta({ contrato, operacion, respuesta, validar }) {
 
 /** Sin sesión, con sesión y cuerpo vacío, y con sesión y un cuerpo que cumple el contrato. */
 function sondasDe(operacion, roles, secreto) {
-  const cuerpoDeMuestra = operacion.cuerpo ? muestra(operacion.cuerpo) : {};
-  const sondas = [{ nombre: 'sin sesión', sinSesion: true, encabezados: {}, cuerpo: cuerpoDeMuestra }];
+  const cuerpo_de_muestra = operacion.cuerpo ? muestra(operacion.cuerpo) : {};
+  const sondas = [{ nombre: 'sin sesión', sin_sesion: true, encabezados: {}, cuerpo: cuerpo_de_muestra }];
   for (const rol of roles) {
     const encabezados = encabezadosDeSesion(rol, secreto);
     sondas.push({ nombre: `${rol}, cuerpo vacío`, encabezados, cuerpo: {} });
-    if (operacion.cuerpo) sondas.push({ nombre: `${rol}, cuerpo de muestra`, encabezados, cuerpo: cuerpoDeMuestra });
+    if (operacion.cuerpo) sondas.push({ nombre: `${rol}, cuerpo de muestra`, encabezados, cuerpo: cuerpo_de_muestra });
   }
   return sondas;
 }
@@ -120,16 +120,16 @@ function sondasDe(operacion, roles, secreto) {
 /** Las cargas de archivo leen el multipart antes que el token: sin archivo, el rechazo puede ser un 400. */
 function rechazaSinSesion(operacion, estado) {
   if (!exigeSesion(operacion)) return true;
-  return estado === 401 || (operacion.soloArchivos && estado === 400);
+  return estado === 401 || (operacion.solo_archivos && estado === 400);
 }
 
-async function verificarOperacion({ contrato, base, operacion, roles, secreto, huellaInexistente, validar }) {
+async function verificarOperacion({ contrato, base, operacion, roles, secreto, huella_inexistente, validar }) {
   const url = construirUrl(base, operacion);
   const hallazgos = new Set();
   for (const sonda of sondasDe(operacion, roles, secreto)) {
     const respuesta = await enviar({ url, metodo: operacion.metodo, encabezados: sonda.encabezados, cuerpo: sonda.cuerpo });
-    if (respuesta.estado === 405 || huella(respuesta) === huellaInexistente) return ['la ruta no existe en el servicio'];
-    if (sonda.sinSesion && !rechazaSinSesion(operacion, respuesta.estado)) {
+    if (respuesta.estado === 405 || huella(respuesta) === huella_inexistente) return ['la ruta no existe en el servicio'];
+    if (sonda.sin_sesion && !rechazaSinSesion(operacion, respuesta.estado)) {
       hallazgos.add(`sin sesión responde ${respuesta.estado} en vez de 401`);
     }
     for (const error of revisarRespuesta({ contrato, operacion, respuesta, validar })) hallazgos.add(`[${sonda.nombre}] ${error}`);
@@ -148,7 +148,7 @@ async function verificarContrato({ contrato, api, base, roles, secreto }) {
   const resultados = [];
   for (const operacion of listarOperaciones(api)) {
     const hallazgos = await verificarOperacion({
-      contrato, base, operacion, roles, secreto, validar, huellaInexistente: huella(inexistente),
+      contrato, base, operacion, roles, secreto, validar, huella_inexistente: huella(inexistente),
     });
     resultados.push({ id: operacion.id, hallazgos });
   }

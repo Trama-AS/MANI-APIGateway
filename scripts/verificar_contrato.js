@@ -2,7 +2,7 @@
  * Prueba de contrato de un servicio contra docs/openapi (QAS-23 / SCRUM-1724). La corren los CI de Core, Dispatch y
  * Rules con el servicio levantado en el job:
  *
- *   node scripts/verificar-contrato.js --contrato core --url http://localhost:3000/api/v1
+ *   node scripts/verificar_contrato.js --contrato core --url http://localhost:3000/api/v1
  *
  * Por cada operación comprueba que la ruta exista, que sin sesión responda 401 si el contrato la exige, y que cada
  * respuesta tenga un código y un cuerpo documentados. El secreto con que se firman los JWT de prueba es

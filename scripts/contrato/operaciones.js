@@ -22,7 +22,7 @@ function listarOperaciones(api) {
         plantilla,
         parametros: parametrosDe(ruta, operacion),
         cuerpo: operacion.requestBody?.content?.['application/json']?.schema,
-        soloArchivos: Boolean(operacion.requestBody) && !operacion.requestBody.content['application/json'],
+        solo_archivos: Boolean(operacion.requestBody) && !operacion.requestBody.content['application/json'],
         respuestas: operacion.responses,
         seguridad: operacion.security ?? api.security ?? [],
       };
@@ -42,7 +42,7 @@ function valorDeRuta(parametro) {
 }
 
 function construirUrl(base, operacion) {
-  const ruta = operacion.plantilla.replaceAll(/\{([^}]+)\}/g, (_, nombre) => {
+  const ruta = operacion.plantilla.replaceAll(/\{([^{}]+)\}/g, (_, nombre) => {
     const parametro = operacion.parametros.find((p) => p.in === 'path' && p.name === nombre);
     return encodeURIComponent(String(parametro ? valorDeRuta(parametro) : UUID_MUESTRA));
   });

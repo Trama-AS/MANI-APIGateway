@@ -6,10 +6,10 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { cargarContrato } = require('../../scripts/contrato/operaciones');
 const { firmarToken, verificarContrato } = require('../../scripts/contrato/verificar');
-const { informe, leerOpciones, principal } = require('../../scripts/verificar-contrato');
+const { informe, leerOpciones, principal } = require('../../scripts/verificar_contrato');
 
 const CONTRATO = path.join(__dirname, 'contrato.yaml');
-const CLI = path.join(__dirname, '..', '..', 'scripts', 'verificar-contrato.js');
+const CLI = path.join(__dirname, '..', '..', 'scripts', 'verificar_contrato.js');
 const SECRETO = 'secreto_solo_para_pruebas_unitarias';
 
 const json = (estado, cuerpo) => ({ estado, tipo: 'application/json; charset=utf-8', cuerpo: JSON.stringify(cuerpo) });
