@@ -3,11 +3,12 @@
   "title": "MANI: lo importante (QA y PROD)",
   "tags": [
     "mani",
-    "SCRUM-1670"
+    "SCRUM-1670",
+    "SCRUM-1714"
   ],
   "timezone": "America/Bogota",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "editable": true,
   "refresh": "30s",
   "time": {
@@ -474,7 +475,7 @@
           "refId": "A"
         }
       ],
-      "description": "Tiempo total de respuesta visto por el Gateway ($request_time). Es la única latencia disponible para Rules y Dispatch. Umbral QAS: 500 ms."
+      "description": "Tiempo total de respuesta visto por el Gateway ($request_time). Incluye el tiempo del Gateway; la latencia medida dentro de Dispatch y Rules está en la fila 6. Umbral QAS: 500 ms."
     },
     {
       "type": "timeseries",
@@ -529,7 +530,7 @@
       },
       "targets": [
         {
-          "expr": "topk(10, histogram_quantile(0.95, sum by (le, ambiente, route) (rate(http_request_duration_seconds_bucket{ambiente=~\"$ambiente\",route!~\"/health|/metrics\"}[5m]))))",
+          "expr": "topk(10, histogram_quantile(0.95, sum by (le, ambiente, route) (rate(http_request_duration_seconds_bucket{job=~\"mani_core_.*\",ambiente=~\"$ambiente\",route!~\"/health|/metrics\"}[5m]))))",
           "legendFormat": "{{ambiente}} {{route}}",
           "refId": "A"
         }
@@ -1021,6 +1022,198 @@
         }
       ],
       "description": "Alerta BackupStale a las 26 h."
+    },
+    {
+      "type": "row",
+      "title": "6. Dispatch y Rules por dentro (prometheus-net y Micrometer)",
+      "collapsed": false,
+      "id": 22,
+      "panels": [],
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 51
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Peticiones por segundo (Dispatch y Rules)",
+      "id": 23,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 52
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never"
+          },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (ambiente) (rate(http_request_duration_seconds_count{job=~\"mani_dispatch_.*\",ambiente=~\"$ambiente\",endpoint!~\".*(metrics|health).*\"}[5m]))",
+          "legendFormat": "{{ambiente}} dispatch",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (ambiente) (rate(http_server_requests_seconds_count{job=~\"mani_rules_.*\",ambiente=~\"$ambiente\",uri!~\"/actuator.*|.*/health\"}[5m]))",
+          "legendFormat": "{{ambiente}} rules",
+          "refId": "B"
+        }
+      ],
+      "description": "Medido dentro de cada servicio; no cuenta métricas ni health."
+    },
+    {
+      "type": "timeseries",
+      "title": "% de 5xx (Dispatch y Rules)",
+      "id": 24,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 52
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.01
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "(sum by (ambiente) (rate(http_request_duration_seconds_count{job=~\"mani_dispatch_.*\",ambiente=~\"$ambiente\",endpoint!~\".*(metrics|health).*\",code=~\"5..\"}[5m])) or sum by (ambiente) (rate(http_request_duration_seconds_count{job=~\"mani_dispatch_.*\",ambiente=~\"$ambiente\",endpoint!~\".*(metrics|health).*\"}[5m])) * 0) / clamp_min(sum by (ambiente) (rate(http_request_duration_seconds_count{job=~\"mani_dispatch_.*\",ambiente=~\"$ambiente\",endpoint!~\".*(metrics|health).*\"}[5m])), 0.001)",
+          "legendFormat": "{{ambiente}} dispatch",
+          "refId": "A"
+        },
+        {
+          "expr": "(sum by (ambiente) (rate(http_server_requests_seconds_count{job=~\"mani_rules_.*\",ambiente=~\"$ambiente\",uri!~\"/actuator.*|.*/health\",status=~\"5..\"}[5m])) or sum by (ambiente) (rate(http_server_requests_seconds_count{job=~\"mani_rules_.*\",ambiente=~\"$ambiente\",uri!~\"/actuator.*|.*/health\"}[5m])) * 0) / clamp_min(sum by (ambiente) (rate(http_server_requests_seconds_count{job=~\"mani_rules_.*\",ambiente=~\"$ambiente\",uri!~\"/actuator.*|.*/health\"}[5m])), 0.001)",
+          "legendFormat": "{{ambiente}} rules",
+          "refId": "B"
+        }
+      ],
+      "description": "Errores del servidor medidos dentro de cada servicio. Umbral de referencia: 1 %."
+    },
+    {
+      "type": "timeseries",
+      "title": "p95 (Dispatch y Rules)",
+      "id": 25,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 52
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.5
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, ambiente) (rate(http_request_duration_seconds_bucket{job=~\"mani_dispatch_.*\",ambiente=~\"$ambiente\",endpoint!~\".*(metrics|health).*\"}[5m])))",
+          "legendFormat": "{{ambiente}} dispatch",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, ambiente) (rate(http_server_requests_seconds_bucket{job=~\"mani_rules_.*\",ambiente=~\"$ambiente\",uri!~\"/actuator.*|.*/health\"}[5m])))",
+          "legendFormat": "{{ambiente}} rules",
+          "refId": "B"
+        }
+      ],
+      "description": "Latencia medida dentro de cada servicio, sin el Gateway. Umbral QAS: 500 ms."
     }
   ]
 }

@@ -412,7 +412,7 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{ambiente=\"prod\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"mani_core_prod\",ambiente=\"prod\"}[5m])))",
           "legendFormat": "P95 (s)",
           "refId": "A"
         }
