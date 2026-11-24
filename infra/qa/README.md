@@ -41,6 +41,30 @@ docker inspect --format '{{.Name}} mem={{.HostConfig.Memory}} nanocpus={{.HostCo
   mani-api-gateway mani-core-service mani-rules-service mani-dispatch-service mani-flutter-web mani-landing-web mani-kafka
 ```
 
+## Puerto 8080 solo por HTTPS (`SCRUM-1718` / `QAS-43`)
+
+Desde fuera de la VM solo responde el 8080 (80 y 443 no pasan la red). Antes lo publicaba `mani-flutter-web` por HTTP,
+así que la app y la API (`/api/` va por el proxy interno de flutter-web) viajaban sin cifrar. Ahora:
+
+- El **Gateway** publica `8080:8080` y lo atiende con TLS 1.2+ (mismo certificado que el 443) en un `server` aparte de
+  `nginx.conf`, que reenvía todo a `flutter-web:80` por `mani-network`.
+- `flutter-web` ya no publica puertos (`expose: 80`) y su `API_GATEWAY_URL` pasa a `https://10.43.100.141:8080`.
+- HTTP plano al 8080 recibe `301` a `https://<host>:8080/...`. El tráfico interno (Core → `gateway:80`, flutter-web →
+  `mani-api-gateway:80`) no pasa por el 8080 del host y no cambia.
+- El certificado es autofirmado: el navegador pide aceptarlo una vez, y `curl` necesita `-k`.
+
+Verificación tras desplegar:
+
+```bash
+curl -sI http://10.43.100.141:8080/          # 301, Location: https://10.43.100.141:8080/
+curl -skI https://10.43.100.141:8080/        # 200, Strict-Transport-Security
+bash tests/gateway/puerto-8080-https.sh 10.43.100.141
+```
+
+Al desplegar este cambio hay que copiar también el `docker-compose.qa.yml` nuevo a `/opt/mani` (la imagen del Gateway
+sola no basta: si flutter-web sigue publicando el 8080, el Gateway no puede tomarlo). La variable de repositorio
+`QA_FLUTTER_URL` del workflow de regresión pasa a `https://10.43.100.141:8080`.
+
 ## Exporters y Promtail en QA (`SCRUM-1671`, `SCRUM-1676` / `ADR-0038`)
 
 Para evitar conflictos con `--remove-orphans` de `desplegar_release_qa.sh`, los exporters ligeros y el agente de logs viven en `docker-compose.exporters.yml` (`name: mani-qa-exporters`), compartiendo la red `mani-network` y el volumen `mani-nginx-metrics-logs`:

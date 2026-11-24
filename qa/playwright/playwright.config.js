@@ -16,6 +16,8 @@ module.exports = defineConfig({
     trace: 'on',
     screenshot: 'on',
     video: 'retain-on-failure',
+    // SCRUM-1718: la app de QA se sirve por https://<VM>:8080 con el certificado autofirmado del Gateway.
+    ignoreHTTPSErrors: true,
     // Sin extraHTTPHeaders globales: un encabezado personalizado en todas las peticiones del navegador
     // provoca preflight CORS contra el CDN de Google (CanvasKit y fuentes) y Flutter Web no arranca.
   },
