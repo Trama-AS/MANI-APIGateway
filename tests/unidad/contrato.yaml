@@ -1,0 +1,70 @@
+openapi: 3.0.3
+info: { title: Contrato de prueba, version: 1.0.0 }
+security:
+  - bearerAuth: []
+paths:
+  /salud:
+    get:
+      security: []
+      responses:
+        '200':
+          description: Arriba
+          content:
+            application/json:
+              schema: { type: object, required: [estado], properties: { estado: { type: string } } }
+  /nodos/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      parameters:
+        - { name: modo, in: query, required: true, schema: { type: string, enum: [RAPIDO, LENTO] } }
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, required: [nombre], properties: { nombre: { type: string, minLength: 3 } } }
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Nodo' }
+        4XX: { $ref: '#/components/responses/Error' }
+  /fotos:
+    post:
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: { type: object, properties: { foto: { type: string, format: binary } } }
+      responses:
+        '204': { description: Guardada }
+        default: { $ref: '#/components/responses/Error' }
+  /texto:
+    get:
+      security: [{}]
+      responses:
+        '200':
+          description: Texto o JSON
+          content:
+            application/json:
+              schema: { type: object }
+            text/plain:
+              schema: { type: string }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer }
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [code]
+            properties: { code: { type: string, enum: [UNAUTHORIZED, VALIDATION_ERROR] } }
+  schemas:
+    Nodo:
+      type: object
+      required: [nombre]
+      properties:
+        nombre: { type: string }
+        hijos: { type: array, items: { $ref: '#/components/schemas/Nodo' } }

@@ -33,7 +33,7 @@ Desde la VM de Calidad (alcanza QA por la red privada):
 
 ```bash
 BASE_URL=http://10.43.100.141 ENV_QA=/ruta/a/archivo_con_SUPABASE_JWT_SECRET COLECCION=qa/newman/mani_regresion_sprint4.postman_collection.json bash qa/ejecutar_newman_qa.sh
-URL_GATEWAY=http://10.43.100.141 URL_FLUTTER=http://10.43.100.141:8080 URL_LANDING=http://10.43.100.141:3001 ENV_QA=/ruta/a/archivo_con_SUPABASE_JWT_SECRET SUITE_DIR=qa/playwright bash qa/ejecutar_playwright_qa.sh
+URL_GATEWAY=http://10.43.100.141 URL_FLUTTER=https://10.43.100.141:8080 URL_LANDING=http://10.43.100.141:3001 ENV_QA=/ruta/a/archivo_con_SUPABASE_JWT_SECRET SUITE_DIR=qa/playwright bash qa/ejecutar_playwright_qa.sh
 ```
 
 ### Smoke de producción (después de cada despliegue)
@@ -59,7 +59,8 @@ privada; los ejecutores usan Docker en ese runner. Configuración vigente en MAN
 
 1. Environment `qa-regresion` con revisor obligatorio (Santiago Hernández) y el secreto de environment `QA_JWT_SECRET`
    (JWT secret legado de MANI-QA).
-2. Variables de repositorio `QA_GATEWAY_URL=http://10.43.100.141`, `QA_FLUTTER_URL=http://10.43.100.141:8080` y
+2. Variables de repositorio `QA_GATEWAY_URL=http://10.43.100.141`, `QA_FLUTTER_URL=https://10.43.100.141:8080`
+   (HTTPS desde SCRUM-1718; por HTTP el 8080 responde 301) y
    `QA_LANDING_URL=http://10.43.100.141:3001`.
 3. Variable de repositorio `QA_REGRESION_HABILITADA=true`. `QA_REGRESION_HABILITADA` debe ser de repositorio y no de
    environment, porque el `if` del job se evalúa antes de entrar al environment.

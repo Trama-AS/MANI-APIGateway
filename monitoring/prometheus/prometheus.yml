@@ -21,6 +21,25 @@ scrape_configs:
       - targets: ['10.43.100.141:443']
         labels: { ambiente: qa }
 
+  # SCRUM-1714: métricas medidas dentro de Dispatch y Rules, a través del Gateway.
+  - job_name: mani_dispatch_qa
+    metrics_path: /api/v1/dispatch/metrics
+    scheme: https
+    tls_config:
+      insecure_skip_verify: true
+    static_configs:
+      - targets: ['10.43.100.141:443']
+        labels: { ambiente: qa, servicio: dispatch }
+
+  - job_name: mani_rules_qa
+    metrics_path: /api/v1/rules/metrics
+    scheme: https
+    tls_config:
+      insecure_skip_verify: true
+    static_configs:
+      - targets: ['10.43.100.141:443']
+        labels: { ambiente: qa, servicio: rules }
+
   - job_name: mani_salud_qa
     metrics_path: /probe
     params: { module: [http_2xx] }
@@ -30,7 +49,7 @@ scrape_configs:
           - https://10.43.100.141/api/v1/core/health
           - https://10.43.100.141/api/v1/dispatch/health
           - https://10.43.100.141/api/v1/rules/health
-          - http://10.43.100.141:8080/
+          - https://10.43.100.141:8080/
           - http://10.43.100.141:3001/
         labels: { ambiente: qa }
     relabel_configs:
@@ -63,11 +82,34 @@ scrape_configs:
       - targets: ['10.43.100.141:4040']
         labels: { ambiente: qa }
 
+  # El Gateway de PROD redirige HTTP a HTTPS: se lee por el 443 (SCRUM-1670, despliegue del 23 nov).
   - job_name: mani_core_prod
     metrics_path: /metrics
+    scheme: https
+    tls_config:
+      insecure_skip_verify: true
     static_configs:
-      - targets: ['10.43.98.203:80']
+      - targets: ['10.43.98.203:443']
         labels: { ambiente: prod }
+
+  # SCRUM-1714: métricas medidas dentro de Dispatch y Rules, a través del Gateway.
+  - job_name: mani_dispatch_prod
+    metrics_path: /api/v1/dispatch/metrics
+    scheme: https
+    tls_config:
+      insecure_skip_verify: true
+    static_configs:
+      - targets: ['10.43.98.203:443']
+        labels: { ambiente: prod, servicio: dispatch }
+
+  - job_name: mani_rules_prod
+    metrics_path: /api/v1/rules/metrics
+    scheme: https
+    tls_config:
+      insecure_skip_verify: true
+    static_configs:
+      - targets: ['10.43.98.203:443']
+        labels: { ambiente: prod, servicio: rules }
 
   - job_name: mani_salud_prod
     metrics_path: /probe

@@ -46,7 +46,7 @@ flowchart LR
 
 ---
 
-## 🚀 Ejecución y Despliegue Local
+## 🚀 Ejecución Local
 
 ### Prerrequisitos
 * Docker y Docker Compose instalados.
@@ -81,6 +81,52 @@ docker compose --profile db up -d       # PostgreSQL 16 (:5432) + Adminer (http:
 ./scripts/migrate-local.sh              # aplica las migraciones pendientes (Windows: .\scripts\migrate-local.ps1)
 ```
 El cliente web se suma con el perfil `web`, después de construir `mani-web:local` en `MANI-Flutter`. Guía completa: [`database/README.md`](database/README.md).
+
+---
+
+## 🧪 Pruebas
+
+```bash
+# 1. Sintaxis de NGINX (lo mismo que corre el CI)
+docker run --rm -v "${PWD}/nginx.conf:/etc/nginx/nginx.conf" -v "${PWD}/ssl:/etc/nginx/ssl" nginx:alpine \
+  sh -c "mkdir -p /var/log/nginx-metrics && nginx -t"
+
+# 2. Contratos OpenAPI
+npm ci
+npm run validate:openapi
+npm run lint:openapi
+
+# 3. Reglas del Gateway, con el Gateway y Core levantados (docker compose up -d)
+bash tests/gateway/rutas-internas-core.sh http://localhost   # rutas internas de Core no expuestas
+bash tests/gateway/ruta-publica-legal.sh http://localhost    # documentos legales sin token
+bash tests/gateway/ruta-publica-metrics.sh http://localhost  # /metrics de Core sin token
+bash tests/gateway/limite-foto-perfil.sh http://localhost    # límite de 5 MB de la foto de perfil
+bash tests/gateway/cors-preflight.sh http://localhost        # preflight CORS de Flutter Web
+bash tests/gateway/metricas-dispatch-rules.sh http://localhost  # necesita también Dispatch y Rules
+
+# 4. Contrato Postman/Newman contra un ambiente
+npm run postman:run:dev     # o postman:run:qa
+npm run postman:run:rules
+```
+
+El CI (`ci.yml`) corre 1 a 3, salvo `metricas-dispatch-rules.sh` (el CI solo levanta Core), y los gates de contrato (Newman vía el Gateway real; Rules con Gateway + Core + MANI-Java). `qa-regresion.yml` corre la regresión de QA en los PR a `develop` y `release` que tocan `qa/`. `Sonar Quality Gate` es check requerido para fusionar.
+
+---
+
+## 🚢 Despliegue
+
+La imagen se construye una sola vez y se promueve entre ambientes; no se reconstruye para PROD (SCRUM-1723 / QAS-24). El despliegue en las VM lo hace **DevOps**.
+
+| Rama o acción | Workflow | Imagen en GHCR | Ambiente |
+| :--- | :--- | :--- | :--- |
+| Push a `develop` | `docker-publish.yml` | `ghcr.io/trama-as/mani-apigateway:develop` | Integración |
+| Push a `release` | `docker-publish.yml` | `ghcr.io/trama-as/mani-apigateway:staging` | **QA** (VM `10.43.100.141`) |
+| `promote-latest.yml` (manual, *Run workflow*) | `promote-latest.yml` | `ghcr.io/trama-as/mani-apigateway:latest` = **el mismo digest** de `:staging` | **PROD** |
+| Etiqueta `vX.Y.Z` en `main` | `docker-publish.yml` | `ghcr.io/trama-as/mani-apigateway:X.Y.Z` | Versión publicada |
+
+- `monitoring/` (Prometheus, Alertmanager) y el `docker-compose.yml` también viven aquí; los aplica DevOps en cada VM.
+- **Rollback:** se vuelve a ejecutar `promote-latest.yml` con el digest anterior, que queda en el resumen de cada ejecución.
+- **Flujo de ramas** (rama → PR a `develop` → QA → `release` → `main`, nunca PR directo a `main`): [Ramas, flujo y protección](https://github.com/Trama-AS/MANI-docs/blob/main/wiki/03-repositorios/ramas-flujo-y-proteccion.md). **Ambientes:** [Ambientes y promoción](https://github.com/Trama-AS/MANI-docs/blob/main/wiki/04-proceso/ambientes-y-promocion.md).
 
 ---
 
@@ -146,6 +192,8 @@ curl -i http://localhost/health
 ```bash
 npm run validate:openapi        # valida los contratos
 npm run lint:openapi            # Spectral sobre todos
+npm run test:coverage           # pruebas unitarias de los scripts (el Quality Gate exige 80 % en código nuevo)
+npm run verificar:contrato -- --contrato core --url http://localhost:3000   # servicio local contra su contrato (SCRUM-1724)
 npm run postman:generate:rules  # regenera la colección Rules (no editarla a mano)
 
 # Suite Rules contra el Gateway real (requiere core-service con validate-token y rules-service):

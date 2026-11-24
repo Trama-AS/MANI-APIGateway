@@ -67,8 +67,9 @@ Para medir el objetivo de disponibilidad **≥ 99,9 %** sin distorsionar el pres
 | 3. Latencia | p95 por servicio en el Gateway; p95 de Core por ruta | `nginx_http_response_time_seconds_hist`, `http_request_duration_seconds` de Core |
 | 4. Recursos | CPU y memoria por contenedor frente a su límite (QAS-18 y 27); CPU, memoria y disco de la VM | cAdvisor (`name`), node-exporter |
 | 5. Base y respaldos | Conexiones a PostgreSQL por estado; último respaldo y horas desde el último exitoso | postgres-exporter, `mani_backup_*` |
+| 6. Dispatch y Rules por dentro | Peticiones/s, % de `5xx` y p95 de cada servicio | `http_request_duration_seconds` de Dispatch (prometheus-net) y `http_server_requests_seconds` de Rules (Micrometer), `SCRUM-1714` |
 
-Rules y Dispatch no exponen `/metrics` propias: su tráfico, errores y latencia se miden en el Gateway (label `route`).
+El tráfico, los errores y la latencia de Rules y Dispatch se miden en el Gateway (label `route`, filas 2 y 3) y dentro de cada servicio (fila 6).
 
 ### Puesta en marcha en Calidad (DevOps)
 
@@ -80,7 +81,7 @@ docker compose restart prometheus grafana
 curl -s http://127.0.0.1:9090/api/v1/targets | grep -o '"job":"[^"]*","[^}]*"health":"[^"]*"' | sort -u
 ```
 
-Deben quedar en `up` los 14 jobs, incluidos los 4 nuevos de PROD (`infra/prod/README.md`).
+Deben quedar en `up` los 18 jobs. `mani_dispatch_prod` y `mani_rules_prod` solo responden cuando el Gateway de PROD tenga las rutas de `SCRUM-1714`: hasta esa promoción, cargar en Calidad solo los jobs de QA para no disparar `TargetDown`.
 
 ### Configuración y validación (QA)
 
