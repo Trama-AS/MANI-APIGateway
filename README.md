@@ -121,10 +121,11 @@ La imagen se construye una sola vez y se promueve entre ambientes; no se reconst
 | :--- | :--- | :--- | :--- |
 | Push a `develop` | `docker-publish.yml` | `ghcr.io/trama-as/mani-apigateway:develop` | Integración |
 | Push a `release` | `docker-publish.yml` | `ghcr.io/trama-as/mani-apigateway:staging` | **QA** (VM `10.43.100.141`) |
-| `promote-latest.yml` (manual, *Run workflow*) | `promote-latest.yml` | `ghcr.io/trama-as/mani-apigateway:latest` = **el mismo digest** de `:staging` | **PROD** |
+| `promote-latest.yml` (manual, *Run workflow*, desde `main`) | `promote-latest.yml` | `ghcr.io/trama-as/mani-apigateway:latest` = **el mismo digest** de `:staging` | **PROD** |
 | Etiqueta `vX.Y.Z` en `main` | `docker-publish.yml` | `ghcr.io/trama-as/mani-apigateway:X.Y.Z` | Versión publicada |
 
 - `monitoring/` (Prometheus, Alertmanager) y el `docker-compose.yml` también viven aquí; los aplica DevOps en cada VM.
+- `promote-latest.yml` se puede ejecutar cuando llegue a `main`: hoy solo está en `develop` y `release`, y GitHub responde 404 al dispararlo.
 - **Rollback:** se vuelve a ejecutar `promote-latest.yml` con el digest anterior, que queda en el resumen de cada ejecución.
 - **Flujo de ramas** (rama → PR a `develop` → QA → `release` → `main`, nunca PR directo a `main`): [Ramas, flujo y protección](https://github.com/Trama-AS/MANI-docs/blob/main/wiki/03-repositorios/ramas-flujo-y-proteccion.md). **Ambientes:** [Ambientes y promoción](https://github.com/Trama-AS/MANI-docs/blob/main/wiki/04-proceso/ambientes-y-promocion.md).
 
