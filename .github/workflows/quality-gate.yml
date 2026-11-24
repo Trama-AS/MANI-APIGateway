@@ -4,10 +4,12 @@ name: Quality Gate
 # Políticas §14.1), con el mismo diseño que MANI-Node, MANI-Java y MANI-Landing.
 #
 # El servidor SonarQube vive en la VM de Calidad (red privada 10.43.x.x), que los
-# runners de GitHub no alcanzan, así que el análisis corre en el runner
-# self-hosted de la VM de Calidad (label "calidad"). Este repositorio no tiene
-# pruebas unitarias ni reporte de cobertura, por eso hay un solo job: checkout y
-# scanner. No instala dependencias ni ejecuta código del repositorio en la VM.
+# runners de GitHub no alcanzan. Por eso el trabajo se divide en dos jobs:
+#   1. pruebas_cobertura: corre en ubuntu-latest. Ejecuta las pruebas unitarias de
+#      los scripts y genera coverage/lcov.info (QAS-23, SCRUM-1724).
+#   2. sonar_quality_gate: corre en el runner self-hosted de la VM de Calidad
+#      (label "calidad"). Solo descarga el lcov y ejecuta el scanner; no instala
+#      dependencias ni ejecuta código del repositorio en la VM.
 # Las validaciones de contrato (OpenAPI, Newman) siguen en ci.yml.
 #
 # SonarQube Community no analiza ramas ni PRs, así que se usan dos proyectos:
@@ -15,7 +17,8 @@ name: Quality Gate
 #   - mani-apigateway-pr: pull requests, para no pisar el estado de develop.
 #
 # Para que el gate BLOQUEE el merge, el ruleset de develop, release y main debe
-# exigir el check "Sonar Quality Gate".
+# exigir el check "Sonar Quality Gate". Ese job corre aunque fallen las pruebas y
+# falla con ellas: un job omitido cuenta como aprobado en GitHub.
 #
 # Requisitos: secreto SONAR_TOKEN y variable SONAR_HOST_URL (URL del servidor en
 # la VM de Calidad), definidos en el repositorio o en la organización.
@@ -36,8 +39,39 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  pruebas_cobertura:
+    name: Pruebas y cobertura
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Pruebas con cobertura
+        run: npm run test:coverage
+
+      # El reporter lcov de Node escribe rutas relativas (SF:scripts/...), así que
+      # el archivo sirve tal cual en el workspace del runner self-hosted.
+      - name: Publicar reporte lcov
+        uses: actions/upload-artifact@v4
+        with:
+          name: cobertura_lcov
+          path: coverage/lcov.info
+          if-no-files-found: error
+          retention-days: 3
+
   sonar_quality_gate:
     name: Sonar Quality Gate
+    needs: pruebas_cobertura
+    if: ${{ !cancelled() }}
     # Los PRs desde forks no llegan al runner de la VM: su código no es de
     # confianza y no tienen acceso a los secretos. En vez de omitir el job (un
     # job omitido cuenta como aprobado), el job corre en ubuntu-latest y falla.
@@ -49,10 +83,22 @@ jobs:
           echo "::error::Los PRs desde forks no pasan el Quality Gate. Abra el PR desde una rama de Trama-AS."
           exit 1
 
+      - name: Exigir que las pruebas hayan pasado
+        if: needs.pruebas_cobertura.result != 'success'
+        run: |
+          echo "::error::Las pruebas con cobertura no pasaron."
+          exit 1
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Descargar reporte lcov
+        uses: actions/download-artifact@v4
+        with:
+          name: cobertura_lcov
+          path: coverage
 
       # Si falta el secreto o la variable, el job falla. Un check omitido o en
       # verde sin análisis daría una falsa señal de calidad.

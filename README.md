@@ -146,6 +146,8 @@ curl -i http://localhost/health
 ```bash
 npm run validate:openapi        # valida los contratos
 npm run lint:openapi            # Spectral sobre todos
+npm run test:coverage           # pruebas unitarias de los scripts (el Quality Gate exige 80 % en código nuevo)
+npm run verificar:contrato -- --contrato core --url http://localhost:3000   # servicio local contra su contrato (SCRUM-1724)
 npm run postman:generate:rules  # regenera la colección Rules (no editarla a mano)
 
 # Suite Rules contra el Gateway real (requiere core-service con validate-token y rules-service):
