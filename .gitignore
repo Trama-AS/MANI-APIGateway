@@ -5,6 +5,7 @@ Thumbs.db
 .vscode/
 node_modules/
 newman/
+coverage/
 
 # Variables locales (copiar desde .env.example)
 .env
